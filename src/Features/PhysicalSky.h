@@ -72,9 +72,9 @@ struct PhysicalSky : Feature
 		float ozone_height = 25.f;  // in km
 		float ozone_thickness = 30.f;
 
-		float ap_inscatter_mix = 0.1f;
-		float ap_transmittance_mix = 0.1f;
-		float light_transmittance_mix = 0.1f;
+		float ap_inscatter_mix = 1.f;
+		float ap_transmittance_mix = 1.f;
+		float light_transmittance_mix = 1.f;
 	};
 
 	struct Settings

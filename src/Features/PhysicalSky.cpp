@@ -489,25 +489,25 @@ void PhysicalSky::DrawSettingsWeather()
 			ImGui::DragFloat("Ozone Mean Height", &settings.debug_weather.ozone_height, .1f, 0.f, 100.f);
 			ImGui::DragFloat("Ozone Layer Thickness", &settings.debug_weather.ozone_thickness, .1f, 0.f, 50.f);
 
-			if (ImPlot::BeginPlot("Media Density", { -1, 0 }, ImPlotFlags_NoInputs)) {
-				ImPlot::SetupAxis(ImAxis_X1, "Altitude / km");
-				ImPlot::SetupAxis(ImAxis_Y1, "Relative Density");
-				ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-				ImPlot::SetupFinish();
+			// if (ImPlot::BeginPlot("Media Density", { -1, 0 }, ImPlotFlags_NoInputs)) {
+			// 	ImPlot::SetupAxis(ImAxis_X1, "Altitude / km");
+			// 	ImPlot::SetupAxis(ImAxis_Y1, "Relative Density");
+			// 	ImPlot::SetupLegend(ImPlotLocation_NorthEast);
+			// 	ImPlot::SetupFinish();
 
-				constexpr size_t n_datapoints = 101;
-				std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
-				for (size_t i = 0; i < n_datapoints; i++) {
-					heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
-					rayleigh_data[i] = exp(-heights[i] / settings.debug_weather.rayleigh_decay);
-					mie_data[i] = exp(-heights[i] / settings.debug_weather.mie_decay);
-					ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.debug_weather.ozone_height) / (settings.debug_weather.ozone_thickness * .5f));
-				}
-				ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
-				ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
-				ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
-				ImPlot::EndPlot();
-			}
+			// 	constexpr size_t n_datapoints = 101;
+			// 	std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
+			// 	for (size_t i = 0; i < n_datapoints; i++) {
+			// 		heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
+			// 		rayleigh_data[i] = exp(-heights[i] / settings.debug_weather.rayleigh_decay);
+			// 		mie_data[i] = exp(-heights[i] / settings.debug_weather.mie_decay);
+			// 		ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.debug_weather.ozone_height) / (settings.debug_weather.ozone_thickness * .5f));
+			// 	}
+			// 	ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
+			// 	ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
+			// 	ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
+			// 	ImPlot::EndPlot();
+			// }
 
 			ImGui::TreePop();
 		}
