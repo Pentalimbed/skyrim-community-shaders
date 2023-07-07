@@ -61,7 +61,7 @@ namespace Util
 	std::string GetNameFromSRV(ID3D11ShaderResourceView* a_srv)
 	{
 		using RENDER_TARGET = RE::RENDER_TARGETS::RENDER_TARGET;
- 
+
 		if (a_srv) {
 			if (auto r = RE::BSGraphics::Renderer::GetSingleton()) {
 				for (int i = 0; i < RENDER_TARGET::kTOTAL; i++) {
@@ -73,6 +73,40 @@ namespace Util
 			}
 		}
 		return "NONE";
+	}
+
+	std::optional<RE::BSGraphics::RenderTargetData> GetRTDataFromSRV(ID3D11ShaderResourceView* a_srv)
+	{
+		using RENDER_TARGET = RE::RENDER_TARGETS::RENDER_TARGET;
+
+		if (a_srv) {
+			if (auto r = RE::BSGraphics::Renderer::GetSingleton()) {
+				for (int i = 0; i < RENDER_TARGET::kTOTAL; i++) {
+					auto rt = r->GetRuntimeData().renderTargets[i];
+					if (a_srv == rt.SRV || a_srv == rt.SRVCopy) {
+						return rt;
+					}
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
+	std::optional<RE::BSGraphics::RenderTargetData> GetRTDataFromRTV(ID3D11RenderTargetView* a_rtv)
+	{
+		using RENDER_TARGET = RE::RENDER_TARGETS::RENDER_TARGET;
+
+		if (a_rtv) {
+			if (auto r = RE::BSGraphics::Renderer::GetSingleton()) {
+				for (int i = 0; i < RENDER_TARGET::kTOTAL; i++) {
+					auto rt = r->GetRuntimeData().renderTargets[i];
+					if (a_rtv == rt.RTV) {
+						return rt;
+					}
+				}
+			}
+		}
+		return std::nullopt;
 	}
 
 	std::string GetNameFromRTV(ID3D11RenderTargetView* a_rtv)
@@ -176,5 +210,25 @@ namespace Util
 		}
 
 		return nullptr;
+	}
+}
+
+namespace nlohmann
+{
+	void to_json(json& j, const DirectX::XMFLOAT3& v)
+	{
+		j = json{ v.x, v.y, v.z };
+	}
+	void from_json(const json& j, DirectX::XMFLOAT3& v)
+	{
+		v = { j[0].get<float>(), j[1].get<float>(), j[2].get<float>() };
+	}
+	void to_json(json& j, const DirectX::XMFLOAT2& v)
+	{
+		j = json{ v.x, v.y };
+	}
+	void from_json(const json& j, DirectX::XMFLOAT2& v)
+	{
+		v = { j[0].get<float>(), j[1].get<float>() };
 	}
 }

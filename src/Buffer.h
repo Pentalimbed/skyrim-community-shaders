@@ -1,7 +1,7 @@
 #pragma once
 
-#include <d3d11.h>
 #include <DirectXMath.h>
+#include <d3d11.h>
 
 #include <Windows.Foundation.h>
 #include <stdio.h>
@@ -191,6 +191,33 @@ public:
 
 	D3D11_TEXTURE2D_DESC desc;
 	winrt::com_ptr<ID3D11Texture2D> resource;
+	winrt::com_ptr<ID3D11ShaderResourceView> srv;
+	winrt::com_ptr<ID3D11UnorderedAccessView> uav;
+};
+
+class Texture3D
+{
+public:
+	Texture3D(D3D11_TEXTURE3D_DESC const& a_desc)
+	{
+		desc = a_desc;
+		auto device = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().forwarder;
+		DX::ThrowIfFailed(device->CreateTexture3D(&desc, nullptr, resource.put()));
+	}
+
+	void CreateSRV(D3D11_SHADER_RESOURCE_VIEW_DESC const& a_desc)
+	{
+		ID3D11Device* device = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().forwarder;
+		DX::ThrowIfFailed(device->CreateShaderResourceView(resource.get(), &a_desc, srv.put()));
+	}
+	void CreateUAV(D3D11_UNORDERED_ACCESS_VIEW_DESC const& a_desc)
+	{
+		ID3D11Device* device = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().forwarder;
+		DX::ThrowIfFailed(device->CreateUnorderedAccessView(resource.get(), &a_desc, uav.put()));
+	}
+
+	D3D11_TEXTURE3D_DESC desc;
+	winrt::com_ptr<ID3D11Texture3D> resource;
 	winrt::com_ptr<ID3D11ShaderResourceView> srv;
 	winrt::com_ptr<ID3D11UnorderedAccessView> uav;
 };

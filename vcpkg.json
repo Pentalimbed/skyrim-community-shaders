@@ -20,7 +20,8 @@
         "docking-experimental"
       ],
       "version>=": "1.88"
-    }
+    },
+    "implot"
   ],
   "builtin-baseline": "36fb23307e10cc6ffcec566c46c4bb3f567c82c6"
 }
