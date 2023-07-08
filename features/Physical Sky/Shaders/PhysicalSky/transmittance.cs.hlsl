@@ -45,7 +45,7 @@ float3 getSunTransmittance(float3 pos, float3 sun_dir)
 	float height = phys_sky[0].ground_radius + phys_sky[0].atmos_thickness * uv.y;
 
 	float3 pos = float3(0, 0, height);
-	float3 sun_dir = normalize(float3(0, -sqrt(1 - cos_zenith * cos_zenith), cos_zenith));
+	float3 sun_dir = normalize(float3(0, sqrt(1 - cos_zenith * cos_zenith), cos_zenith));
 
 	tex_transmittance[tid.xy] = float4(getSunTransmittance(pos, sun_dir), 1.0);
 }

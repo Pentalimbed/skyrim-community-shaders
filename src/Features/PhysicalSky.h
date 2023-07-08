@@ -72,7 +72,7 @@ struct PhysicalSky : Feature
 
 		float ap_inscatter_mix = 1.f;
 		float ap_transmittance_mix = 1.f;
-		float light_transmittance_mix = 1.f;
+		float light_transmittance_mix = 2.f;
 	};
 
 	struct Settings

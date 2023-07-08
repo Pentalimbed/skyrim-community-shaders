@@ -161,12 +161,12 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color.xyz = 0;
 
 #	ifndef OCCLUSION
-#		ifndef TEXLERP
+#		ifndef TEXLERP  // Clouds | Texture
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
-#			ifdef TEXFADE
+#			ifdef TEXFADE  // CloudsFade
 	baseColor.w *= PParams.x;
 #			endif
-#		else
+#		else  // CloudsLerp
 	float4 blendColor = TexBlendSampler.Sample(SampBlendSampler, input.TexCoord1.xy);
 	float4 baseColor = TexBaseSampler.Sample(SampBaseSampler, input.TexCoord0.xy);
 	baseColor = PParams.xxxx * (-baseColor + blendColor) + baseColor;
@@ -177,21 +177,21 @@ PS_OUTPUT main(PS_INPUT input)
 	float noiseGrad =
 		TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
 
-#			ifdef TEX
+#			ifdef TEX  // SunGlare
 	psout.Color.xyz = (input.Color.xyz * baseColor.xyz + PParams.yyy) + noiseGrad;
 	psout.Color.w = baseColor.w * input.Color.w;
-#			else
+#			else                // Sky
 	psout.Color.xyz = (PParams.yyy + input.Color.xyz) + noiseGrad;
 	psout.Color.w = input.Color.w;
-#			endif  // TEX
-#		elif defined(MOONMASK)
+#			endif               // TEX
+#		elif defined(MOONMASK)  // MoonAndStarsMask
 	psout.Color.xyzw = baseColor;
 
 	if (baseColor.w - AlphaTestRefRS.x < 0) {
 		discard;
 	}
 
-#		elif defined(HORIZFADE)
+#		elif defined(HORIZFADE)  // Stars
 	psout.Color.xyz = float3(1.5, 1.5, 1.5) * (input.Color.xyz * baseColor.xyz + PParams.yyy);
 	psout.Color.w = input.TexCoord2.x * (baseColor.w * input.Color.w);
 #		else
@@ -199,14 +199,14 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color.xyz = input.Color.xyz * baseColor.xyz + PParams.yyy;
 #		endif
 
-#	else
+#	else   // SunOcclude
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
 
-#	if defined(DITHER) && !defined(TEX)  // TEXTURE
 	if (phys_sky[0].enable_sky) {
-		//
-		float3 view_dir = normalize(input.WorldPosition);
+#	if defined(DITHER) && !defined(TEX)  // SKY
+
+		float3 view_dir = normalize(input.WorldPosition.xyz);
 
 		float height = (phys_sky[0].player_cam_pos.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
 
@@ -218,7 +218,7 @@ PS_OUTPUT main(PS_INPUT input)
 			// SUN
 			psout.Color.rgb = phys_sky[0].sun_intensity;
 
-			float darken_factor = 1;
+			float3 darken_factor = 1;
 			float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sin(phys_sky[0].sun_half_angle);
 			if (phys_sky[0].limb_darken_model == 1)
 				darken_factor = limbDarkenNeckel(norm_dist);
@@ -230,9 +230,9 @@ PS_OUTPUT main(PS_INPUT input)
 		float2 uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
 		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, uv, 0).rgb;
 
-		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, getSkyLutUv(view_dir), 0).rgb;
+		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, cylinderMapAdjusted(view_dir), 0).rgb;
 
-		// TONEMAP
+		// // TONEMAP
 		// psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);
 
 		// // DITHER
@@ -242,8 +242,10 @@ PS_OUTPUT main(PS_INPUT input)
 		// psout.Color.rgb += noiseGrad;
 
 		psout.Color.a = input.Color.w;
-	}
+#	else
+		discard;
 #	endif
+	}
 
 	float4 screenPosition = mul(ScreenProj, input.WorldPosition);
 	screenPosition.xy = screenPosition.xy / screenPosition.ww;

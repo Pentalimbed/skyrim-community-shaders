@@ -73,12 +73,12 @@ float rayIntersectSphere(float3 orig, float3 dir, float rad)
 	return -b - sqrt(discr);
 }
 
-float3 getSphericalDir(float azimuth, float zenith)
+float3 sphericalDir(float azimuth, float zenith)
 {
 	float cos_zenith, sin_zenith, cos_azimuth, sin_azimuth;
 	sincos(zenith, sin_zenith, cos_zenith);
 	sincos(azimuth, sin_azimuth, cos_azimuth);
-	return float3(sin_zenith * sin_azimuth, sin_zenith * cos_azimuth, cos_zenith);
+	return float3(sin_zenith * cos_azimuth, sin_zenith * sin_azimuth, cos_zenith);
 }
 
 void scatterValues(
@@ -130,15 +130,51 @@ float2 getLutUv(float3 pos, float3 sun_dir, float ground_radius, float atmos_thi
 	return uv;
 }
 
-float2 getSkyLutUv(float3 dir)
+float2 cylinderMapAdjusted(float3 view_dir)
 {
-	float azimuth = atan2(dir.x, dir.y);
+	float azimuth = sign(view_dir.y) * atan2(view_dir.y, view_dir.x);
 	float u = azimuth / (2 * PI);
-	float zenith = asin(dir.z);
-	if (abs(zenith) > (0.5 * PI - .0001))
+	float zenith = asin(view_dir.z);
+	if (abs(zenith) < 1e-4)
 		zenith = 0.0;
 	float v = 0.5 - 0.5 * sign(zenith) * sqrt(abs(zenith) * 2 / PI);
 	return float2(u, v);
+}
+
+float3 invCylinderMapAdjusted(float2 uv)
+{
+	float azimuth = uv.x * 2 * PI;
+	float vm = 1 - 2 * uv.y;
+	float zenith = PI * .5 * (1 - sign(vm) * vm * vm);
+	return sphericalDir(azimuth, zenith);
+}
+
+// adjusted lambert azimuthal
+// https://arxiv.org/vc/arxiv/papers/1206/1206.2068v1.pdf
+float3 invLambAzAdjusted(float2 uv, float equator)
+{
+	const float k_e = tan(PI * .25 + equator * .5);
+
+	const float long = atan2(uv.y - .5, uv.x - .5);
+
+	const float r = length(uv - 0.5) * 2;
+	const float temp_0 = 2 * r * r - 1;
+	const float lat = atan2(k_e * temp_0, sqrt(1 - temp_0 * temp_0)) + PI * .5;
+	return sphericalDir(long, lat);
+}
+
+float2 lambAzAdjusted(float3 view_dir, float equator)
+{
+	const float k_e = tan(PI * .25 + equator * .5);
+
+	const float len_xy = length(view_dir.xy);
+	if (len_xy < 1e-10)
+		return float2(.5, .5);
+
+	const float tan_lat = -view_dir.z / len_xy;
+	const float temp_0 = sign(k_e) * tan_lat / sqrt(tan_lat * tan_lat + k_e * k_e);
+	const float r = sqrt((temp_0 + 1) * .5);
+	return .5 + r * normalize(view_dir.xy) * .5;
 }
 
 float3 limbDarkenNeckel(float norm_dist)

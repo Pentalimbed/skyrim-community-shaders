@@ -27,7 +27,7 @@ void getMultiscatterValues(
 		for (uint j = 0; j < sqrt_samples; ++j) {
 			float theta = (i + 0.5) * PI / sqrt_samples;
 			float phi = acos(1.0 - 2.0 * (j + 0.5) / sqrt_samples);
-			float3 ray_dir = getSphericalDir(theta, phi);
+			float3 ray_dir = sphericalDir(theta, phi);
 
 			float ground_dist = rayIntersectSphere(pos, ray_dir, phys_sky[0].ground_radius);
 			float atmos_dist = rayIntersectSphere(pos, ray_dir, phys_sky[0].ground_radius + phys_sky[0].atmos_thickness);

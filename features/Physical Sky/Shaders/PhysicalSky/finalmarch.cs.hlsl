@@ -85,11 +85,8 @@ return lum;
 #endif
 	float2 uv = (tid.xy + 0.5) / out_dims.xy;
 
-	float azimuth_angle = uv.x * 2 * PI;
-	float vm = 1 - 2 * uv.y;
-	float zenith_angle = (PI / 2) * (1 - sign(vm) * vm * vm);
-
-	float3 ray_dir = getSphericalDir(azimuth_angle, zenith_angle);
+	float3 ray_dir = invCylinderMapAdjusted(uv);
+	// float3 ray_dir = invLambAzAdjusted(uv, 0);
 
 	float height = (EyePosition.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
 	float3 view_pos = float3(0, 0, height);
