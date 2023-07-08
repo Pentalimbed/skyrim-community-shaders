@@ -285,7 +285,8 @@ void Menu::DrawSettings()
 
 	ImGui::SetNextWindowSize({ 1000, 1000 }, ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowPos({ 0, 0 }, ImGuiCond_FirstUseEver);
-	if (ImGui::Begin(std::format("Skyrim Community Shaders {}", Plugin::VERSION.string(".")).c_str(), &IsEnabled)) {
+	if (ImGui::Begin(std::format("Skyrim Community Shaders {}", Plugin::VERSION.string(".")).c_str(), &IsEnabled,
+			ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
 		auto& shaderCache = SIE::ShaderCache::Instance();
 
 		if (ImGui::BeginTable("##LeButtons", 4, ImGuiTableFlags_SizingStretchSame)) {

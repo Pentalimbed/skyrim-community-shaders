@@ -28,10 +28,8 @@ struct PhysSkySB
 
 	float3 ground_albedo;
 
-	float3 source_illuminance;
-
 	uint limb_darken_model;
-	float3 sun_luminance;
+	float3 sun_intensity;
 	float sun_half_angle;
 
 	float3 rayleigh_scatter;

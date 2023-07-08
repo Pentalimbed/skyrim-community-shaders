@@ -35,9 +35,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WorldspaceControls,
 	atmos_thickness)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WeatherControls,
 	ground_albedo,
-	source_illuminance,
+	sun_intensity,
 	limb_darken_model,
-	sun_luminance,
+	sun_intensity,
 	sun_half_angle,
 	rayleigh_scatter,
 	rayleigh_absorption,
@@ -217,11 +217,11 @@ void PhysicalSky::Draw(const RE::BSShader* shader, [[maybe_unused]] const uint32
 	};
 
 	UpdatePhysSkySB();
+	if (phys_sky_sb_content.enable_sky)
+		GenerateLuts();
 
 	switch (shader->shaderType.get()) {
 	case RE::BSShader::Type::Sky:
-		if (phys_sky_sb_content.enable_sky)
-			GenerateLuts();
 		if (descriptor == std::underlying_type_t<SkyShaderTechniques>(SkyShaderTechniques::Sky))
 			ModifySky();
 		break;
@@ -272,10 +272,8 @@ void PhysicalSky::UpdatePhysSkySB()
 
 		.ground_albedo = settings.debug_weather.ground_albedo,
 
-		.source_illuminance = settings.debug_weather.source_illuminance,
-
 		.limb_darken_model = settings.debug_weather.limb_darken_model,
-		.sun_luminance = settings.debug_weather.sun_luminance,
+		.sun_intensity = settings.debug_weather.sun_intensity,
 		.sun_half_angle = settings.debug_weather.sun_half_angle,
 
 		.rayleigh_scatter = settings.debug_weather.rayleigh_scatter,
@@ -460,8 +458,7 @@ void PhysicalSky::DrawSettingsWeather()
 	{
 		ImGui::ColorEdit3("Ground Albedo", &settings.debug_weather.ground_albedo.x, hdr_color_edit_flags);
 
-		ImGui::ColorEdit3("Source Illuminance", &settings.debug_weather.source_illuminance.x, hdr_color_edit_flags);
-		ImGui::ColorEdit3("Sun Luminance", &settings.debug_weather.sun_luminance.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Sun Intensity", &settings.debug_weather.sun_intensity.x, hdr_color_edit_flags);
 		ImGui::SliderAngle("Sun Half Angle", &settings.debug_weather.sun_half_angle, 0.f, 90.f, "%.3f deg");
 
 		if (ImGui::TreeNodeEx("Participating Media", ImGuiTreeNodeFlags_DefaultOpen)) {

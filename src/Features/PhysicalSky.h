@@ -44,7 +44,7 @@ struct PhysicalSky : Feature
 		uint32_t enable_sky = true;
 		uint32_t enable_scatter = true;
 
-		DirectX::XMFLOAT2 unit_scale = { 10, 1 };
+		DirectX::XMFLOAT2 unit_scale = { 5, 1 };
 		float bottom_z = -15000;      // in game unit
 		float ground_radius = 6.36f;  // in megameter
 		float atmos_thickness = .1f;
@@ -54,11 +54,9 @@ struct PhysicalSky : Feature
 	{
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
-		DirectX::XMFLOAT3 source_illuminance = { 1.2e1f, 1.2e1f, 1.2e1f };  // 1.2e5 Lux
-
 		uint32_t limb_darken_model = 1;
-		DirectX::XMFLOAT3 sun_luminance = { 1.69e5, 1.69e5, 1.69e5 };  // 1.69e9 cd m^-2
-		float sun_half_angle = 0.545 * 3.1415926535 / 180.0;           // in rad
+		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };        // 1.69e9 cd m^-2
+		float sun_half_angle = 0.545 * 3.1415926535 / 180.0;  // in rad
 
 		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802f, 13.558f, 33.1f };  // in megameter^-1
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
@@ -126,10 +124,8 @@ struct PhysicalSky : Feature
 
 		DirectX::XMFLOAT3 ground_albedo;
 
-		DirectX::XMFLOAT3 source_illuminance;
-
 		uint32_t limb_darken_model;
-		DirectX::XMFLOAT3 sun_luminance;
+		DirectX::XMFLOAT3 sun_intensity;
 		float sun_half_angle;
 
 		DirectX::XMFLOAT3 rayleigh_scatter;

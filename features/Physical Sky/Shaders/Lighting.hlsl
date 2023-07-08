@@ -966,7 +966,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 #	ifdef PHYSICAL_SKY
 	float4 ap = { 0, 0, 0, 1 };
-	float3 sun_transmittance = { 1, 1, 1 };
+	// float3 sun_transmittance = { 1, 1, 1 };
 	if (phys_sky[0].enable_sky && phys_sky[0].enable_scatter) {
 		uint3 ap_dims;
 		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
@@ -976,9 +976,9 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 view_dir = normalize(input.WorldPosition.xyz);
 		ap = TexAerialPerspective.SampleLevel(SampColorSampler, float3(getSkyLutUv(view_dir), depth_slice), 0);
 
-		float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
-		float uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-		sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, uv, 0).rgb;
+		// float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
+		// float lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+		// sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, lut_uv, 0).rgb;
 	}
 #	endif
 
@@ -1449,9 +1449,9 @@ PS_OUTPUT main(PS_INPUT input)
 	dirLightColor *= dirLightSShadow;
 #	endif
 
-#	ifdef PHYSICAL_SKY
-	dirLightColor *= lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
-#	endif
+	// #	ifdef PHYSICAL_SKY
+	// 	dirLightColor *= lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
+	// #	endif
 
 #	if defined(CPM_AVAILABLE) && (defined(SKINNED) || !defined(MODELSPACENORMALS))
 	float3 dirLightDirectionTS = mul(DirLightDirection, tbn).xyz;
