@@ -10,6 +10,8 @@ static const float PI = 3.141592653589793238462643383279;
 struct PhysSkySB
 {
 	float3 sun_dir;
+	float3 masser_dir;
+	float3 secunda_dir;
 	float3 player_cam_pos;
 
 	bool enable_sky;
@@ -28,9 +30,13 @@ struct PhysSkySB
 
 	float3 ground_albedo;
 
-	uint limb_darken_model;
+	int limb_darken_model;
+	float limb_darken_power;
 	float3 sun_intensity;
-	float sun_half_angle;
+	float sun_aperture_angle;
+
+	float masser_aperture_angle;
+	float secunda_aperture_angle;
 
 	float3 rayleigh_scatter;
 	float3 rayleigh_absorption;

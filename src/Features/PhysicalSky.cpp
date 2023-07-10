@@ -38,7 +38,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WeatherControls,
 	sun_intensity,
 	limb_darken_model,
 	sun_intensity,
-	sun_half_angle,
+	sun_aperture_angle,
 	rayleigh_scatter,
 	rayleigh_absorption,
 	rayleigh_decay,
@@ -239,26 +239,7 @@ void PhysicalSky::UpdatePhysSkySB()
 	if (!frame_checker.isNewFrame(RE::BSGraphics::State::GetSingleton()->uiFrameCount))
 		return;
 
-	bool enable_sky =
-		settings.user.enable_sky &&
-		settings.debug_worldspace.enable_sky &&
-		(RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull);
-
-	auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
-	auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
-	if (!dir_light)
-		return;
-	auto sun_dir = dir_light->GetWorldDirection();
-
-	auto cam_pos = RE::PlayerCamera::GetSingleton()->pos;
-
 	phys_sky_sb_content = {
-		.sun_dir = { -sun_dir.x, -sun_dir.y, -sun_dir.z },
-		.player_cam_pos = { cam_pos.x, cam_pos.y, cam_pos.z },
-
-		.enable_sky = enable_sky,
-		.enable_scatter = settings.user.enable_scatter && settings.debug_worldspace.enable_scatter,
-
 		.transmittance_step = settings.user.transmittance_step,
 		.multiscatter_step = settings.user.multiscatter_step,
 		.multiscatter_sqrt_samples = settings.user.multiscatter_sqrt_samples,
@@ -273,8 +254,12 @@ void PhysicalSky::UpdatePhysSkySB()
 		.ground_albedo = settings.debug_weather.ground_albedo,
 
 		.limb_darken_model = settings.debug_weather.limb_darken_model,
+		.limb_darken_power = settings.debug_weather.limb_darken_power,
 		.sun_intensity = settings.debug_weather.sun_intensity,
-		.sun_half_angle = settings.debug_weather.sun_half_angle,
+		.sun_aperture_angle = settings.debug_weather.sun_aperture_angle,
+
+		.masser_aperture_angle = settings.debug_weather.masser_aperture_angle,
+		.secunda_aperture_angle = settings.debug_weather.secunda_aperture_angle,
 
 		.rayleigh_scatter = settings.debug_weather.rayleigh_scatter,
 		.rayleigh_absorption = settings.debug_weather.rayleigh_absorption,
@@ -292,6 +277,45 @@ void PhysicalSky::UpdatePhysSkySB()
 		.ap_transmittance_mix = settings.debug_weather.ap_transmittance_mix,
 		.light_transmittance_mix = settings.debug_weather.light_transmittance_mix
 	};
+
+	phys_sky_sb_content.enable_sky =
+		settings.user.enable_sky &&
+		settings.debug_worldspace.enable_sky &&
+		(RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull);
+	phys_sky_sb_content.enable_scatter = settings.user.enable_scatter && settings.debug_worldspace.enable_scatter;
+
+	auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
+	auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
+	if (dir_light) {
+		auto sun_dir = -dir_light->GetWorldDirection();
+		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	}
+
+	RE::NiPoint3 cam_pos = { 0, 0, 0 };
+	if (auto cam = RE::PlayerCamera::GetSingleton(); cam && cam->cameraRoot) {
+		cam_pos = cam->cameraRoot->world.translate;
+		phys_sky_sb_content.player_cam_pos = { cam_pos.x, cam_pos.y, cam_pos.z };
+	}
+
+	auto sky = RE::Sky::GetSingleton();
+	// auto sun = sky->sun;
+	auto masser = sky->masser;
+	auto secunda = sky->secunda;
+	// if (sun) {
+	// 	auto sun_dir = sun->sunBase->world.translate - cam_pos;
+	// 	sun_dir.Unitize();
+	// 	phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	// } // during night it flips
+	if (masser) {
+		auto masser_dir = masser->moonMesh->world.translate - cam_pos;
+		masser_dir.Unitize();
+		phys_sky_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
+	}
+	if (secunda) {
+		auto secunda_dir = secunda->moonMesh->world.translate - cam_pos;
+		secunda_dir.Unitize();
+		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
+	}
 
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 	D3D11_MAPPED_SUBRESOURCE mapped;
@@ -458,8 +482,17 @@ void PhysicalSky::DrawSettingsWeather()
 	{
 		ImGui::ColorEdit3("Ground Albedo", &settings.debug_weather.ground_albedo.x, hdr_color_edit_flags);
 
+		ImGui::Spacing();
+
 		ImGui::ColorEdit3("Sun Intensity", &settings.debug_weather.sun_intensity.x, hdr_color_edit_flags);
-		ImGui::SliderAngle("Sun Half Angle", &settings.debug_weather.sun_half_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderAngle("Sun Aperture", &settings.debug_weather.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::Combo("Limb Darkening Model", &settings.debug_weather.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
+		ImGui::SliderFloat("Limb Darken Strength", &settings.debug_weather.limb_darken_power, 0.f, 5.f, "%.1f");
+
+		ImGui::Spacing();
+
+		ImGui::SliderAngle("Masser Aperture", &settings.debug_weather.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderAngle("Secunda Aperture", &settings.debug_weather.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
 
 		if (ImGui::TreeNodeEx("Participating Media", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::TextWrapped(
@@ -517,9 +550,19 @@ void PhysicalSky::DrawSettingsWeather()
 		ImGui::EndDisabled();
 }
 
+// void drawTrans(const char* label, RE::NiTransform t)
+// {
+// 	auto rel_pos = t.translate - RE::PlayerCamera::GetSingleton()->pos;
+// 	rel_pos.Unitize();
+// 	ImGui::InputFloat3(label, &rel_pos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+// }
+
 void PhysicalSky::DrawSettingsDebug()
 {
 	ImGui::InputFloat3("Sun Direction", &phys_sky_sb_content.sun_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Masser Direction", &phys_sky_sb_content.masser_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Secunda Direction", &phys_sky_sb_content.secunda_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Cam Pos", &phys_sky_sb_content.player_cam_pos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::BulletText("Transmittance LUT");
 	ImGui::Image((void*)(transmittance_lut->srv.get()), { s_transmittance_width, s_transmittance_height });

@@ -44,7 +44,7 @@ struct PhysicalSky : Feature
 		uint32_t enable_sky = true;
 		uint32_t enable_scatter = true;
 
-		DirectX::XMFLOAT2 unit_scale = { 5, 1 };
+		DirectX::XMFLOAT2 unit_scale = { 10, 1 };
 		float bottom_z = -15000;      // in game unit
 		float ground_radius = 6.36f;  // in megameter
 		float atmos_thickness = .1f;
@@ -54,9 +54,13 @@ struct PhysicalSky : Feature
 	{
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
-		uint32_t limb_darken_model = 1;
-		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };        // 1.69e9 cd m^-2
-		float sun_half_angle = 0.545 * 3.1415926535 / 180.0;  // in rad
+		int32_t limb_darken_model = 1;
+		float limb_darken_power = 1.f;
+		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };          // 1.69e9 cd m^-2
+		float sun_aperture_angle = 2.2 * 3.1415926535 / 180.0;  // in rad
+
+		float masser_aperture_angle = 9.8 * 3.1415926535 / 180.0;
+		float secunda_aperture_angle = 4.3 * 3.1415926535 / 180.0;
 
 		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802f, 13.558f, 33.1f };  // in megameter^-1
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
@@ -106,6 +110,8 @@ struct PhysicalSky : Feature
 	struct PhysSkySB
 	{
 		DirectX::XMFLOAT3 sun_dir;
+		DirectX::XMFLOAT3 masser_dir;
+		DirectX::XMFLOAT3 secunda_dir;
 		DirectX::XMFLOAT3 player_cam_pos;
 
 		uint32_t enable_sky;
@@ -124,9 +130,13 @@ struct PhysicalSky : Feature
 
 		DirectX::XMFLOAT3 ground_albedo;
 
-		uint32_t limb_darken_model;
+		int32_t limb_darken_model;
+		float limb_darken_power;
 		DirectX::XMFLOAT3 sun_intensity;
-		float sun_half_angle;
+		float sun_aperture_angle;
+
+		float masser_aperture_angle;
+		float secunda_aperture_angle;
 
 		DirectX::XMFLOAT3 rayleigh_scatter;
 		DirectX::XMFLOAT3 rayleigh_absorption;

@@ -212,19 +212,27 @@ PS_OUTPUT main(PS_INPUT input)
 
 		bool is_sky = rayIntersectSphere(float3(0, 0, height), view_dir, phys_sky[0].ground_radius) < 0;
 		float cos_sun_view = dot(phys_sky[0].sun_dir, view_dir);
-		bool is_sun = cos_sun_view > cos(phys_sky[0].sun_half_angle);
+		bool is_sun = cos_sun_view > cos(phys_sky[0].sun_aperture_angle);
+		bool is_masser = dot(phys_sky[0].masser_dir, view_dir) > cos(phys_sky[0].masser_aperture_angle);
+		bool is_secunda = dot(phys_sky[0].secunda_dir, view_dir) > cos(phys_sky[0].secunda_aperture_angle);
 
-		if (is_sky && is_sun) {
-			// SUN
-			psout.Color.rgb = phys_sky[0].sun_intensity;
+		if (is_sky) {
+			if (is_secunda) {
+				psout.Color.rgb = phys_sky[0].sun_intensity;
+			} else if (is_masser) {
+				psout.Color.rgb = phys_sky[0].sun_intensity;
+			} else if (is_sun) {
+				// SUN
+				psout.Color.rgb = phys_sky[0].sun_intensity;
 
-			float3 darken_factor = 1;
-			float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sin(phys_sky[0].sun_half_angle);
-			if (phys_sky[0].limb_darken_model == 1)
-				darken_factor = limbDarkenNeckel(norm_dist);
-			else if (phys_sky[0].limb_darken_model == 2)
-				darken_factor = limbDarkenHestroffer(norm_dist);
-			psout.Color.rgb *= darken_factor;
+				float3 darken_factor = 1;
+				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sin(phys_sky[0].sun_aperture_angle);
+				if (phys_sky[0].limb_darken_model == 1)
+					darken_factor = limbDarkenNeckel(norm_dist);
+				else if (phys_sky[0].limb_darken_model == 2)
+					darken_factor = limbDarkenHestroffer(norm_dist);
+				psout.Color.rgb *= pow(darken_factor, phys_sky[0].limb_darken_power);
+			}
 		}
 
 		float2 uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
