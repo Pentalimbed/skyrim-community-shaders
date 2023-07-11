@@ -133,6 +133,7 @@ Texture2D<float4> TexBaseSampler : register(t0);
 Texture2D<float4> TexBlendSampler : register(t1);
 Texture2D<float4> TexNoiseGradSampler : register(t2);
 
+#	include "PhysicalSky/aurora.hlsli"
 #	include "PhysicalSky/common.hlsli"
 Texture2D<float4> TexSkyView : register(t16);
 Texture2D<float4> TexTransmittance : register(t17);
@@ -212,9 +213,9 @@ PS_OUTPUT main(PS_INPUT input)
 
 		bool is_sky = rayIntersectSphere(float3(0, 0, height), view_dir, phys_sky[0].ground_radius) < 0;
 		float cos_sun_view = dot(phys_sky[0].sun_dir, view_dir);
-		bool is_sun = cos_sun_view > cos(phys_sky[0].sun_aperture_angle);
-		bool is_masser = dot(phys_sky[0].masser_dir, view_dir) > cos(phys_sky[0].masser_aperture_angle);
-		bool is_secunda = dot(phys_sky[0].secunda_dir, view_dir) > cos(phys_sky[0].secunda_aperture_angle);
+		bool is_sun = cos_sun_view > phys_sky[0].sun_aperture_cos;
+		bool is_masser = dot(phys_sky[0].masser_dir, view_dir) > phys_sky[0].masser_aperture_cos;
+		bool is_secunda = dot(phys_sky[0].secunda_dir, view_dir) > phys_sky[0].secunda_aperture_cos;
 
 		if (is_sky) {
 			if (is_secunda) {
@@ -226,7 +227,7 @@ PS_OUTPUT main(PS_INPUT input)
 				psout.Color.rgb = phys_sky[0].sun_intensity;
 
 				float3 darken_factor = 1;
-				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sin(phys_sky[0].sun_aperture_angle);
+				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sin(phys_sky[0].sun_aperture_cos);
 				if (phys_sky[0].limb_darken_model == 1)
 					darken_factor = limbDarkenNeckel(norm_dist);
 				else if (phys_sky[0].limb_darken_model == 2)
@@ -240,14 +241,19 @@ PS_OUTPUT main(PS_INPUT input)
 
 		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, cylinderMapAdjusted(view_dir), 0).rgb;
 
-		// // TONEMAP
-		// psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);
+		// AURORA
+		float4 aur = smoothstep(float4(0.0, 0.0, 0.0, 0.0), float4(1.5, 1.5, 1.5, 1.5),
+			aurora(float3(0, 0, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer * 2));
+		psout.Color.rgb += aur.rgb * aur.a;
 
-		// // DITHER
-		// float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
-		// float noiseGrad =
-		// 	TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
-		// psout.Color.rgb += noiseGrad;
+		// TONEMAP
+		psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);
+
+		// DITHER
+		float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
+		float noiseGrad =
+			TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
+		psout.Color.rgb += noiseGrad;
 
 		psout.Color.a = input.Color.w;
 #	else

@@ -9,6 +9,7 @@ static const float PI = 3.141592653589793238462643383279;
 
 struct PhysSkySB
 {
+	float timer;
 	float3 sun_dir;
 	float3 masser_dir;
 	float3 secunda_dir;
@@ -33,10 +34,10 @@ struct PhysSkySB
 	int limb_darken_model;
 	float limb_darken_power;
 	float3 sun_intensity;
-	float sun_aperture_angle;
+	float sun_aperture_cos;
 
-	float masser_aperture_angle;
-	float secunda_aperture_angle;
+	float masser_aperture_cos;
+	float secunda_aperture_cos;
 
 	float3 rayleigh_scatter;
 	float3 rayleigh_absorption;
@@ -62,8 +63,7 @@ struct PerCameraSB
 };
 
 // return distance to sphere surface
-// src:
-// https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
+// src: https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
 float rayIntersectSphere(float3 orig, float3 dir, float rad)
 {
 	float b = dot(orig, dir);

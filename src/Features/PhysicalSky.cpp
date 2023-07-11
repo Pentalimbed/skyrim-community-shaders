@@ -37,8 +37,11 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WeatherControls,
 	ground_albedo,
 	sun_intensity,
 	limb_darken_model,
+	limb_darken_power,
 	sun_intensity,
 	sun_aperture_angle,
+	masser_aperture_angle,
+	secunda_aperture_angle,
 	rayleigh_scatter,
 	rayleigh_absorption,
 	rayleigh_decay,
@@ -47,7 +50,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WeatherControls,
 	mie_decay,
 	ozone_absorption,
 	ozone_height,
-	ozone_thickness)
+	ozone_thickness,
+	ap_inscatter_mix,
+	ap_transmittance_mix,
+	light_transmittance_mix)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	user,
 	use_debug_worldspace,
@@ -256,10 +262,10 @@ void PhysicalSky::UpdatePhysSkySB()
 		.limb_darken_model = settings.debug_weather.limb_darken_model,
 		.limb_darken_power = settings.debug_weather.limb_darken_power,
 		.sun_intensity = settings.debug_weather.sun_intensity,
-		.sun_aperture_angle = settings.debug_weather.sun_aperture_angle,
+		.sun_aperture_cos = cos(settings.debug_weather.sun_aperture_angle),
 
-		.masser_aperture_angle = settings.debug_weather.masser_aperture_angle,
-		.secunda_aperture_angle = settings.debug_weather.secunda_aperture_angle,
+		.masser_aperture_cos = cos(settings.debug_weather.masser_aperture_angle),
+		.secunda_aperture_cos = cos(settings.debug_weather.secunda_aperture_angle),
 
 		.rayleigh_scatter = settings.debug_weather.rayleigh_scatter,
 		.rayleigh_absorption = settings.debug_weather.rayleigh_absorption,
@@ -277,6 +283,8 @@ void PhysicalSky::UpdatePhysSkySB()
 		.ap_transmittance_mix = settings.debug_weather.ap_transmittance_mix,
 		.light_transmittance_mix = settings.debug_weather.light_transmittance_mix
 	};
+
+	phys_sky_sb_content.timer = RE::GetDurationOfApplicationRunTime() * 1e-3f;
 
 	phys_sky_sb_content.enable_sky =
 		settings.user.enable_sky &&
@@ -482,14 +490,10 @@ void PhysicalSky::DrawSettingsWeather()
 	{
 		ImGui::ColorEdit3("Ground Albedo", &settings.debug_weather.ground_albedo.x, hdr_color_edit_flags);
 
-		ImGui::Spacing();
-
 		ImGui::ColorEdit3("Sun Intensity", &settings.debug_weather.sun_intensity.x, hdr_color_edit_flags);
 		ImGui::SliderAngle("Sun Aperture", &settings.debug_weather.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
 		ImGui::Combo("Limb Darkening Model", &settings.debug_weather.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
 		ImGui::SliderFloat("Limb Darken Strength", &settings.debug_weather.limb_darken_power, 0.f, 5.f, "%.1f");
-
-		ImGui::Spacing();
 
 		ImGui::SliderAngle("Masser Aperture", &settings.debug_weather.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
 		ImGui::SliderAngle("Secunda Aperture", &settings.debug_weather.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
@@ -559,6 +563,7 @@ void PhysicalSky::DrawSettingsWeather()
 
 void PhysicalSky::DrawSettingsDebug()
 {
+	ImGui::InputFloat("Timer", &phys_sky_sb_content.timer, 0, 0, "%.6f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Sun Direction", &phys_sky_sb_content.sun_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Masser Direction", &phys_sky_sb_content.masser_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Secunda Direction", &phys_sky_sb_content.secunda_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);

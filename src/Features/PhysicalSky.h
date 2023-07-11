@@ -109,6 +109,7 @@ struct PhysicalSky : Feature
 
 	struct PhysSkySB
 	{
+		float timer = 0;
 		DirectX::XMFLOAT3 sun_dir;
 		DirectX::XMFLOAT3 masser_dir;
 		DirectX::XMFLOAT3 secunda_dir;
@@ -133,10 +134,10 @@ struct PhysicalSky : Feature
 		int32_t limb_darken_model;
 		float limb_darken_power;
 		DirectX::XMFLOAT3 sun_intensity;
-		float sun_aperture_angle;
+		float sun_aperture_cos;
 
-		float masser_aperture_angle;
-		float secunda_aperture_angle;
+		float masser_aperture_cos;
+		float secunda_aperture_cos;
 
 		DirectX::XMFLOAT3 rayleigh_scatter;
 		DirectX::XMFLOAT3 rayleigh_absorption;
