@@ -1,8 +1,3 @@
-/*
-	Adapted from: https://www.shadertoy.com/view/slSXRW
-	It is said to be MIT license by the author in the comment section, but the license text is nowhere to be found.
-*/
-
 #ifndef PHYS_SKY_NO_PI
 static const float PI = 3.141592653589793238462643383279;
 #endif
@@ -62,8 +57,9 @@ struct PerCameraSB
 	float4x4 inv_view;
 };
 
+/*-------- GEOMETRIC --------*/
 // return distance to sphere surface
-// src: https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
+// url: https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
 float rayIntersectSphere(float3 orig, float3 dir, float rad)
 {
 	float b = dot(orig, dir);
@@ -86,6 +82,9 @@ float3 sphericalDir(float azimuth, float zenith)
 	sincos(azimuth, sin_azimuth, cos_azimuth);
 	return float3(sin_zenith * cos_azimuth, sin_zenith * sin_azimuth, cos_zenith);
 }
+
+/*-------- VOLUMETRIC --------*/
+// url: https://www.shadertoy.com/view/slSXRW
 
 void scatterValues(
 	float3 pos,  // position relative to the center of the planet, in megameter
@@ -127,6 +126,7 @@ float rayleighPhase(float cos_theta)
 	return k * (1.0 + cos_theta * cos_theta);
 }
 
+/*-------- PROJECTION --------*/
 float2 getLutUv(float3 pos, float3 sun_dir, float ground_radius, float atmos_thickness)
 {
 	float height = length(pos);
@@ -156,7 +156,7 @@ float3 invCylinderMapAdjusted(float2 uv)
 }
 
 // adjusted lambert azimuthal
-// https://arxiv.org/vc/arxiv/papers/1206/1206.2068v1.pdf
+// url: https://arxiv.org/vc/arxiv/papers/1206/1206.2068v1.pdf
 float3 invLambAzAdjusted(float2 uv, float equator)
 {
 	const float k_e = tan(PI * .25 + equator * .5);
@@ -183,11 +183,13 @@ float2 lambAzAdjusted(float3 view_dir, float equator)
 	return .5 + r * normalize(view_dir.xy) * .5;
 }
 
+/*-------- SUN LIMB DARKENING --------*/
+
+// url: http://www.physics.hmc.edu/faculty/esin/a101/limbdarkening.pdf
 float3 limbDarkenNeckel(float norm_dist)
 {
-	// Model from http://www.physics.hmc.edu/faculty/esin/a101/limbdarkening.pdf
-	float3 u = float3(1.0, 1.0, 1.0);        // some models have u !=1
-	float3 a = float3(0.397, 0.503, 0.652);  // coefficient for RGB wavelength (680 ,550 ,440)
+	float3 u = 1.0;                          // some models have u !=1
+	float3 a = float3(0.397, 0.503, 0.652);  // coefficient for RGB wavelength (680, 550, 440)
 
 	float mu = sqrt(1.0 - norm_dist * norm_dist);
 
@@ -195,12 +197,12 @@ float3 limbDarkenNeckel(float norm_dist)
 	return factor;
 }
 
+// url: http://articles.adsabs.harvard.edu/cgi-bin/nph-iarticle_query?1994SoPh..153...91N&defaultprint=YES&filetype=.pdf
 float3 limbDarkenHestroffer(float norm_dist)
 {
-	// Model using P5 polynomial from http://articles.adsabs.harvard.edu/cgi-bin/nph-iarticle_query?1994SoPh..153...91N&defaultprint=YES&filetype=.pdf
 	float mu = sqrt(1.0 - norm_dist * norm_dist);
 
-	// coefficient for RGB wavelength (680 ,550 ,440)
+	// coefficient for RGB wavelength (680, 550, 440)
 	float3 a0 = float3(0.34685, 0.26073, 0.15248);
 	float3 a1 = float3(1.37539, 1.27428, 1.38517);
 	float3 a2 = float3(-2.04425, -1.30352, -1.49615);
@@ -217,6 +219,7 @@ float3 limbDarkenHestroffer(float norm_dist)
 	return factor;
 }
 
+/*-------- COLOR SPACE --------*/
 float3 jodieReinhardTonemap(float3 c)
 {
 	// From: https://www.shadertoy.com/view/tdSXzD

@@ -223,28 +223,27 @@ PS_OUTPUT main(PS_INPUT input)
 			} else if (is_masser) {
 				psout.Color.rgb = phys_sky[0].sun_intensity;
 			} else if (is_sun) {
-				// SUN
 				psout.Color.rgb = phys_sky[0].sun_intensity;
 
 				float3 darken_factor = 1;
-				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sin(phys_sky[0].sun_aperture_cos);
+				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);
 				if (phys_sky[0].limb_darken_model == 1)
 					darken_factor = limbDarkenNeckel(norm_dist);
 				else if (phys_sky[0].limb_darken_model == 2)
 					darken_factor = limbDarkenHestroffer(norm_dist);
 				psout.Color.rgb *= pow(darken_factor, phys_sky[0].limb_darken_power);
 			}
+
+			// AURORA
+			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx,
+				aurora(float3(0, 0, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer));
+			psout.Color.rgb += aur.rgb * aur.a * 3;
 		}
 
-		float2 uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+		float2 uv = getLutUv(float3(0, 0, height), view_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
 		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, uv, 0).rgb;
 
 		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, cylinderMapAdjusted(view_dir), 0).rgb;
-
-		// AURORA
-		float4 aur = smoothstep(float4(0.0, 0.0, 0.0, 0.0), float4(1.5, 1.5, 1.5, 1.5),
-			aurora(float3(0, 0, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer * 2));
-		psout.Color.rgb += aur.rgb * aur.a;
 
 		// TONEMAP
 		psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);

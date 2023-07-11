@@ -63,7 +63,7 @@ void getMultiscatterValues(
 
 				float3 scatter_integeral = (in_scatter - in_scatter * sample_transmittance) / extinction;
 
-				lum += scatter_integeral * transmittance * phys_sky[0].sun_intensity;
+				lum += scatter_integeral * transmittance;
 				transmittance *= sample_transmittance;
 			}
 
@@ -72,7 +72,7 @@ void getMultiscatterValues(
 				if (dot(pos, sun_dir) > 0) {
 					hit_pos = normalize(hit_pos) * phys_sky[0].ground_radius;
 					float2 samp_coord = getLutUv(hit_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-					lum += transmittance * phys_sky[0].ground_albedo * tex_transmittance.SampleLevel(samp_linear, samp_coord, 0).rgb * phys_sky[0].sun_intensity;
+					lum += transmittance * phys_sky[0].ground_albedo * tex_transmittance.SampleLevel(samp_linear, samp_coord, 0).rgb;
 				}
 			}
 

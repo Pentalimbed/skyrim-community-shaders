@@ -1,7 +1,9 @@
-// Auroras by nimitz 2017 (twitter: @stormoid)
-// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
-// Contact the author for other licensing options
-// src: https://www.shadertoy.com/view/XtGGRt
+/*
+	Modified from:
+	Auroras by nimitz 2017 (twitter: @stormoid)
+		License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License
+		url: https://www.shadertoy.com/view/XtGGRt
+*/
 
 float2x2 mm2(in float a)
 {
@@ -37,25 +39,31 @@ float triNoise2d(in float2 p, float spd, float time)
 }
 
 float hash21(in float2 n) { return frac(sin(dot(n, float2(12.9898, 4.1414))) * 43758.5453); }
-float4 aurora(float3 ro, float3 rd, float2 uv, float time)
+float4 aurora(float3 ray_origin, float3 ray_dir, float2 uv, float time)
 {
-	float4 col = 0;
-	float4 avgCol = 0;
+	const float reach = 50.;
+	const int steps = 25;
+	float stride = reach / steps;
 
-	for (float i = 0.; i < 50.; i++) {
-		float of = 0.006 * hash21(uv) * smoothstep(0., 15., i);
-		float pt = ((.8 + pow(i, 1.4) * .002) - ro.y) / (rd.y * 2. + 0.4);
-		pt -= of;
-		float3 bpos = ro + pt * rd;
-		float2 p = bpos.zx;
-		float rzt = triNoise2d(p, 0.06, time);
-		float4 col2 = float4(0, 0, 0, rzt);
-		col2.rgb = (sin(1. - float3(2.15, -.5, 1.2) + i * 0.043) * 0.5 + 0.5) * rzt;
-		avgCol = lerp(avgCol, col2, .5);
-		col += avgCol * exp2(-i * 0.065 - 2.5) * smoothstep(0., 5., i);
+	float4 color = 0;
+	float4 color_avg = 0;
+
+	for (int i = 0; i < steps; i++) {
+		// get noise coordinates
+		float stride_jitter = 0.006 * hash21(uv) * smoothstep(0., 15., i * stride) * stride;
+		float distance = ((.8 + pow(i * stride, 1.4) * .002) - ray_origin.y) / (ray_dir.y * 2. + 0.4) - stride_jitter;
+		float3 ray_pos = ray_origin + distance * ray_dir;
+		float2 noise_pos = ray_pos.zx * .5;
+
+		// march color
+		float horizontal_density = triNoise2d(noise_pos, 0.06, time);
+		float4 sample_color = float4(sin(1. - float3(2.15, -.5, 1.2) + i * stride * 0.043) * 0.5 + 0.5, 1);
+		color_avg = lerp(color_avg, sample_color * horizontal_density, .5);
+		color += color_avg * exp2(-i * stride * 0.065 - 2.5) * smoothstep(0., 5., i * stride) * stride;
 	}
 
-	col *= clamp(rd.y * 15. + .4, 0., 1.);
+	// horizon fade/transmittance compensation
+	// color *= clamp(ray_dir.y * 15. + .4, 0., 1.);
 
-	return col * 1.8;
+	return color * 1.8;
 }

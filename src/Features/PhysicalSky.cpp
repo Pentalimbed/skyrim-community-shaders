@@ -284,7 +284,9 @@ void PhysicalSky::UpdatePhysSkySB()
 		.light_transmittance_mix = settings.debug_weather.light_transmittance_mix
 	};
 
-	phys_sky_sb_content.timer = RE::GetDurationOfApplicationRunTime() * 1e-3f;
+	static uint32_t custom_timer = 0;
+	custom_timer += uint32_t(RE::GetSecondsSinceLastFrame() * 1e3f);
+	phys_sky_sb_content.timer = custom_timer * 1e-3f;
 
 	phys_sky_sb_content.enable_sky =
 		settings.user.enable_sky &&
