@@ -975,6 +975,8 @@ PS_OUTPUT main(PS_INPUT input)
 		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_sky[0].aerial_perspective_max_dist));
 		float3 view_dir = normalize(input.WorldPosition.xyz);
 		ap = TexAerialPerspective.SampleLevel(SampColorSampler, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
+		if (phys_sky[0].enable_tonemap)
+			ap.rgb = jodieReinhardTonemap(ap.rgb);
 
 		float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
 		float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
@@ -1771,7 +1773,11 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 
 #	ifdef PHYSICAL_SKY
-	color.xyz = color.xyz * lerp(1, ap.w, phys_sky[0].ap_transmittance_mix) + ap.xyz * phys_sky[0].ap_inscatter_mix;
+	if (phys_sky[0].enable_tonemap) {
+		color.xyz *= lerp(1, ap.w, phys_sky[0].ap_transmittance_mix);
+		color.xyz = lerp(color.xyz, lerp(color.xyz, ap.xyz, phys_sky[0].ap_inscatter_mix), 1 - ap.w);
+	} else
+		color.xyz = color.xyz * lerp(1, ap.w, phys_sky[0].ap_transmittance_mix) + ap.xyz * phys_sky[0].ap_inscatter_mix;
 #	endif
 
 	psout.Albedo.xyz = color.xyz - tmpColor.xyz * GammaInvX_FirstPersonY_AlphaPassZ_CreationKitW.zzz;

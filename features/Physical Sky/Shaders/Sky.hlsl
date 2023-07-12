@@ -263,16 +263,18 @@ PS_OUTPUT main(PS_INPUT input)
 
 		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, cylinderMapAdjusted(view_dir), 0).rgb;
 
-		// TONEMAP
-		psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);
+		if (phys_sky[0].enable_tonemap) {
+			// TONEMAP
+			psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);
 
-		// DITHER
-		float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
-		float noiseGrad = TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
-		psout.Color.rgb += noiseGrad;
+			// DITHER
+			float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
+			float noiseGrad = TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
+			psout.Color.rgb += noiseGrad;
+		}
 
 		psout.Color.a = 1.0;
-#	else
+#	elif !defined(OCCLUSION) && !(defined(DITHER) && defined(TEX))  // sunocclusion and sunglare
 		discard;
 #	endif
 	}

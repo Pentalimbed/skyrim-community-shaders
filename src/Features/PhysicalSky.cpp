@@ -232,6 +232,7 @@ void PhysicalSky::UpdatePhysSkySB()
 	phys_sky_sb_content = {
 		.enable_sky = settings.enable_sky && (RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull),
 		.enable_scatter = settings.enable_scatter,
+		.enable_tonemap = settings.enable_tonemap,
 
 		.transmittance_step = settings.transmittance_step,
 		.multiscatter_step = settings.multiscatter_step,
@@ -433,8 +434,15 @@ void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 	};
 
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+	auto tech_enum = static_cast<SkyShaderTechniques>(descriptor);
 
-	if (descriptor != std::underlying_type_t<SkyShaderTechniques>(SkyShaderTechniques::Sky))
+	// static ID3D11ShaderResourceView* srv_star = nullptr;
+	{
+		if (tech_enum == SkyShaderTechniques::Stars)
+			context->PSGetShaderResources(0, 1, &srv_stars);
+	}
+
+	if (tech_enum != SkyShaderTechniques::Sky)
 		return;
 
 	context->PSSetShaderResources(16, 1, phys_sky_sb->srv.put());
@@ -494,13 +502,10 @@ void PhysicalSky::DrawSettings()
 
 void PhysicalSky::DrawSettingsGeneral()
 {
-	ImGui::Checkbox("Enable Physcial Sky", reinterpret_cast<bool*>(&settings.enable_sky));
+	ImGui::Checkbox("Enable Physcial Sky", &settings.enable_sky);
 
-	ImGui::Indent();
-	{
-		ImGui::Checkbox("Enable Aerial Perspective", reinterpret_cast<bool*>(&settings.enable_scatter));
-	}
-	ImGui::Unindent();
+	ImGui::Checkbox("Enable Aerial Perspective", &settings.enable_scatter);
+	ImGui::Checkbox("Enable Tonemapping", &settings.enable_tonemap);
 }
 
 void PhysicalSky::DrawSettingsQuality()
@@ -632,7 +637,16 @@ void PhysicalSky::DrawSettingsDebug()
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
 
-	ImGui::InputScalar("padD4", ImGuiDataType_U32, &RE::Sky::GetSingleton()->masser->padD4);
+	if (srv_stars) {
+		ImGui::BulletText("Stars");
+		ID3D11Texture2D* tex_stars = nullptr;
+		srv_stars->GetResource((ID3D11Resource**)&tex_stars);
+		if (tex_stars) {
+			D3D11_TEXTURE2D_DESC desc;
+			tex_stars->GetDesc(&desc);
+			ImGui::Image((void*)(srv_stars), { (float)desc.Width, (float)desc.Height });
+		}
+	}
 }
 #pragma region IMGUI
 

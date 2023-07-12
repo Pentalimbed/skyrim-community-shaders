@@ -29,8 +29,9 @@ struct PhysicalSky : Feature
 	// io
 	struct Settings
 	{
-		uint32_t enable_sky = true;
-		uint32_t enable_scatter = true;
+		bool enable_sky = true;
+		bool enable_scatter = true;
+		bool enable_tonemap = true;
 
 		// PERFORMANCE
 		uint32_t transmittance_step = 40;
@@ -46,12 +47,12 @@ struct PhysicalSky : Feature
 		float atmos_thickness = .1f;
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
-		DirectX::XMFLOAT3 light_color = { 3, 3, 3 };
+		DirectX::XMFLOAT3 light_color = { 10, 10, 10 };
 
 		// CELESTIALS
 		int32_t limb_darken_model = 1;
 		float limb_darken_power = 1.f;
-		DirectX::XMFLOAT3 sun_color = { 10, 10, 10 };        // 1.69e9 cd m^-2
+		DirectX::XMFLOAT3 sun_color = { 3, 3, 3 };           // 1.69e9 cd m^-2
 		float sun_aperture_angle = 2.2 * RE::NI_PI / 180.0;  // in rad
 
 		float masser_aperture_angle = 10 * RE::NI_PI / 180.0;
@@ -97,6 +98,8 @@ struct PhysicalSky : Feature
 	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
 	std::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
 
+	ID3D11ShaderResourceView* srv_stars = nullptr;
+
 	struct PhysSkySB
 	{
 		float timer = 0;
@@ -109,6 +112,7 @@ struct PhysicalSky : Feature
 
 		uint32_t enable_sky;
 		uint32_t enable_scatter;
+		uint32_t enable_tonemap;
 
 		uint32_t transmittance_step;
 		uint32_t multiscatter_step;

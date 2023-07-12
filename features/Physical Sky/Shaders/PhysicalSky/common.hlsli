@@ -14,6 +14,7 @@ struct PhysSkySB
 
 	bool enable_sky;
 	bool enable_scatter;
+	bool enable_tonemap;
 
 	uint transmittance_step;
 	uint multiscatter_step;
