@@ -5,6 +5,9 @@
 #include "ShaderTools/BSGraphicsTypes.h"
 #include "Util.h"
 
+#pragma region MISC
+constexpr auto hdr_color_edit_flags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
+
 class FrameChecker
 {
 private:
@@ -19,7 +22,14 @@ public:
 	}
 };
 
-constexpr auto hdr_color_edit_flags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
+static void getMoonTexture(const char* a_path, bool a_demand, RE::NiPointer<RE::NiSourceTexture>& a_texture, bool a_isHeightMap)
+{
+	using func_t = decltype(&getMoonTexture);
+	// REL::Relocation<func_t> func{ RELOCATION_ID(25626, 26169), REL::VariantOffset(0x1FE, 0x2EF, 0) };  // VR unknown
+	REL::Relocation<func_t> func{ RELOCATION_ID(98986, 105640) };
+	return func(a_path, a_demand, a_texture, a_isHeightMap);
+}
+#pragma endregion MISC
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	enable_sky,
@@ -32,10 +42,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	bottom_z,
 	ground_radius,
 	atmos_thickness, ground_albedo,
-	sun_intensity,
+	sun_color,
 	limb_darken_model,
 	limb_darken_power,
-	sun_intensity,
+	sun_color,
 	sun_aperture_angle,
 	masser_aperture_angle,
 	secunda_aperture_angle,
@@ -52,6 +62,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	ap_transmittance_mix,
 	light_transmittance_mix)
 
+#pragma region SETUP
 void PhysicalSky::SetupResources()
 {
 	if (!loaded)
@@ -194,7 +205,9 @@ void PhysicalSky::RecompileShaders()
 	aerial_perspective_program->Release();
 	CompileShaders();
 }
+#pragma endregion SETUP
 
+#pragma region DRAW
 void PhysicalSky::Draw(const RE::BSShader* shader, [[maybe_unused]] const uint32_t descriptor)
 {
 	if (!loaded)
@@ -236,12 +249,13 @@ void PhysicalSky::UpdatePhysSkySB()
 		.bottom_z = settings.bottom_z,
 		.ground_radius = settings.ground_radius,
 		.atmos_thickness = settings.atmos_thickness,
-
 		.ground_albedo = settings.ground_albedo,
+
+		.light_color = settings.light_color,
 
 		.limb_darken_model = settings.limb_darken_model,
 		.limb_darken_power = settings.limb_darken_power,
-		.sun_intensity = settings.sun_intensity,
+		.sun_color = settings.sun_color,
 		.sun_aperture_cos = cos(settings.sun_aperture_angle),
 
 		.masser_aperture_cos = cos(settings.masser_aperture_angle),
@@ -409,14 +423,6 @@ void PhysicalSky::ModifyLighting()
 	context->PSSetShaderResources(18, 1, phys_sky_sb->srv.put());
 }
 
-static void getMoonTexture(const char* a_path, bool a_demand, RE::NiPointer<RE::NiSourceTexture>& a_texture, bool a_isHeightMap)
-{
-	using func_t = decltype(&getMoonTexture);
-	// REL::Relocation<func_t> func{ RELOCATION_ID(25626, 26169), REL::VariantOffset(0x1FE, 0x2EF, 0) };  // VR unknown
-	REL::Relocation<func_t> func{ RELOCATION_ID(98986, 105640) };
-	return func(a_path, a_demand, a_texture, a_isHeightMap);
-}
-
 void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 {
 	enum class SkyShaderTechniques
@@ -457,7 +463,9 @@ void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 			context->PSSetShaderResources(20, 1, &secunda_tex->rendererTexture->m_ResourceView);
 	}
 }
+#pragma endregion DRAW
 
+#pragma region IMGUI
 void PhysicalSky::DrawSettings()
 {
 	static int pagenum = 0;
@@ -516,6 +524,8 @@ void PhysicalSky::DrawSettingsWorld()
 {
 	ImGui::SliderFloat2("Unit Scale", &settings.unit_scale.x, 0.1f, 50.f);
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
+
+	ImGui::ColorEdit3("Light Color", &settings.light_color.x, hdr_color_edit_flags);
 }
 
 void PhysicalSky::DrawSettingsAtmosphere()
@@ -579,7 +589,7 @@ void PhysicalSky::DrawSettingsAtmosphere()
 void PhysicalSky::DrawSettingsCelestials()
 {
 	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::ColorEdit3("Sun Intensity", &settings.sun_intensity.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Sun Color", &settings.sun_color.x, hdr_color_edit_flags);
 		ImGui::SliderAngle("Sun Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
 		ImGui::Combo("Limb Darkening Model", &settings.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
 		ImGui::SliderFloat("Limb Darken Strength", &settings.limb_darken_power, 0.f, 5.f, "%.1f");
@@ -628,6 +638,7 @@ void PhysicalSky::DrawSettingsDebug()
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
 }
+#pragma region IMGUI
 
 void PhysicalSky::Load(json& o_json)
 {

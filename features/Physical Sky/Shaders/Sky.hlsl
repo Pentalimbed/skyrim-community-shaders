@@ -223,6 +223,7 @@ PS_OUTPUT main(PS_INPUT input)
 		bool is_masser = cos_masser_view > phys_sky[0].masser_aperture_cos;
 		bool is_secunda = cos_secunda_view > phys_sky[0].secunda_aperture_cos;
 
+		// Celestials
 		if (is_sky) {
 			if (is_masser) {
 				float3 rightvec = cross(phys_sky[0].masser_dir, phys_sky[0].masser_upvec);
@@ -241,7 +242,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 				psout.Color.rgb = TexSecunda.Sample(SampBaseSampler, uv).rgb * phys_sky[0].secunda_brightness;
 			} else if (is_sun) {
-				psout.Color.rgb = phys_sky[0].sun_intensity;
+				psout.Color.rgb = phys_sky[0].sun_color;
 
 				float3 darken_factor = 1;
 				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) * rsqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);

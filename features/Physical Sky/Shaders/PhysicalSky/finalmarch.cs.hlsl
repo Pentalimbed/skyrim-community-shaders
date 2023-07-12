@@ -69,7 +69,7 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 		transmittance *= sample_transmittance;
 #ifndef SKY_VIEW
 	}
-	tex_aerial_perspective[uint3(tid.xy, i + 1)] = float4(lum * phys_sky[0].sun_intensity, rgbLuminance(transmittance));
+	tex_aerial_perspective[uint3(tid.xy, i + 1)] = float4(lum * phys_sky[0].light_color, rgbLuminance(transmittance));
 #endif
 }
 return lum;
@@ -103,6 +103,6 @@ return lum;
 		tid.xy);
 
 #ifdef SKY_VIEW
-	tex_skyview[tid.xy] = float4(lum * phys_sky[0].sun_intensity, 1);
+	tex_skyview[tid.xy] = float4(lum * phys_sky[0].light_color, 1);
 #endif
 }

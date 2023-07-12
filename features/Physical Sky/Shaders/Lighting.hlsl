@@ -1451,9 +1451,6 @@ PS_OUTPUT main(PS_INPUT input)
 
 #	ifdef PHYSICAL_SKY
 	dirLightColor *= lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
-	// if (phys_sky[0].enable_sky && phys_sky[0].enable_scatter) {
-	// 	dirLightColor = phys_sky[0].sun_intensity * lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
-	// }
 #	endif
 
 #	if defined(CPM_AVAILABLE) && (defined(SKINNED) || !defined(MODELSPACENORMALS))

@@ -15,7 +15,7 @@ struct PhysicalSky : Feature
 	virtual inline std::string GetName() { return "Physical Sky"; }
 	virtual inline std::string GetShortName() { return "PhysicalSky"; }
 
-	// structs
+	// params
 	constexpr static uint16_t s_transmittance_width = 256;
 	constexpr static uint16_t s_transmittance_height = 64;
 	constexpr static uint16_t s_multiscatter_width = 32;
@@ -46,10 +46,12 @@ struct PhysicalSky : Feature
 		float atmos_thickness = .1f;
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
+		DirectX::XMFLOAT3 light_color = { 3, 3, 3 };
+
 		// CELESTIALS
 		int32_t limb_darken_model = 1;
 		float limb_darken_power = 1.f;
-		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };       // 1.69e9 cd m^-2
+		DirectX::XMFLOAT3 sun_color = { 3, 3, 3 };           // 1.69e9 cd m^-2
 		float sun_aperture_angle = 2.2 * RE::NI_PI / 180.0;  // in rad
 
 		float masser_aperture_angle = 10 * RE::NI_PI / 180.0;
@@ -74,7 +76,6 @@ struct PhysicalSky : Feature
 		float ap_inscatter_mix = 1.f;
 		float ap_transmittance_mix = 1.f;
 		float light_transmittance_mix = 2.f;
-
 	} settings;
 
 	virtual void DrawSettings();
@@ -119,12 +120,13 @@ struct PhysicalSky : Feature
 		float bottom_z;
 		float ground_radius;
 		float atmos_thickness;
-
 		DirectX::XMFLOAT3 ground_albedo;
+
+		DirectX::XMFLOAT3 light_color;
 
 		int32_t limb_darken_model;
 		float limb_darken_power;
-		DirectX::XMFLOAT3 sun_intensity;
+		DirectX::XMFLOAT3 sun_color;
 		float sun_aperture_cos;
 
 		float masser_aperture_cos;

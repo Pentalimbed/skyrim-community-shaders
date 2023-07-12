@@ -25,12 +25,13 @@ struct PhysSkySB
 	float bottom_z;
 	float ground_radius;
 	float atmos_thickness;
-
 	float3 ground_albedo;
+
+	float3 light_color;
 
 	int limb_darken_model;
 	float limb_darken_power;
-	float3 sun_intensity;
+	float3 sun_color;
 	float sun_aperture_cos;
 
 	float masser_aperture_cos;
