@@ -2,6 +2,7 @@
 
 #include <implot.h>
 
+#include "ShaderTools/BSGraphicsTypes.h"
 #include "Util.h"
 
 class FrameChecker
@@ -209,27 +210,13 @@ void PhysicalSky::Draw(const RE::BSShader* shader, [[maybe_unused]] const uint32
 	if (!loaded)
 		return;
 
-	enum class SkyShaderTechniques
-	{
-		SunOcclude = 0,
-		SunGlare = 1,
-		MoonAndStarsMask = 2,
-		Stars = 3,
-		Clouds = 4,
-		CloudsLerp = 5,
-		CloudsFade = 6,
-		Texture = 7,
-		Sky = 8,
-	};
-
 	UpdatePhysSkySB();
 	if (phys_sky_sb_content.enable_sky)
 		GenerateLuts();
 
 	switch (shader->shaderType.get()) {
 	case RE::BSShader::Type::Sky:
-		if (descriptor == std::underlying_type_t<SkyShaderTechniques>(SkyShaderTechniques::Sky))
-			ModifySky();
+		ModifySky(shader, descriptor);
 		break;
 	case RE::BSShader::Type::Lighting:
 		ModifyLighting();
@@ -265,7 +252,10 @@ void PhysicalSky::UpdatePhysSkySB()
 		.sun_aperture_cos = cos(settings.debug_weather.sun_aperture_angle),
 
 		.masser_aperture_cos = cos(settings.debug_weather.masser_aperture_angle),
+		.masser_brightness = settings.debug_weather.masser_brightness,
+
 		.secunda_aperture_cos = cos(settings.debug_weather.secunda_aperture_angle),
+		.secunda_brightness = settings.debug_weather.secunda_brightness,
 
 		.rayleigh_scatter = settings.debug_weather.rayleigh_scatter,
 		.rayleigh_absorption = settings.debug_weather.rayleigh_absorption,
@@ -319,12 +309,18 @@ void PhysicalSky::UpdatePhysSkySB()
 	if (masser) {
 		auto masser_dir = masser->moonMesh->world.translate - cam_pos;
 		masser_dir.Unitize();
+		auto masser_upvec = masser->moonMesh->world.rotate * RE::NiPoint3{ 0, 1, 0 };
+
 		phys_sky_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
+		phys_sky_sb_content.masser_upvec = { masser_upvec.x, masser_upvec.y, masser_upvec.z };
 	}
 	if (secunda) {
 		auto secunda_dir = secunda->moonMesh->world.translate - cam_pos;
 		secunda_dir.Unitize();
+		auto secunda_upvec = secunda->moonMesh->world.rotate * RE::NiPoint3{ 0, 1, 0 };
+
 		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
+		phys_sky_sb_content.secunda_upvec = { secunda_upvec.x, secunda_upvec.y, secunda_upvec.z };
 	}
 
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
@@ -420,13 +416,53 @@ void PhysicalSky::ModifyLighting()
 	context->PSSetShaderResources(18, 1, phys_sky_sb->srv.put());
 }
 
-void PhysicalSky::ModifySky()
+static void getMoonTexture(const char* a_path, bool a_demand, RE::NiPointer<RE::NiSourceTexture>& a_texture, bool a_isHeightMap)
 {
+	using func_t = decltype(&getMoonTexture);
+	// REL::Relocation<func_t> func{ RELOCATION_ID(25626, 26169), REL::VariantOffset(0x1FE, 0x2EF, 0) };  // VR unknown
+	REL::Relocation<func_t> func{ RELOCATION_ID(98986, 105640) };
+	return func(a_path, a_demand, a_texture, a_isHeightMap);
+}
+
+void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
+{
+	enum class SkyShaderTechniques
+	{
+		SunOcclude = 0,
+		SunGlare = 1,
+		MoonAndStarsMask = 2,
+		Stars = 3,
+		Clouds = 4,
+		CloudsLerp = 5,
+		CloudsFade = 6,
+		Texture = 7,
+		Sky = 8,
+	};
+
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
-	context->PSSetShaderResources(16, 1, sky_view_lut->srv.put());
-	context->PSSetShaderResources(17, 1, transmittance_lut->srv.put());
-	context->PSSetShaderResources(18, 1, phys_sky_sb->srv.put());
+	if (descriptor != std::underlying_type_t<SkyShaderTechniques>(SkyShaderTechniques::Sky))
+		return;
+
+	context->PSSetShaderResources(16, 1, phys_sky_sb->srv.put());
+	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());
+	context->PSSetShaderResources(18, 1, transmittance_lut->srv.put());
+
+	auto sky = RE::Sky::GetSingleton();
+	auto masser = sky->masser;
+	auto secunda = sky->secunda;
+	if (masser) {
+		RE::NiSourceTexturePtr masser_tex;
+		getMoonTexture(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);
+		if (masser_tex)
+			context->PSSetShaderResources(19, 1, &masser_tex->rendererTexture->m_ResourceView);
+	}
+	if (secunda) {
+		RE::NiSourceTexturePtr secunda_tex;
+		getMoonTexture(secunda->stateTextures[RE::Moon::Phase::kFull].c_str(), true, secunda_tex, false);
+		if (secunda_tex)
+			context->PSSetShaderResources(20, 1, &secunda_tex->rendererTexture->m_ResourceView);
+	}
 }
 
 void PhysicalSky::DrawSettings()
@@ -498,7 +534,10 @@ void PhysicalSky::DrawSettingsWeather()
 		ImGui::SliderFloat("Limb Darken Strength", &settings.debug_weather.limb_darken_power, 0.f, 5.f, "%.1f");
 
 		ImGui::SliderAngle("Masser Aperture", &settings.debug_weather.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Masser Brightness", &settings.debug_weather.masser_brightness, 0.f, 5.f, "%.1f");
+
 		ImGui::SliderAngle("Secunda Aperture", &settings.debug_weather.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Secunda Brightness", &settings.debug_weather.secunda_brightness, 0.f, 5.f, "%.1f");
 
 		if (ImGui::TreeNodeEx("Participating Media", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::TextWrapped(
@@ -568,7 +607,9 @@ void PhysicalSky::DrawSettingsDebug()
 	ImGui::InputFloat("Timer", &phys_sky_sb_content.timer, 0, 0, "%.6f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Sun Direction", &phys_sky_sb_content.sun_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Masser Direction", &phys_sky_sb_content.masser_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Masser Up", &phys_sky_sb_content.masser_upvec.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Secunda Direction", &phys_sky_sb_content.secunda_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Secunda Up", &phys_sky_sb_content.secunda_upvec.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Cam Pos", &phys_sky_sb_content.player_cam_pos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::BulletText("Transmittance LUT");
@@ -579,6 +620,20 @@ void PhysicalSky::DrawSettingsDebug()
 
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
+
+	auto sky = RE::Sky::GetSingleton();
+	auto masser = sky->masser;
+	if (masser) {
+		RE::NiSourceTexturePtr masser_tex;
+		getMoonTexture(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);
+
+		if (masser_tex) {
+			ImGui::BulletText("Masser");
+			D3D11_TEXTURE2D_DESC desc;
+			masser_tex->rendererTexture->m_Texture->GetDesc(&desc);
+			ImGui::Image((void*)(masser_tex->rendererTexture->m_ResourceView), { (float)desc.Width, (float)desc.Height });
+		}
+	}
 }
 
 void PhysicalSky::Load(json& o_json)

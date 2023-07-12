@@ -56,11 +56,14 @@ struct PhysicalSky : Feature
 
 		int32_t limb_darken_model = 1;
 		float limb_darken_power = 1.f;
-		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };          // 1.69e9 cd m^-2
-		float sun_aperture_angle = 2.2 * 3.1415926535 / 180.0;  // in rad
+		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };       // 1.69e9 cd m^-2
+		float sun_aperture_angle = 2.2 * RE::NI_PI / 180.0;  // in rad
 
-		float masser_aperture_angle = 9.8 * 3.1415926535 / 180.0;
-		float secunda_aperture_angle = 4.3 * 3.1415926535 / 180.0;
+		float masser_aperture_angle = 9.8 * RE::NI_PI / 180.0;
+		float masser_brightness = 1;
+
+		float secunda_aperture_angle = 4.3 * RE::NI_PI / 180.0;
+		float secunda_brightness = 1;
 
 		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802f, 13.558f, 33.1f };  // in megameter^-1
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
@@ -112,7 +115,9 @@ struct PhysicalSky : Feature
 		float timer = 0;
 		DirectX::XMFLOAT3 sun_dir;
 		DirectX::XMFLOAT3 masser_dir;
+		DirectX::XMFLOAT3 masser_upvec;
 		DirectX::XMFLOAT3 secunda_dir;
+		DirectX::XMFLOAT3 secunda_upvec;
 		DirectX::XMFLOAT3 player_cam_pos;
 
 		uint32_t enable_sky;
@@ -137,7 +142,10 @@ struct PhysicalSky : Feature
 		float sun_aperture_cos;
 
 		float masser_aperture_cos;
+		float masser_brightness;
+
 		float secunda_aperture_cos;
+		float secunda_brightness;
 
 		DirectX::XMFLOAT3 rayleigh_scatter;
 		DirectX::XMFLOAT3 rayleigh_absorption;
@@ -173,6 +181,6 @@ struct PhysicalSky : Feature
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
 	void GenerateLuts();
-	void ModifySky();
+	void ModifySky(const RE::BSShader* shader, const uint32_t descriptor);
 	void ModifyLighting();
 };

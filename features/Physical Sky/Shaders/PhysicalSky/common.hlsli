@@ -7,7 +7,9 @@ struct PhysSkySB
 	float timer;
 	float3 sun_dir;
 	float3 masser_dir;
+	float3 masser_upvec;
 	float3 secunda_dir;
+	float3 secunda_upvec;
 	float3 player_cam_pos;
 
 	bool enable_sky;
@@ -32,7 +34,10 @@ struct PhysSkySB
 	float sun_aperture_cos;
 
 	float masser_aperture_cos;
+	float masser_brightness;
+
 	float secunda_aperture_cos;
+	float secunda_brightness;
 
 	float3 rayleigh_scatter;
 	float3 rayleigh_absorption;
@@ -178,7 +183,7 @@ float2 lambAzAdjusted(float3 view_dir, float equator)
 		return float2(.5, .5);
 
 	const float tan_lat = -view_dir.z / len_xy;
-	const float temp_0 = sign(k_e) * tan_lat / sqrt(tan_lat * tan_lat + k_e * k_e);
+	const float temp_0 = sign(k_e) * tan_lat * rsqrt(tan_lat * tan_lat + k_e * k_e);
 	const float r = sqrt((temp_0 + 1) * .5);
 	return .5 + r * normalize(view_dir.xy) * .5;
 }

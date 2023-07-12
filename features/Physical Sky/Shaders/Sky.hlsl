@@ -135,9 +135,11 @@ Texture2D<float4> TexNoiseGradSampler : register(t2);
 
 #	include "PhysicalSky/aurora.hlsli"
 #	include "PhysicalSky/common.hlsli"
-Texture2D<float4> TexSkyView : register(t16);
-Texture2D<float4> TexTransmittance : register(t17);
-StructuredBuffer<PhysSkySB> phys_sky : register(t18);
+StructuredBuffer<PhysSkySB> phys_sky : register(t16);
+Texture2D<float4> TexSkyView : register(t17);
+Texture2D<float4> TexTransmittance : register(t18);
+Texture2D<float4> TexMasser : register(t19);
+Texture2D<float4> TexSecunda : register(t20);
 
 cbuffer PerFrame : register(b12)
 {
@@ -206,27 +208,43 @@ PS_OUTPUT main(PS_INPUT input)
 
 	if (phys_sky[0].enable_sky) {
 #	if defined(DITHER) && !defined(TEX)  // SKY
+		psout.Color = float4(0, 0, 0, 1.0);
 
 		float3 view_dir = normalize(input.WorldPosition.xyz);
 
 		float height = (phys_sky[0].player_cam_pos.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
 
-		bool is_sky = rayIntersectSphere(float3(0, 0, height), view_dir, phys_sky[0].ground_radius) < 0;
 		float cos_sun_view = dot(phys_sky[0].sun_dir, view_dir);
+		float cos_masser_view = dot(phys_sky[0].masser_dir, view_dir);
+		float cos_secunda_view = dot(phys_sky[0].secunda_dir, view_dir);
+
+		bool is_sky = rayIntersectSphere(float3(0, 0, height), view_dir, phys_sky[0].ground_radius) < 0;
 		bool is_sun = cos_sun_view > phys_sky[0].sun_aperture_cos;
-		bool is_masser = dot(phys_sky[0].masser_dir, view_dir) > phys_sky[0].masser_aperture_cos;
-		bool is_secunda = dot(phys_sky[0].secunda_dir, view_dir) > phys_sky[0].secunda_aperture_cos;
+		bool is_masser = cos_masser_view > phys_sky[0].masser_aperture_cos;
+		bool is_secunda = cos_secunda_view > phys_sky[0].secunda_aperture_cos;
 
 		if (is_sky) {
-			if (is_secunda) {
-				psout.Color.rgb = phys_sky[0].sun_intensity;
-			} else if (is_masser) {
-				psout.Color.rgb = phys_sky[0].sun_intensity;
+			if (is_masser) {
+				float3 rightvec = cross(phys_sky[0].masser_dir, phys_sky[0].masser_upvec);
+				float3 disp = normalize(view_dir - phys_sky[0].masser_dir);
+				float2 uv = normalize(float2(dot(rightvec, disp), dot(-phys_sky[0].masser_upvec, disp)));
+				uv *= sqrt(1 - cos_masser_view * cos_masser_view) * rsqrt(1 - phys_sky[0].masser_aperture_cos * phys_sky[0].masser_aperture_cos);
+				uv = uv * .5 + .5;
+
+				psout.Color.rgb = TexMasser.Sample(SampBaseSampler, uv).rgb * phys_sky[0].masser_brightness;
+			} else if (is_secunda) {
+				float3 rightvec = cross(phys_sky[0].secunda_dir, phys_sky[0].secunda_upvec);
+				float3 disp = normalize(view_dir - phys_sky[0].secunda_dir);
+				float2 uv = normalize(float2(dot(rightvec, disp), dot(-phys_sky[0].secunda_upvec, disp)));
+				uv *= sqrt(1 - cos_secunda_view * cos_secunda_view) * rsqrt(1 - phys_sky[0].secunda_aperture_cos * phys_sky[0].secunda_aperture_cos);
+				uv = uv * .5 + .5;
+
+				psout.Color.rgb = TexSecunda.Sample(SampBaseSampler, uv).rgb * phys_sky[0].secunda_brightness;
 			} else if (is_sun) {
 				psout.Color.rgb = phys_sky[0].sun_intensity;
 
 				float3 darken_factor = 1;
-				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) / sqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);
+				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) * rsqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);
 				if (phys_sky[0].limb_darken_model == 1)
 					darken_factor = limbDarkenNeckel(norm_dist);
 				else if (phys_sky[0].limb_darken_model == 2)
@@ -235,13 +253,12 @@ PS_OUTPUT main(PS_INPUT input)
 			}
 
 			// AURORA
-			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx,
-				aurora(float3(0, 0, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer));
+			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx, aurora(float3(0, 0, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer));
 			psout.Color.rgb += aur.rgb * aur.a * 3;
 		}
 
-		float2 uv = getLutUv(float3(0, 0, height), view_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, uv, 0).rgb;
+		float2 trans_uv = getLutUv(float3(0, 0, height), view_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, trans_uv, 0).rgb;
 
 		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, cylinderMapAdjusted(view_dir), 0).rgb;
 
@@ -250,11 +267,10 @@ PS_OUTPUT main(PS_INPUT input)
 
 		// DITHER
 		float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
-		float noiseGrad =
-			TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
+		float noiseGrad = TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
 		psout.Color.rgb += noiseGrad;
 
-		psout.Color.a = input.Color.w;
+		psout.Color.a = 1.0;
 #	else
 		discard;
 #	endif

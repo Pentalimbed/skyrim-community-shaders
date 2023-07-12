@@ -53,7 +53,7 @@ float4 aurora(float3 ray_origin, float3 ray_dir, float2 uv, float time)
 		float stride_jitter = 0.006 * hash21(uv) * smoothstep(0., 15., i * stride) * stride;
 		float distance = ((.8 + pow(i * stride, 1.4) * .002) - ray_origin.y) / (ray_dir.y * 2. + 0.4) - stride_jitter;
 		float3 ray_pos = ray_origin + distance * ray_dir;
-		float2 noise_pos = ray_pos.zx * .5;
+		float2 noise_pos = ray_pos.zx;
 
 		// march color
 		float horizontal_density = triNoise2d(noise_pos, 0.06, time);
