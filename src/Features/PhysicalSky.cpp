@@ -21,6 +21,7 @@ public:
 		last_frame = frame;
 		return retval;
 	}
+	inline bool isNewFrame() { return isNewFrame(RE::BSGraphics::State::GetSingleton()->uiFrameCount); }
 };
 #pragma endregion MISC
 
@@ -225,7 +226,7 @@ void PhysicalSky::Draw(const RE::BSShader* shader, [[maybe_unused]] const uint32
 void PhysicalSky::UpdatePhysSkySB()
 {
 	static FrameChecker frame_checker;
-	if (!frame_checker.isNewFrame(RE::BSGraphics::State::GetSingleton()->uiFrameCount))
+	if (!frame_checker.isNewFrame())
 		return;
 
 	phys_sky_sb_content = {
@@ -331,7 +332,7 @@ void PhysicalSky::UploadPhysSkySB()
 void PhysicalSky::GenerateLuts()
 {
 	static FrameChecker frame_checker;
-	if (!frame_checker.isNewFrame(RE::BSGraphics::State::GetSingleton()->uiFrameCount))
+	if (!frame_checker.isNewFrame())
 		return;
 
 	UploadPhysSkySB();
