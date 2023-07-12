@@ -51,7 +51,7 @@ struct PhysicalSky : Feature
 		// CELESTIALS
 		int32_t limb_darken_model = 1;
 		float limb_darken_power = 1.f;
-		DirectX::XMFLOAT3 sun_color = { 3, 3, 3 };           // 1.69e9 cd m^-2
+		DirectX::XMFLOAT3 sun_color = { 10, 10, 10 };        // 1.69e9 cd m^-2
 		float sun_aperture_angle = 2.2 * RE::NI_PI / 180.0;  // in rad
 
 		float masser_aperture_angle = 10 * RE::NI_PI / 180.0;

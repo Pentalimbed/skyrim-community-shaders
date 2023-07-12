@@ -2,6 +2,7 @@
 
 #include <implot.h>
 
+#include "Hooks.h"
 #include "ShaderTools/BSGraphicsTypes.h"
 #include "Util.h"
 
@@ -21,14 +22,6 @@ public:
 		return retval;
 	}
 };
-
-static void getMoonTexture(const char* a_path, bool a_demand, RE::NiPointer<RE::NiSourceTexture>& a_texture, bool a_isHeightMap)
-{
-	using func_t = decltype(&getMoonTexture);
-	// REL::Relocation<func_t> func{ RELOCATION_ID(25626, 26169), REL::VariantOffset(0x1FE, 0x2EF, 0) };  // VR unknown
-	REL::Relocation<func_t> func{ RELOCATION_ID(98986, 105640) };
-	return func(a_path, a_demand, a_texture, a_isHeightMap);
-}
 #pragma endregion MISC
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
@@ -452,13 +445,13 @@ void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 	auto secunda = sky->secunda;
 	if (masser) {
 		RE::NiSourceTexturePtr masser_tex;
-		getMoonTexture(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);
+		Hooks::BSShaderManager_GetTexture::func(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);  // TODO: find the phase
 		if (masser_tex)
 			context->PSSetShaderResources(19, 1, &masser_tex->rendererTexture->m_ResourceView);
 	}
 	if (secunda) {
 		RE::NiSourceTexturePtr secunda_tex;
-		getMoonTexture(secunda->stateTextures[RE::Moon::Phase::kFull].c_str(), true, secunda_tex, false);
+		Hooks::BSShaderManager_GetTexture::func(secunda->stateTextures[RE::Moon::Phase::kFull].c_str(), true, secunda_tex, false);
 		if (secunda_tex)
 			context->PSSetShaderResources(20, 1, &secunda_tex->rendererTexture->m_ResourceView);
 	}
@@ -637,6 +630,8 @@ void PhysicalSky::DrawSettingsDebug()
 
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
+
+	ImGui::InputScalar("padD4", ImGuiDataType_U32, &RE::Sky::GetSingleton()->masser->padD4);
 }
 #pragma region IMGUI
 

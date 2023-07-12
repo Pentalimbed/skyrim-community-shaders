@@ -161,6 +161,11 @@ HRESULT STDMETHODCALLTYPE hk_CreatePixelShader(ID3D11Device* This, const void* p
 
 namespace Hooks
 {
+	void BSShaderManager_GetTexture::thunk(const char* a_path, bool a_arg1, RE::NiPointer<RE::NiSourceTexture>& a_texture, bool a_arg3)
+	{
+		return func(a_path, a_arg1, a_texture, a_arg3);
+	}
+
 	struct BSGraphics_Renderer_Init_InitD3D
 	{
 		static void thunk()
@@ -202,5 +207,7 @@ namespace Hooks
 		*(uintptr_t*)&ptr_BSGraphics_SetDirtyStates = Detours::X64::DetourFunction(REL::RelocationID(75580, 77386).address(), (uintptr_t)&hk_BSGraphics_SetDirtyStates);
 		logger::info("Hooking BSGraphics::Renderer::InitD3D");
 		stl::write_thunk_call<BSGraphics_Renderer_Init_InitD3D>(REL::RelocationID(75595, 77226).address() + REL::Relocate(0x50, 0x2BC));
+		logger::info("Hooking BSShaderManager::GetTexture");
+		stl::write_thunk_call<BSShaderManager_GetTexture>(RELOCATION_ID(25626, 26169).address() + REL::Relocate(0x1FE, 0x2EF));
 	}
 }
