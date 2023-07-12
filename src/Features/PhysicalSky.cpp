@@ -19,23 +19,19 @@ public:
 	}
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::UserContols,
+constexpr auto hdr_color_edit_flags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	enable_sky,
 	enable_scatter,
 	transmittance_step,
 	multiscatter_step,
 	multiscatter_sqrt_samples,
 	skyview_step,
-	aerial_perspective_max_dist)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WorldspaceControls,
-	enable_sky,
-	enable_scatter,
-	unit_scale,
+	aerial_perspective_max_dist, unit_scale,
 	bottom_z,
 	ground_radius,
-	atmos_thickness)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WeatherControls,
-	ground_albedo,
+	atmos_thickness, ground_albedo,
 	sun_intensity,
 	limb_darken_model,
 	limb_darken_power,
@@ -55,12 +51,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::WeatherControls,
 	ap_inscatter_mix,
 	ap_transmittance_mix,
 	light_transmittance_mix)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
-	user,
-	use_debug_worldspace,
-	debug_worldspace,
-	use_debug_weather,
-	debug_weather)
 
 void PhysicalSky::SetupResources()
 {
@@ -233,56 +223,54 @@ void PhysicalSky::UpdatePhysSkySB()
 		return;
 
 	phys_sky_sb_content = {
-		.transmittance_step = settings.user.transmittance_step,
-		.multiscatter_step = settings.user.multiscatter_step,
-		.multiscatter_sqrt_samples = settings.user.multiscatter_sqrt_samples,
-		.skyview_step = settings.user.skyview_step,
-		.aerial_perspective_max_dist = settings.user.aerial_perspective_max_dist,
+		.enable_sky = settings.enable_sky && (RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull),
+		.enable_scatter = settings.enable_scatter,
 
-		.unit_scale = settings.debug_worldspace.unit_scale,
-		.bottom_z = settings.debug_worldspace.bottom_z,
-		.ground_radius = settings.debug_worldspace.ground_radius,
-		.atmos_thickness = settings.debug_worldspace.atmos_thickness,
+		.transmittance_step = settings.transmittance_step,
+		.multiscatter_step = settings.multiscatter_step,
+		.multiscatter_sqrt_samples = settings.multiscatter_sqrt_samples,
+		.skyview_step = settings.skyview_step,
+		.aerial_perspective_max_dist = settings.aerial_perspective_max_dist,
 
-		.ground_albedo = settings.debug_weather.ground_albedo,
+		.unit_scale = settings.unit_scale,
+		.bottom_z = settings.bottom_z,
+		.ground_radius = settings.ground_radius,
+		.atmos_thickness = settings.atmos_thickness,
 
-		.limb_darken_model = settings.debug_weather.limb_darken_model,
-		.limb_darken_power = settings.debug_weather.limb_darken_power,
-		.sun_intensity = settings.debug_weather.sun_intensity,
-		.sun_aperture_cos = cos(settings.debug_weather.sun_aperture_angle),
+		.ground_albedo = settings.ground_albedo,
 
-		.masser_aperture_cos = cos(settings.debug_weather.masser_aperture_angle),
-		.masser_brightness = settings.debug_weather.masser_brightness,
+		.limb_darken_model = settings.limb_darken_model,
+		.limb_darken_power = settings.limb_darken_power,
+		.sun_intensity = settings.sun_intensity,
+		.sun_aperture_cos = cos(settings.sun_aperture_angle),
 
-		.secunda_aperture_cos = cos(settings.debug_weather.secunda_aperture_angle),
-		.secunda_brightness = settings.debug_weather.secunda_brightness,
+		.masser_aperture_cos = cos(settings.masser_aperture_angle),
+		.masser_brightness = settings.masser_brightness,
 
-		.rayleigh_scatter = settings.debug_weather.rayleigh_scatter,
-		.rayleigh_absorption = settings.debug_weather.rayleigh_absorption,
-		.rayleigh_decay = settings.debug_weather.rayleigh_decay,
+		.secunda_aperture_cos = cos(settings.secunda_aperture_angle),
+		.secunda_brightness = settings.secunda_brightness,
 
-		.mie_scatter = settings.debug_weather.mie_scatter,
-		.mie_absorption = settings.debug_weather.mie_absorption,
-		.mie_decay = settings.debug_weather.mie_decay,
+		.rayleigh_scatter = settings.rayleigh_scatter,
+		.rayleigh_absorption = settings.rayleigh_absorption,
+		.rayleigh_decay = settings.rayleigh_decay,
 
-		.ozone_absorption = settings.debug_weather.ozone_absorption,
-		.ozone_height = settings.debug_weather.ozone_height,
-		.ozone_thickness = settings.debug_weather.ozone_thickness,
+		.mie_scatter = settings.mie_scatter,
+		.mie_absorption = settings.mie_absorption,
+		.mie_decay = settings.mie_decay,
 
-		.ap_inscatter_mix = settings.debug_weather.ap_inscatter_mix,
-		.ap_transmittance_mix = settings.debug_weather.ap_transmittance_mix,
-		.light_transmittance_mix = settings.debug_weather.light_transmittance_mix
+		.ozone_absorption = settings.ozone_absorption,
+		.ozone_height = settings.ozone_height,
+		.ozone_thickness = settings.ozone_thickness,
+
+		.ap_inscatter_mix = settings.ap_inscatter_mix,
+		.ap_transmittance_mix = settings.ap_transmittance_mix,
+		.light_transmittance_mix = settings.light_transmittance_mix
 	};
 
+	// dynamic variables
 	static uint32_t custom_timer = 0;
 	custom_timer += uint32_t(RE::GetSecondsSinceLastFrame() * 1e3f);
 	phys_sky_sb_content.timer = custom_timer * 1e-3f;
-
-	phys_sky_sb_content.enable_sky =
-		settings.user.enable_sky &&
-		settings.debug_worldspace.enable_sky &&
-		(RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull);
-	phys_sky_sb_content.enable_scatter = settings.user.enable_scatter && settings.debug_worldspace.enable_scatter;
 
 	auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
 	auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
@@ -322,7 +310,10 @@ void PhysicalSky::UpdatePhysSkySB()
 		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
 		phys_sky_sb_content.secunda_upvec = { secunda_upvec.x, secunda_upvec.y, secunda_upvec.z };
 	}
+}
 
+void PhysicalSky::UploadPhysSkySB()
+{
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 	D3D11_MAPPED_SUBRESOURCE mapped;
 	DX::ThrowIfFailed(context->Map(phys_sky_sb->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
@@ -335,6 +326,8 @@ void PhysicalSky::GenerateLuts()
 	static FrameChecker frame_checker;
 	if (!frame_checker.isNewFrame(RE::BSGraphics::State::GetSingleton()->uiFrameCount))
 		return;
+
+	UploadPhysSkySB();
 
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
@@ -469,21 +462,27 @@ void PhysicalSky::DrawSettings()
 {
 	static int pagenum = 0;
 
-	ImGui::Combo("Page", &pagenum, "General\0Worldspace\0Weather\0Debug\0");
+	ImGui::Combo("Page", &pagenum, "General\0Quality\0World\0Atmosphere\0Celestials\0Debug\0");
 
 	ImGui::Separator();
 
 	switch (pagenum) {
 	case 0:
-		DrawSettingsUser();
+		DrawSettingsGeneral();
 		break;
 	case 1:
-		DrawSettingsWorldspace();
+		DrawSettingsQuality();
 		break;
 	case 2:
-		DrawSettingsWeather();
+		DrawSettingsWorld();
 		break;
 	case 3:
+		DrawSettingsAtmosphere();
+		break;
+	case 4:
+		DrawSettingsCelestials();
+		break;
+	case 5:
 		DrawSettingsDebug();
 		break;
 	default:
@@ -491,108 +490,116 @@ void PhysicalSky::DrawSettings()
 	}
 }
 
-void PhysicalSky::DrawSettingsUser()
+void PhysicalSky::DrawSettingsGeneral()
 {
-	ImGui::Checkbox("Enable Physcial Sky", reinterpret_cast<bool*>(&settings.user.enable_sky));
+	ImGui::Checkbox("Enable Physcial Sky", reinterpret_cast<bool*>(&settings.enable_sky));
 
 	ImGui::Indent();
 	{
-		ImGui::Checkbox("Enable Aerial Perspective", reinterpret_cast<bool*>(&settings.user.enable_scatter));
+		ImGui::Checkbox("Enable Aerial Perspective", reinterpret_cast<bool*>(&settings.enable_scatter));
 	}
 	ImGui::Unindent();
+}
 
-	if (ImGui::TreeNodeEx("Quality", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Text("The bigger the settings below, the more accurate and more performance-heavy things are.");
-		ImGui::DragScalar("Transmittance Steps", ImGuiDataType_U32, &settings.user.transmittance_step);
-		ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.user.multiscatter_step);
-		ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.user.multiscatter_sqrt_samples);
-		ImGui::DragScalar("Sky View Steps", ImGuiDataType_U32, &settings.user.skyview_step);
-		ImGui::DragFloat("Aerial Perspective Max Dist", &settings.user.aerial_perspective_max_dist);
+void PhysicalSky::DrawSettingsQuality()
+{
+	ImGui::Text("The bigger the settings below, the more accurate and more performance-heavy things are.");
+	ImGui::DragScalar("Transmittance Steps", ImGuiDataType_U32, &settings.transmittance_step);
+	ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.multiscatter_step);
+	ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.multiscatter_sqrt_samples);
+	ImGui::DragScalar("Sky View Steps", ImGuiDataType_U32, &settings.skyview_step);
+	ImGui::DragFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist);
+	ImGui::TreePop();
+}
+
+void PhysicalSky::DrawSettingsWorld()
+{
+	ImGui::SliderFloat2("Unit Scale", &settings.unit_scale.x, 0.1f, 50.f);
+	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
+}
+
+void PhysicalSky::DrawSettingsAtmosphere()
+{
+	if (ImGui::TreeNodeEx("Mixing", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("In-scatter Mix", &settings.ap_inscatter_mix, 0.f, 1.f);
+		ImGui::SliderFloat("View Transmittance Mix", &settings.ap_transmittance_mix, 0.f, 1.f);
+		ImGui::SliderFloat("Light Transmittance Mix", &settings.light_transmittance_mix, 0.f, 1.f);
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Participating Media", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::TextWrapped(
+			"Rayleigh scatter: scattering by particles smaller than the wavelength of light, like air molecules, "
+			"generally isotropic. This what makes the sky blue, and red at sunset. Usually needs no change.");
+		ImGui::ColorEdit3("Rayleigh Scatter", &settings.rayleigh_scatter.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Rayleigh Absorption", &settings.rayleigh_absorption.x, hdr_color_edit_flags);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Usually zero");
+		ImGui::DragFloat("Rayleigh Height Decay", &settings.rayleigh_decay, .1f, 0.f, 100.f);
+
+		ImGui::TextWrapped(
+			"Mie scatter: scattering by particles similar to the wavelength of light, like dust particles, "
+			"with strong forward scattering characteristics. This generates glow around the sun. Increase in dustier weather.");
+		ImGui::ColorEdit3("Mie Scatter", &settings.mie_scatter.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Mie Absorption", &settings.mie_absorption.x, hdr_color_edit_flags);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Usually 1/9 of scatter coefficient. Dust/pollution is lower, fog is higher");
+		ImGui::DragFloat("Mie Height Decay", &settings.mie_decay, .1f, 0.f, 100.f);
+
+		ImGui::TextWrapped(
+			"Ozone absorption: light absorption by the high ozone layer. This keeps the zenith sky blue, especially at sunrise or sunset.");
+		ImGui::ColorEdit3("Ozone Absorption", &settings.ozone_absorption.x, hdr_color_edit_flags);
+		ImGui::DragFloat("Ozone Mean Height", &settings.ozone_height, .1f, 0.f, 100.f);
+		ImGui::DragFloat("Ozone Layer Thickness", &settings.ozone_thickness, .1f, 0.f, 50.f);
+
+		// if (ImPlot::BeginPlot("Media Density", { -1, 0 }, ImPlotFlags_NoInputs)) {
+		// 	ImPlot::SetupAxis(ImAxis_X1, "Altitude / km");
+		// 	ImPlot::SetupAxis(ImAxis_Y1, "Relative Density");
+		// 	ImPlot::SetupLegend(ImPlotLocation_NorthEast);
+		// 	ImPlot::SetupFinish();
+
+		// 	constexpr size_t n_datapoints = 101;
+		// 	std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
+		// 	for (size_t i = 0; i < n_datapoints; i++) {
+		// 		heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
+		// 		rayleigh_data[i] = exp(-heights[i] / settings.rayleigh_decay);
+		// 		mie_data[i] = exp(-heights[i] / settings.mie_decay);
+		// 		ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.ozone_height) / (settings.ozone_thickness * .5f));
+		// 	}
+		// 	ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
+		// 	ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
+		// 	ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
+		// 	ImPlot::EndPlot();
+		// }
+
 		ImGui::TreePop();
 	}
 }
-
-void PhysicalSky::DrawSettingsWorldspace()
+void PhysicalSky::DrawSettingsCelestials()
 {
-	ImGui::SliderFloat2("Unit Scale", &settings.debug_worldspace.unit_scale.x, 0.1f, 50.f);
-}
+	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::ColorEdit3("Sun Intensity", &settings.sun_intensity.x, hdr_color_edit_flags);
+		ImGui::SliderAngle("Sun Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::Combo("Limb Darkening Model", &settings.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
+		ImGui::SliderFloat("Limb Darken Strength", &settings.limb_darken_power, 0.f, 5.f, "%.1f");
 
-void PhysicalSky::DrawSettingsWeather()
-{
-	constexpr auto hdr_color_edit_flags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
-
-	ImGui::Checkbox("Override Weather", reinterpret_cast<bool*>(&settings.use_debug_weather));
-
-	if (!settings.use_debug_weather)
-		ImGui::BeginDisabled();
-	{
-		ImGui::ColorEdit3("Ground Albedo", &settings.debug_weather.ground_albedo.x, hdr_color_edit_flags);
-
-		ImGui::ColorEdit3("Sun Intensity", &settings.debug_weather.sun_intensity.x, hdr_color_edit_flags);
-		ImGui::SliderAngle("Sun Aperture", &settings.debug_weather.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::Combo("Limb Darkening Model", &settings.debug_weather.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
-		ImGui::SliderFloat("Limb Darken Strength", &settings.debug_weather.limb_darken_power, 0.f, 5.f, "%.1f");
-
-		ImGui::SliderAngle("Masser Aperture", &settings.debug_weather.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::SliderFloat("Masser Brightness", &settings.debug_weather.masser_brightness, 0.f, 5.f, "%.1f");
-
-		ImGui::SliderAngle("Secunda Aperture", &settings.debug_weather.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::SliderFloat("Secunda Brightness", &settings.debug_weather.secunda_brightness, 0.f, 5.f, "%.1f");
-
-		if (ImGui::TreeNodeEx("Participating Media", ImGuiTreeNodeFlags_DefaultOpen)) {
-			ImGui::TextWrapped(
-				"Rayleigh scatter: scattering by particles smaller than the wavelength of light, like air molecules, "
-				"generally isotropic. This what makes the sky blue, and red at sunset. Usually needs no change.");
-			ImGui::ColorEdit3("Rayleigh Scatter", &settings.debug_weather.rayleigh_scatter.x, hdr_color_edit_flags);
-			ImGui::ColorEdit3("Rayleigh Absorption", &settings.debug_weather.rayleigh_absorption.x, hdr_color_edit_flags);
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Usually zero");
-			ImGui::DragFloat("Rayleigh Height Decay", &settings.debug_weather.rayleigh_decay, .1f, 0.f, 100.f);
-
-			ImGui::TextWrapped(
-				"Mie scatter: scattering by particles similar to the wavelength of light, like dust particles, "
-				"with strong forward scattering characteristics. This generates glow around the sun. Increase in dustier weather.");
-			ImGui::ColorEdit3("Mie Scatter", &settings.debug_weather.mie_scatter.x, hdr_color_edit_flags);
-			ImGui::ColorEdit3("Mie Absorption", &settings.debug_weather.mie_absorption.x, hdr_color_edit_flags);
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("Usually 1/9 of scatter coefficient. Dust/pollution is lower, fog is higher");
-			ImGui::DragFloat("Mie Height Decay", &settings.debug_weather.mie_decay, .1f, 0.f, 100.f);
-
-			ImGui::TextWrapped(
-				"Ozone absorption: light absorption by the high ozone layer. This keeps the zenith sky blue, especially at sunrise or sunset.");
-			ImGui::ColorEdit3("Ozone Absorption", &settings.debug_weather.ozone_absorption.x, hdr_color_edit_flags);
-			ImGui::DragFloat("Ozone Mean Height", &settings.debug_weather.ozone_height, .1f, 0.f, 100.f);
-			ImGui::DragFloat("Ozone Layer Thickness", &settings.debug_weather.ozone_thickness, .1f, 0.f, 50.f);
-
-			// if (ImPlot::BeginPlot("Media Density", { -1, 0 }, ImPlotFlags_NoInputs)) {
-			// 	ImPlot::SetupAxis(ImAxis_X1, "Altitude / km");
-			// 	ImPlot::SetupAxis(ImAxis_Y1, "Relative Density");
-			// 	ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-			// 	ImPlot::SetupFinish();
-
-			// 	constexpr size_t n_datapoints = 101;
-			// 	std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
-			// 	for (size_t i = 0; i < n_datapoints; i++) {
-			// 		heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
-			// 		rayleigh_data[i] = exp(-heights[i] / settings.debug_weather.rayleigh_decay);
-			// 		mie_data[i] = exp(-heights[i] / settings.debug_weather.mie_decay);
-			// 		ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.debug_weather.ozone_height) / (settings.debug_weather.ozone_thickness * .5f));
-			// 	}
-			// 	ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
-			// 	ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
-			// 	ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
-			// 	ImPlot::EndPlot();
-			// }
-
-			ImGui::TreePop();
-		}
-
-		ImGui::SliderFloat("In-scatter Mix", &settings.debug_weather.ap_inscatter_mix, 0.f, 1.f);
-		ImGui::SliderFloat("View Transmittance Mix", &settings.debug_weather.ap_transmittance_mix, 0.f, 1.f);
-		ImGui::SliderFloat("Light Transmittance Mix", &settings.debug_weather.light_transmittance_mix, 0.f, 1.f);
+		ImGui::TreePop();
 	}
-	if (!settings.use_debug_weather)
-		ImGui::EndDisabled();
+
+	if (ImGui::TreeNodeEx("Masser", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderAngle("Masser Aperture", &settings.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Masser Brightness", &settings.masser_brightness, 0.f, 5.f, "%.1f");
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Secunda", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderAngle("Secunda Aperture", &settings.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Secunda Brightness", &settings.secunda_brightness, 0.f, 5.f, "%.1f");
+
+		ImGui::TreePop();
+	}
 }
 
 // void drawTrans(const char* label, RE::NiTransform t)
@@ -620,20 +627,6 @@ void PhysicalSky::DrawSettingsDebug()
 
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
-
-	auto sky = RE::Sky::GetSingleton();
-	auto masser = sky->masser;
-	if (masser) {
-		RE::NiSourceTexturePtr masser_tex;
-		getMoonTexture(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);
-
-		if (masser_tex) {
-			ImGui::BulletText("Masser");
-			D3D11_TEXTURE2D_DESC desc;
-			masser_tex->rendererTexture->m_Texture->GetDesc(&desc);
-			ImGui::Image((void*)(masser_tex->rendererTexture->m_ResourceView), { (float)desc.Width, (float)desc.Height });
-		}
-	}
 }
 
 void PhysicalSky::Load(json& o_json)

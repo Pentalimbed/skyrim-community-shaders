@@ -27,44 +27,38 @@ struct PhysicalSky : Feature
 	constexpr static uint16_t s_aerial_perspective_depth = 64;
 
 	// io
-	struct UserContols
+	struct Settings
 	{
 		uint32_t enable_sky = true;
 		uint32_t enable_scatter = true;
 
+		// PERFORMANCE
 		uint32_t transmittance_step = 40;
 		uint32_t multiscatter_step = 20;
 		uint32_t multiscatter_sqrt_samples = 4;
 		uint32_t skyview_step = 30;
 		float aerial_perspective_max_dist = 50;  // in km
-	};
 
-	struct WorldspaceControls
-	{
-		uint32_t enable_sky = true;
-		uint32_t enable_scatter = true;
-
+		// WORLDSPACE
 		DirectX::XMFLOAT2 unit_scale = { 10, 1 };
 		float bottom_z = -15000;      // in game unit
 		float ground_radius = 6.36f;  // in megameter
 		float atmos_thickness = .1f;
-	};
-
-	struct WeatherControls
-	{
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
+		// CELESTIALS
 		int32_t limb_darken_model = 1;
 		float limb_darken_power = 1.f;
 		DirectX::XMFLOAT3 sun_intensity = { 3, 3, 3 };       // 1.69e9 cd m^-2
 		float sun_aperture_angle = 2.2 * RE::NI_PI / 180.0;  // in rad
 
-		float masser_aperture_angle = 9.8 * RE::NI_PI / 180.0;
+		float masser_aperture_angle = 10 * RE::NI_PI / 180.0;
 		float masser_brightness = 1;
 
-		float secunda_aperture_angle = 4.3 * RE::NI_PI / 180.0;
+		float secunda_aperture_angle = 4.5 * RE::NI_PI / 180.0;
 		float secunda_brightness = 1;
 
+		// ATMOSPHERE
 		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802f, 13.558f, 33.1f };  // in megameter^-1
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
 		float rayleigh_decay = 8.f;  // in km^-1
@@ -80,23 +74,15 @@ struct PhysicalSky : Feature
 		float ap_inscatter_mix = 1.f;
 		float ap_transmittance_mix = 1.f;
 		float light_transmittance_mix = 2.f;
-	};
 
-	struct Settings
-	{
-		UserContols user;
-
-		bool use_debug_worldspace = false;
-		WorldspaceControls debug_worldspace;
-
-		bool use_debug_weather = false;
-		WeatherControls debug_weather;
 	} settings;
 
 	virtual void DrawSettings();
-	void DrawSettingsUser();
-	void DrawSettingsWorldspace();
-	void DrawSettingsWeather();
+	void DrawSettingsGeneral();
+	void DrawSettingsQuality();
+	void DrawSettingsWorld();
+	void DrawSettingsAtmosphere();
+	void DrawSettingsCelestials();
 	void DrawSettingsDebug();
 
 	virtual void Load(json& o_json);
@@ -166,7 +152,7 @@ struct PhysicalSky : Feature
 
 	std::unique_ptr<Buffer> phys_sky_sb = nullptr;
 	void UpdatePhysSkySB();
-	void UpdatePerCameraSB();
+	void UploadPhysSkySB();
 
 	winrt::com_ptr<ID3D11ComputeShader> transmittance_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> multiscatter_program = nullptr;
