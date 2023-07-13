@@ -3,6 +3,8 @@
 #include <dinput.h>
 #include <magic_enum.hpp>
 
+#include <implot.h>
+
 #include "ShaderCache.h"
 #include "State.h"
 
@@ -68,6 +70,7 @@ Menu::~Menu()
 {
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 }
 
@@ -254,6 +257,7 @@ void Menu::Init(IDXGISwapChain* swapchain, ID3D11Device* device, ID3D11DeviceCon
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImPlot::CreateContext();
 	auto& imgui_io = ImGui::GetIO();
 
 	imgui_io.ConfigFlags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;

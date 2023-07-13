@@ -502,6 +502,10 @@ void PhysicalSky::DrawSettings()
 
 void PhysicalSky::DrawSettingsGeneral()
 {
+	ImGui::TextWrapped(
+		"Some settings are shared across many pages, for the sake of convenience. "
+		"If they have the same name, they are the same setting. ");
+
 	ImGui::Checkbox("Enable Physcial Sky", &settings.enable_sky);
 
 	ImGui::Checkbox("Enable Aerial Perspective", &settings.enable_scatter);
@@ -510,7 +514,6 @@ void PhysicalSky::DrawSettingsGeneral()
 
 void PhysicalSky::DrawSettingsQuality()
 {
-	ImGui::Text("The bigger the settings below, the more accurate and more performance-heavy things are.");
 	ImGui::DragScalar("Transmittance Steps", ImGuiDataType_U32, &settings.transmittance_step);
 	ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.multiscatter_step);
 	ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.multiscatter_sqrt_samples);
@@ -522,6 +525,24 @@ void PhysicalSky::DrawSettingsQuality()
 void PhysicalSky::DrawSettingsWorld()
 {
 	ImGui::SliderFloat2("Unit Scale", &settings.unit_scale.x, 0.1f, 50.f);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip(
+			"Relative scale of the game length unit compared to real physical ones, used by atmosphere rendering and others.\n"
+			"First number controls distances. Renders far landscape less clear and thus look further.\n"
+			"Second number affects elevation. Makes vistas on the short mountains in game feel higher.");
+	ImGui::InputFloat("Bottom Z", &settings.bottom_z);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip(
+			"The lowest elevation of the worldspace you shall reach. In game unit. "
+			"You can check it using \"getpos z\" console command.");
+
+	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("The supposed radius of the planet Nirn, or whatever rock you are on. In megameter (10^6 m).");
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. In megameter (10^6 m).");
+
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
 
 	ImGui::ColorEdit3("Light Color", &settings.light_color.x, hdr_color_edit_flags);
@@ -530,59 +551,75 @@ void PhysicalSky::DrawSettingsWorld()
 void PhysicalSky::DrawSettingsAtmosphere()
 {
 	if (ImGui::TreeNodeEx("Mixing", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("In-scatter Mix", &settings.ap_inscatter_mix, 0.f, 1.f);
-		ImGui::SliderFloat("View Transmittance Mix", &settings.ap_transmittance_mix, 0.f, 1.f);
-		ImGui::SliderFloat("Light Transmittance Mix", &settings.light_transmittance_mix, 0.f, 1.f);
+		ImGui::SliderFloat("In-scatter", &settings.ap_inscatter_mix, 0.f, 1.f);
+		ImGui::SliderFloat("View Transmittance", &settings.ap_transmittance_mix, 0.f, 1.f);
+		ImGui::SliderFloat("Light Transmittance", &settings.light_transmittance_mix, 0.f, 1.f);
 
 		ImGui::TreePop();
 	}
 
-	if (ImGui::TreeNodeEx("Participating Media", ImGuiTreeNodeFlags_DefaultOpen)) {
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. In megameter (10^6 m).");
+
+	if (ImGui::TreeNodeEx("Air Molecules (Rayleigh)", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::TextWrapped(
-			"Rayleigh scatter: scattering by particles smaller than the wavelength of light, like air molecules, "
-			"generally isotropic. This what makes the sky blue, and red at sunset. Usually needs no change.");
-		ImGui::ColorEdit3("Rayleigh Scatter", &settings.rayleigh_scatter.x, hdr_color_edit_flags);
-		ImGui::ColorEdit3("Rayleigh Absorption", &settings.rayleigh_absorption.x, hdr_color_edit_flags);
+			"Particles smaller than the wavelength of light, like air molecules, with almost complete symmetry in forward and backward scattering. "
+			"On earth, they are what makes the sky blue and, at sunset, red. Usually needs no extra change.");
+
+		ImGui::ColorEdit3("Scatter", &settings.rayleigh_scatter.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Absorption", &settings.rayleigh_absorption.x, hdr_color_edit_flags);
 		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("Usually zero");
-		ImGui::DragFloat("Rayleigh Height Decay", &settings.rayleigh_decay, .1f, 0.f, 100.f);
-
-		ImGui::TextWrapped(
-			"Mie scatter: scattering by particles similar to the wavelength of light, like dust particles, "
-			"with strong forward scattering characteristics. This generates glow around the sun. Increase in dustier weather.");
-		ImGui::ColorEdit3("Mie Scatter", &settings.mie_scatter.x, hdr_color_edit_flags);
-		ImGui::ColorEdit3("Mie Absorption", &settings.mie_absorption.x, hdr_color_edit_flags);
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("Usually 1/9 of scatter coefficient. Dust/pollution is lower, fog is higher");
-		ImGui::DragFloat("Mie Height Decay", &settings.mie_decay, .1f, 0.f, 100.f);
-
-		ImGui::TextWrapped(
-			"Ozone absorption: light absorption by the high ozone layer. This keeps the zenith sky blue, especially at sunrise or sunset.");
-		ImGui::ColorEdit3("Ozone Absorption", &settings.ozone_absorption.x, hdr_color_edit_flags);
-		ImGui::DragFloat("Ozone Mean Height", &settings.ozone_height, .1f, 0.f, 100.f);
-		ImGui::DragFloat("Ozone Layer Thickness", &settings.ozone_thickness, .1f, 0.f, 50.f);
-
-		// if (ImPlot::BeginPlot("Media Density", { -1, 0 }, ImPlotFlags_NoInputs)) {
-		// 	ImPlot::SetupAxis(ImAxis_X1, "Altitude / km");
-		// 	ImPlot::SetupAxis(ImAxis_Y1, "Relative Density");
-		// 	ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-		// 	ImPlot::SetupFinish();
-
-		// 	constexpr size_t n_datapoints = 101;
-		// 	std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
-		// 	for (size_t i = 0; i < n_datapoints; i++) {
-		// 		heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
-		// 		rayleigh_data[i] = exp(-heights[i] / settings.rayleigh_decay);
-		// 		mie_data[i] = exp(-heights[i] / settings.mie_decay);
-		// 		ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.ozone_height) / (settings.ozone_thickness * .5f));
-		// 	}
-		// 	ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
-		// 	ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
-		// 	ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
-		// 	ImPlot::EndPlot();
-		// }
+			ImGui::SetTooltip("Usually zero.");
+		ImGui::DragFloat("Height Decay", &settings.rayleigh_decay, .1f, 0.f, 100.f);
 
 		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Dust (Mie)", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::TextWrapped(
+			"Particles similar to the wavelength of light, like dust particles, with strong forward scattering characteristics. "
+			"They contributes to the glow around bright celestial bodies. Increase in dustier weather.");
+
+		ImGui::ColorEdit3("Scatter", &settings.mie_scatter.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Absorption", &settings.mie_absorption.x, hdr_color_edit_flags);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Usually 1/9 of scatter coefficient. Dust/pollution is lower, fog is higher.");
+		ImGui::DragFloat("Height Decay", &settings.mie_decay, .1f, 0.f, 100.f);
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Ozone", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::TextWrapped(
+			"The ozone layer high up in the sky that mainly absorbs light of certain wavelength. "
+			"It keeps the zenith sky blue, especially at sunrise or sunset.");
+
+		ImGui::ColorEdit3("Absorption", &settings.ozone_absorption.x, hdr_color_edit_flags);
+		ImGui::DragFloat("Layer Height", &settings.ozone_height, .1f, 0.f, 100.f);
+		ImGui::DragFloat("Layer Thickness", &settings.ozone_thickness, .1f, 0.f, 50.f);
+
+		ImGui::TreePop();
+	}
+
+	ImPlot::SetNextAxesToFit();
+	if (ImPlot::BeginPlot("Media Density by Height", { -1, 0 }, ImPlotFlags_NoInputs)) {
+		ImPlot::SetupAxis(ImAxis_X1, "Altitude / km");
+		ImPlot::SetupAxis(ImAxis_Y1, "Relative Density");
+		ImPlot::SetupLegend(ImPlotLocation_NorthEast);
+
+		constexpr size_t n_datapoints = 101;
+		std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
+		for (size_t i = 0; i < n_datapoints; i++) {
+			heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
+			rayleigh_data[i] = exp(-heights[i] / settings.rayleigh_decay);
+			mie_data[i] = exp(-heights[i] / settings.mie_decay);
+			ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.ozone_height) / (settings.ozone_thickness * .5f));
+		}
+		ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
+		ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
+		ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
+		ImPlot::EndPlot();
 	}
 }
 void PhysicalSky::DrawSettingsCelestials()
