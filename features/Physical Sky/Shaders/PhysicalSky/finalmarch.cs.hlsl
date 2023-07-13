@@ -19,8 +19,6 @@ cbuffer PerGeometry : register(b0)
 	float3 EyePosition : packoffset(c12);
 };
 
-SamplerState samp_linear : register(s0);
-
 StructuredBuffer<PhysSkySB> phys_sky : register(t0);
 Texture2D<float4> tex_transmittance : register(t1);
 Texture2D<float4> tex_multiscatter : register(t2);
@@ -29,7 +27,7 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 {
 	float cos_theta = dot(ray_dir, sun_dir);
 
-	float mie_phase = miePhase(cos_theta);
+	float mie_phase = miePhase(cos_theta, phys_sky[0].mie_asymmetry, phys_sky[0].mie_phase_func);
 	float rayleigh_phase = rayleighPhase(-cos_theta);
 
 	float3 lum = 0, transmittance = 1;
@@ -56,8 +54,8 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 		float3 sample_transmittance = exp(-dt * extinction);
 
 		float2 samp_coord = getLutUv(new_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-		float3 sun_transmittance = tex_transmittance.SampleLevel(samp_linear, samp_coord, 0).rgb;
-		float3 psi_ms = tex_multiscatter.SampleLevel(samp_linear, samp_coord, 0).rgb;
+		float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
+		float3 psi_ms = tex_multiscatter.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
 		float3 rayleigh_inscatter = rayleigh_scatter * (rayleigh_phase * sun_transmittance + psi_ms);
 		float3 mie_inscatter = mie_scatter * (mie_phase * sun_transmittance + psi_ms);

@@ -243,12 +243,8 @@ PS_OUTPUT main(PS_INPUT input)
 			} else if (is_sun) {
 				psout.Color.rgb = phys_sky[0].sun_color;
 
-				float3 darken_factor = 1;
 				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) * rsqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);
-				if (phys_sky[0].limb_darken_model == 1)
-					darken_factor = limbDarkenNeckel(norm_dist);
-				else if (phys_sky[0].limb_darken_model == 2)
-					darken_factor = limbDarkenHestroffer(norm_dist);
+				float3 darken_factor = limbDarken(norm_dist, phys_sky[0].limb_darken_model);
 				psout.Color.rgb *= pow(darken_factor, phys_sky[0].limb_darken_power);
 			}
 
@@ -260,7 +256,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float2 trans_uv = getLutUv(float3(0, 0, height), view_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
 		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, trans_uv, 0).rgb;
 
-		psout.Color.rgb += TexSkyView.SampleLevel(SampBaseSampler, cylinderMapAdjusted(view_dir), 0).rgb;
+		psout.Color.rgb += TexSkyView.SampleLevel(SampSkyView, cylinderMapAdjusted(view_dir), 0).rgb;
 
 		if (phys_sky[0].enable_tonemap) {
 			// TONEMAP

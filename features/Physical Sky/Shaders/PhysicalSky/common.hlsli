@@ -1,6 +1,23 @@
 #ifndef PHYS_SKY_NO_PI
 static const float PI = 3.141592653589793238462643383279;
 #endif
+static const float RCP_PI = 1.0 / PI;
+
+SamplerState SampSkyView
+{
+	Filter = MIN_MAG_MIP_LINEAR;
+	AddressU = Wrap;
+	AddressV = Mirror;
+	AddressU = Mirror;
+};
+
+SamplerState MirrorLinearSampler : register(s1)
+{
+	Filter = MIN_MAG_MIP_LINEAR;
+	AddressU = Mirror;
+	AddressV = Mirror;
+	AddressW = Mirror;
+};
 
 struct PhysSkySB
 {
@@ -30,7 +47,7 @@ struct PhysSkySB
 
 	float3 light_color;
 
-	int limb_darken_model;
+	uint limb_darken_model;
 	float limb_darken_power;
 	float3 sun_color;
 	float sun_aperture_cos;
@@ -45,6 +62,8 @@ struct PhysSkySB
 	float3 rayleigh_absorption;
 	float rayleigh_decay;
 
+	uint mie_phase_func;
+	float mie_asymmetry;
 	float3 mie_scatter;
 	float3 mie_absorption;
 	float mie_decay;
@@ -56,12 +75,6 @@ struct PhysSkySB
 	float ap_inscatter_mix;
 	float ap_transmittance_mix;
 	float light_transmittance_mix;
-};
-
-struct PerCameraSB
-{
-	float3 eye_pos;
-	float4x4 inv_view;
 };
 
 /*-------- GEOMETRIC --------*/
@@ -116,10 +129,19 @@ void scatterValues(
 	extinction = rayleigh_scatter + rayleigh_absorption + mie_scatter + mie_absorp + ozone_absorp;
 }
 
-float miePhase(float cos_theta)
+float miePhaseHenyeyGreenstein(float cos_theta, float g)
 {
-	const float g = 0.8;
-	const float scale = 3.0 / (8.0 * PI);
+	const float scale = .25 * RCP_PI;
+
+	float num = (1.0 - g * g);
+	float denom = pow(abs(1.0 + g * g - 2.0 * g * cos_theta), 1.5);
+
+	return scale * num / denom;
+}
+
+float miePhaseCornetteShanks(float cos_theta, float g)
+{
+	const float scale = .375 * RCP_PI;
 
 	float num = (1.0 - g * g) * (1.0 + cos_theta * cos_theta);
 	float denom = (2.0 + g * g) * pow(abs(1.0 + g * g - 2.0 * g * cos_theta), 1.5);
@@ -127,9 +149,18 @@ float miePhase(float cos_theta)
 	return scale * num / denom;
 }
 
+float miePhase(float cos_theta, float g, uint func)
+{
+	if (func == 0)
+		return miePhaseHenyeyGreenstein(cos_theta, g);
+	else if (func == 1)
+		return miePhaseCornetteShanks(cos_theta, g);
+	return .5 * RCP_PI;
+}
+
 float rayleighPhase(float cos_theta)
 {
-	const float k = 3.0 / (16.0 * PI);
+	const float k = .1875 * RCP_PI;
 	return k * (1.0 + cos_theta * cos_theta);
 }
 
@@ -140,18 +171,17 @@ float2 getLutUv(float3 pos, float3 sun_dir, float ground_radius, float atmos_thi
 	float3 up = pos / height;
 	float sun_cos_zenith = dot(sun_dir, up);
 	float2 uv = float2(saturate(0.5 + 0.5 * sun_cos_zenith), saturate((height - ground_radius) / atmos_thickness));
-	return uv;
+	return frac(uv);
 }
 
 float2 cylinderMapAdjusted(float3 view_dir)
 {
-	float azimuth = sign(view_dir.y) * atan2(view_dir.y, view_dir.x);
-	float u = azimuth / (2 * PI);
+	float azimuth = atan2(view_dir.y, view_dir.x);
+	float u = azimuth * .5 * RCP_PI;
 	float zenith = asin(view_dir.z);
-	if (abs(zenith) < 1e-4)
-		zenith = 0.0;
-	float v = 0.5 - 0.5 * sign(zenith) * sqrt(abs(zenith) * 2 / PI);
-	return float2(u, v);
+	float v = 0.5 - 0.5 * sign(zenith) * sqrt(abs(zenith) * 2 * RCP_PI);
+	v = max(v, 0.01);
+	return frac(float2(u, v));
 }
 
 float3 invCylinderMapAdjusted(float2 uv)
@@ -224,6 +254,15 @@ float3 limbDarkenHestroffer(float norm_dist)
 
 	float3 factor = a0 + a1 * mu + a2 * mu2 + a3 * mu3 + a4 * mu4 + a5 * mu5;
 	return factor;
+}
+
+float3 limbDarken(float norm_dist, uint model)
+{
+	if (model == 1)
+		return limbDarkenNeckel(norm_dist);
+	else if (model == 2)
+		return limbDarkenHestroffer(norm_dist);
+	return 1;
 }
 
 /*-------- COLOR SPACE --------*/

@@ -82,22 +82,6 @@ void PhysicalSky::SetupResources()
 			phys_sky_sb->CreateSRV(srv_desc);
 		}
 
-		logger::debug("Creating sampler...");
-		{
-			auto renderer = RE::BSGraphics::Renderer::GetSingleton();
-			auto device = renderer->GetRuntimeData().forwarder;
-
-			D3D11_SAMPLER_DESC sampler_desc = {};
-			sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-			sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-			sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-			sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-			sampler_desc.MaxAnisotropy = 1;
-			sampler_desc.MinLOD = 0;
-			sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
-			DX::ThrowIfFailed(device->CreateSamplerState(&sampler_desc, common_clamp_sampler.put()));
-		}
-
 		logger::debug("Creating LUT textures...");
 		{
 			D3D11_TEXTURE2D_DESC tex2d_desc{
@@ -248,7 +232,7 @@ void PhysicalSky::UpdatePhysSkySB()
 
 		.light_color = settings.light_color,
 
-		.limb_darken_model = settings.limb_darken_model,
+		.limb_darken_model = static_cast<uint32_t>(settings.limb_darken_model),
 		.limb_darken_power = settings.limb_darken_power,
 		.sun_color = settings.sun_color,
 		.sun_aperture_cos = cos(settings.sun_aperture_angle),
@@ -263,6 +247,8 @@ void PhysicalSky::UpdatePhysSkySB()
 		.rayleigh_absorption = settings.rayleigh_absorption,
 		.rayleigh_decay = settings.rayleigh_decay,
 
+		.mie_phase_func = static_cast<uint32_t>(settings.mie_phase_func),
+		.mie_asymmetry = settings.mie_asymmetry,
 		.mie_scatter = settings.mie_scatter,
 		.mie_absorption = settings.mie_absorption,
 		.mie_decay = settings.mie_decay,
@@ -344,7 +330,6 @@ void PhysicalSky::GenerateLuts()
 	struct OldState
 	{
 		ID3D11ShaderResourceView* srvs[4];
-		ID3D11SamplerState* sampler;
 		ID3D11ComputeShader* shader;
 		ID3D11Buffer* buffer;
 		ID3D11UnorderedAccessView* uav;
@@ -352,14 +337,11 @@ void PhysicalSky::GenerateLuts()
 		UINT numInstances;
 	} old;
 	context->CSGetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
-	context->CSGetSamplers(0, 1, &old.sampler);
 	context->CSGetShader(&old.shader, &old.instance, &old.numInstances);
 	context->CSGetConstantBuffers(0, 1, &old.buffer);
 	context->CSGetUnorderedAccessViews(0, 1, &old.uav);
 
 	/* ---- DISPATCH ---- */
-	context->CSSetSamplers(0, 1, common_clamp_sampler.put());
-
 	context->CSSetShaderResources(0, 1, phys_sky_sb->srv.put());
 
 	ID3D11Buffer* pergeo_cb;
@@ -395,9 +377,6 @@ void PhysicalSky::GenerateLuts()
 	for (uint8_t i = 0; i < ARRAYSIZE(old.srvs); i++)
 		if (old.srvs[i])
 			old.srvs[i]->Release();
-	context->CSSetSamplers(0, 1, &old.sampler);
-	if (old.sampler)
-		old.sampler->Release();
 	context->CSSetShader(old.shader, &old.instance, old.numInstances);
 	if (old.shader)
 		old.shader->Release();
@@ -550,6 +529,10 @@ void PhysicalSky::DrawSettingsWorld()
 
 void PhysicalSky::DrawSettingsAtmosphere()
 {
+	ImGui::TextWrapped(
+		"Settings that controls the global characteristic of the worldspace atmosphere. "
+		"Keep in mind that these are planet-scale parameters, much larger compared to common weather phenomenons.");
+
 	if (ImGui::TreeNodeEx("Mixing", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SliderFloat("In-scatter", &settings.ap_inscatter_mix, 0.f, 1.f);
 		ImGui::SliderFloat("View Transmittance", &settings.ap_transmittance_mix, 0.f, 1.f);
@@ -564,7 +547,7 @@ void PhysicalSky::DrawSettingsAtmosphere()
 
 	if (ImGui::TreeNodeEx("Air Molecules (Rayleigh)", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::TextWrapped(
-			"Particles smaller than the wavelength of light, like air molecules, with almost complete symmetry in forward and backward scattering. "
+			"Particles much smaller than the wavelength of light. They have almost complete symmetry in forward and backward scattering (Rayleigh Scattering). "
 			"On earth, they are what makes the sky blue and, at sunset, red. Usually needs no extra change.");
 
 		ImGui::ColorEdit3("Scatter", &settings.rayleigh_scatter.x, hdr_color_edit_flags);
@@ -576,11 +559,15 @@ void PhysicalSky::DrawSettingsAtmosphere()
 		ImGui::TreePop();
 	}
 
-	if (ImGui::TreeNodeEx("Dust (Mie)", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (ImGui::TreeNodeEx("Aerosol (Mie)", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::TextWrapped(
-			"Particles similar to the wavelength of light, like dust particles, with strong forward scattering characteristics. "
-			"They contributes to the glow around bright celestial bodies. Increase in dustier weather.");
+			"Solid and liquid particles greater than 1/10 of the light wavelength but not too much, like dust. Strongly anisotropic (Mie Scattering). "
+			"They contributes to the aureole around bright celestial bodies. Increase in dustier weather.");
 
+		ImGui::Combo("Phase Function", &settings.mie_phase_func, "Henyey-Greenstein (Simple)\0Cornette-Shanks (Complex)\0");
+		ImGui::SliderFloat("Asymmetry", &settings.mie_asymmetry, -1, 1);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Makes scattered light more concentrated to the back (-1) or the front (1).");
 		ImGui::ColorEdit3("Scatter", &settings.mie_scatter.x, hdr_color_edit_flags);
 		ImGui::ColorEdit3("Absorption", &settings.mie_absorption.x, hdr_color_edit_flags);
 		if (ImGui::IsItemHovered())

@@ -7,8 +7,6 @@
 
 RWTexture2D<float4> tex_multiscatter : register(u0);
 
-SamplerState samp_linear : register(s0);
-
 StructuredBuffer<PhysSkySB> phys_sky : register(t0);
 Texture2D<float4> tex_transmittance : register(t1);
 
@@ -34,7 +32,7 @@ void getMultiscatterValues(
 			float t_max = ground_dist > 0 ? ground_dist : atmos_dist;
 
 			float cos_theta = dot(ray_dir, sun_dir);
-			float mie_phase = miePhase(cos_theta);
+			float mie_phase = miePhase(cos_theta, phys_sky[0].mie_asymmetry, phys_sky[0].mie_phase_func);
 			float rayleigh_phase = rayleighPhase(-cos_theta);
 
 			float3 lum = 0, lum_factor = 0, transmittance = 1;
@@ -55,7 +53,7 @@ void getMultiscatterValues(
 				lum_factor += transmittance * scatter_f;
 
 				float2 samp_coord = getLutUv(new_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-				float3 sun_transmittance = tex_transmittance.SampleLevel(samp_linear, samp_coord, 0).rgb;
+				float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
 				float3 rayleigh_inscatter = rayleigh_scatter * rayleigh_phase;
 				float mie_inscatter = mie_scatter * mie_phase;
@@ -72,7 +70,7 @@ void getMultiscatterValues(
 				if (dot(pos, sun_dir) > 0) {
 					hit_pos = normalize(hit_pos) * phys_sky[0].ground_radius;
 					float2 samp_coord = getLutUv(hit_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-					lum += transmittance * phys_sky[0].ground_albedo * tex_transmittance.SampleLevel(samp_linear, samp_coord, 0).rgb;
+					lum += transmittance * phys_sky[0].ground_albedo * tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 				}
 			}
 

@@ -66,6 +66,8 @@ struct PhysicalSky : Feature
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
 		float rayleigh_decay = 8.f;  // in km^-1
 
+		int32_t mie_phase_func = 1;
+		float mie_asymmetry = 0.8;  // the g
 		DirectX::XMFLOAT3 mie_scatter = { 3.996f, 3.996f, 3.996f };
 		DirectX::XMFLOAT3 mie_absorption = { .444f, .444f, .444f };
 		float mie_decay = 1.2f;
@@ -91,8 +93,6 @@ struct PhysicalSky : Feature
 	virtual void Save(json& o_json);
 
 	// resources
-	winrt::com_ptr<ID3D11SamplerState> common_clamp_sampler = nullptr;
-
 	std::unique_ptr<Texture2D> transmittance_lut = nullptr;
 	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
 	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
@@ -128,7 +128,7 @@ struct PhysicalSky : Feature
 
 		DirectX::XMFLOAT3 light_color;
 
-		int32_t limb_darken_model;
+		uint32_t limb_darken_model;
 		float limb_darken_power;
 		DirectX::XMFLOAT3 sun_color;
 		float sun_aperture_cos;
@@ -143,6 +143,8 @@ struct PhysicalSky : Feature
 		DirectX::XMFLOAT3 rayleigh_absorption;
 		float rayleigh_decay;
 
+		uint32_t mie_phase_func;
+		float mie_asymmetry;
 		DirectX::XMFLOAT3 mie_scatter;
 		DirectX::XMFLOAT3 mie_absorption;
 		float mie_decay;

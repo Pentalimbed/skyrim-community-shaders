@@ -974,7 +974,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float dist = length(input.WorldPosition.xyz) * phys_sky[0].unit_scale.x * 1.428e-5;
 		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_sky[0].aerial_perspective_max_dist));
 		float3 view_dir = normalize(input.WorldPosition.xyz);
-		ap = TexAerialPerspective.SampleLevel(SampColorSampler, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
+		ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
 		if (phys_sky[0].enable_tonemap)
 			ap.rgb = jodieReinhardTonemap(ap.rgb);
 
