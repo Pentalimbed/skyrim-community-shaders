@@ -1640,6 +1640,14 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 color;
 	color.xyz = diffuseColor * baseColor.xyz;
 
+#		ifdef PHYSICAL_SKY
+	if (phys_sky[0].enable_tonemap) {
+		color.xyz *= lerp(1, ap.w, phys_sky[0].ap_transmittance_mix);
+		color.xyz = lerp(color.xyz, lerp(color.xyz, ap.xyz, phys_sky[0].ap_inscatter_mix), 1 - ap.w);
+	} else
+		color.xyz = color.xyz * lerp(1, ap.w, phys_sky[0].ap_transmittance_mix) + ap.xyz * phys_sky[0].ap_inscatter_mix;
+#		endif
+
 #	endif
 
 #	if defined(HAIR)
@@ -1770,14 +1778,6 @@ PS_OUTPUT main(PS_INPUT input)
 #		endif
 	psout.Albedo.w = alpha;
 
-#	endif
-
-#	ifdef PHYSICAL_SKY
-	if (phys_sky[0].enable_tonemap) {
-		color.xyz *= lerp(1, ap.w, phys_sky[0].ap_transmittance_mix);
-		color.xyz = lerp(color.xyz, lerp(color.xyz, ap.xyz, phys_sky[0].ap_inscatter_mix), 1 - ap.w);
-	} else
-		color.xyz = color.xyz * lerp(1, ap.w, phys_sky[0].ap_transmittance_mix) + ap.xyz * phys_sky[0].ap_inscatter_mix;
 #	endif
 
 	psout.Albedo.xyz = color.xyz - tmpColor.xyz * GammaInvX_FirstPersonY_AlphaPassZ_CreationKitW.zzz;
