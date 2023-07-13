@@ -964,10 +964,6 @@ PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT psout;
 
-#	if defined(SKINNED) || !defined(MODELSPACENORMALS)
-	float3x3 tbn = float3x3(input.TBN0.xyz, input.TBN1.xyz, input.TBN2.xyz);
-#	endif
-
 #	ifdef PHYSICAL_SKY
 	float4 ap = { 0, 0, 0, 1 };
 	float3 sun_transmittance = { 1, 1, 1 };
