@@ -22,16 +22,19 @@ SamplerState MirrorLinearSampler : register(s1)
 struct PhysSkySB
 {
 	float timer;
+	float game_time;
 	float3 sun_dir;
 	float3 masser_dir;
 	float3 masser_upvec;
 	float3 secunda_dir;
 	float3 secunda_upvec;
+	// row_major float3x3 galaxy_rotate;
 	float3 player_cam_pos;
 
-	bool enable_sky;
-	bool enable_scatter;
-	bool enable_tonemap;
+	uint enable_sky;
+	uint enable_scatter;
+	uint enable_tonemap;
+	float tonemap_keyval;
 
 	uint transmittance_step;
 	uint multiscatter_step;
@@ -45,7 +48,8 @@ struct PhysSkySB
 	float atmos_thickness;
 	float3 ground_albedo;
 
-	float3 light_color;
+	float3 sunlight_color;
+	float3 moonlight_color;
 
 	uint limb_darken_model;
 	float limb_darken_power;
@@ -76,6 +80,11 @@ struct PhysSkySB
 	float ap_transmittance_mix;
 	float light_transmittance_mix;
 };
+
+bool isNight(float hour)
+{
+	return (hour < 6.f) || (hour > 18.f);
+}
 
 /*-------- GEOMETRIC --------*/
 // return distance to sphere surface
@@ -174,6 +183,16 @@ float2 getLutUv(float3 pos, float3 sun_dir, float ground_radius, float atmos_thi
 	return frac(uv);
 }
 
+float2 cylinderMap(float3 view_dir)
+{
+	float azimuth = atan2(view_dir.y, view_dir.x);
+	float u = azimuth * .5 * RCP_PI;
+	float zenith = acos(view_dir.z);
+	float v = zenith * RCP_PI;
+	// v = max(v, 0.01);
+	return frac(float2(u, v));
+}
+
 float2 cylinderMapAdjusted(float3 view_dir)
 {
 	float azimuth = atan2(view_dir.y, view_dir.x);
@@ -221,7 +240,6 @@ float2 lambAzAdjusted(float3 view_dir, float equator)
 }
 
 /*-------- SUN LIMB DARKENING --------*/
-
 // url: http://www.physics.hmc.edu/faculty/esin/a101/limbdarkening.pdf
 float3 limbDarkenNeckel(float norm_dist)
 {

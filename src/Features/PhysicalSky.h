@@ -32,6 +32,7 @@ struct PhysicalSky : Feature
 		bool enable_sky = true;
 		bool enable_scatter = true;
 		bool enable_tonemap = true;
+		float tonemap_keyval = 1.f;
 
 		// PERFORMANCE
 		uint32_t transmittance_step = 40;
@@ -42,17 +43,18 @@ struct PhysicalSky : Feature
 
 		// WORLDSPACE
 		DirectX::XMFLOAT2 unit_scale = { 10, 1 };
-		float bottom_z = -15000;      // in game unit
-		float ground_radius = 6.36f;  // in megameter
-		float atmos_thickness = .1f;
+		float bottom_z = -15000;       // in game unit
+		float ground_radius = 6.36f;   // in megameter
+		float atmos_thickness = .05f;  // 0.1
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
-		DirectX::XMFLOAT3 light_color = { 10, 10, 10 };
+		DirectX::XMFLOAT3 sunlight_color = { 100, 100, 100 };
+		DirectX::XMFLOAT3 moonlight_color = { 1, 1, 1 };
 
 		// CELESTIALS
 		int32_t limb_darken_model = 1;
 		float limb_darken_power = 1.f;
-		DirectX::XMFLOAT3 sun_color = { 3, 3, 3 };           // 1.69e9 cd m^-2
+		DirectX::XMFLOAT3 sun_color = { 100, 100, 100 };     // 1.69e9 cd m^-2
 		float sun_aperture_angle = 2.2 * RE::NI_PI / 180.0;  // in rad
 
 		float masser_aperture_angle = 10 * RE::NI_PI / 180.0;
@@ -67,7 +69,7 @@ struct PhysicalSky : Feature
 		float rayleigh_decay = 8.f;  // in km^-1
 
 		int32_t mie_phase_func = 1;
-		float mie_asymmetry = 0.8;  // the g
+		float mie_asymmetry = 0.85;  // the g, 0.8
 		DirectX::XMFLOAT3 mie_scatter = { 3.996f, 3.996f, 3.996f };
 		DirectX::XMFLOAT3 mie_absorption = { .444f, .444f, .444f };
 		float mie_decay = 1.2f;
@@ -78,7 +80,7 @@ struct PhysicalSky : Feature
 
 		float ap_inscatter_mix = 1.f;
 		float ap_transmittance_mix = 1.f;
-		float light_transmittance_mix = 2.f;
+		float light_transmittance_mix = 1.f;
 	} settings;
 
 	virtual void DrawSettings();
@@ -98,21 +100,24 @@ struct PhysicalSky : Feature
 	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
 	std::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
 
-	ID3D11ShaderResourceView* srv_stars = nullptr;
+	ID3D11ShaderResourceView* srv_galaxy = nullptr;
 
 	struct PhysSkySB
 	{
 		float timer = 0;
+		float game_time;
 		DirectX::XMFLOAT3 sun_dir;
 		DirectX::XMFLOAT3 masser_dir;
 		DirectX::XMFLOAT3 masser_upvec;
 		DirectX::XMFLOAT3 secunda_dir;
 		DirectX::XMFLOAT3 secunda_upvec;
+		// DirectX::XMFLOAT3X3 galaxy_rotate;
 		DirectX::XMFLOAT3 player_cam_pos;
 
 		uint32_t enable_sky;
 		uint32_t enable_scatter;
 		uint32_t enable_tonemap;
+		float tonemap_keyval;
 
 		uint32_t transmittance_step;
 		uint32_t multiscatter_step;
@@ -126,7 +131,8 @@ struct PhysicalSky : Feature
 		float atmos_thickness;
 		DirectX::XMFLOAT3 ground_albedo;
 
-		DirectX::XMFLOAT3 light_color;
+		DirectX::XMFLOAT3 sunlight_color;
+		DirectX::XMFLOAT3 moonlight_color;
 
 		uint32_t limb_darken_model;
 		float limb_darken_power;

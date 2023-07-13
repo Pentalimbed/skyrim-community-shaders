@@ -140,6 +140,7 @@ Texture2D<float4> TexSkyView : register(t17);
 Texture2D<float4> TexTransmittance : register(t18);
 Texture2D<float4> TexMasser : register(t19);
 Texture2D<float4> TexSecunda : register(t20);
+Texture2D<float4> TexGalaxy : register(t21);
 
 cbuffer PerFrame : register(b12)
 {
@@ -219,11 +220,21 @@ PS_OUTPUT main(PS_INPUT input)
 		float cos_secunda_view = dot(phys_sky[0].secunda_dir, view_dir);
 
 		bool is_sky = rayIntersectSphere(float3(0, 0, height), view_dir, phys_sky[0].ground_radius) < 0;
-		bool is_sun = cos_sun_view > phys_sky[0].sun_aperture_cos;
+		bool is_sun = (cos_sun_view > phys_sky[0].sun_aperture_cos) && !isNight(phys_sky[0].game_time);
 		bool is_masser = cos_masser_view > phys_sky[0].masser_aperture_cos;
 		bool is_secunda = cos_secunda_view > phys_sky[0].secunda_aperture_cos;
 
 		if (is_sky) {
+			// galaxy
+			// float3 rot_view_dir = mul(phys_sky[0].galaxy_rotate, view_dir);
+
+			if (is_sun) {
+				psout.Color.rgb = phys_sky[0].sun_color;
+
+				float norm_dist = sqrt(max(0, 1 - cos_sun_view * cos_sun_view)) * rsqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);
+				float3 darken_factor = limbDarken(norm_dist, phys_sky[0].limb_darken_model);
+				psout.Color.rgb *= pow(darken_factor, phys_sky[0].limb_darken_power);
+			}
 			if (is_masser) {
 				float3 rightvec = cross(phys_sky[0].masser_dir, phys_sky[0].masser_upvec);
 				float3 disp = normalize(view_dir - phys_sky[0].masser_dir);
@@ -231,25 +242,22 @@ PS_OUTPUT main(PS_INPUT input)
 				uv *= sqrt(1 - cos_masser_view * cos_masser_view) * rsqrt(1 - phys_sky[0].masser_aperture_cos * phys_sky[0].masser_aperture_cos);
 				uv = uv * .5 + .5;
 
-				psout.Color.rgb = TexMasser.Sample(SampBaseSampler, uv).rgb * phys_sky[0].masser_brightness;
-			} else if (is_secunda) {
+				float4 samp = TexMasser.Sample(SampBaseSampler, uv);
+				psout.Color.rgb = lerp(psout.Color.rgb, samp.rgb * phys_sky[0].masser_brightness, samp.w);
+			}
+			if (is_secunda) {
 				float3 rightvec = cross(phys_sky[0].secunda_dir, phys_sky[0].secunda_upvec);
 				float3 disp = normalize(view_dir - phys_sky[0].secunda_dir);
 				float2 uv = normalize(float2(dot(rightvec, disp), dot(-phys_sky[0].secunda_upvec, disp)));
 				uv *= sqrt(1 - cos_secunda_view * cos_secunda_view) * rsqrt(1 - phys_sky[0].secunda_aperture_cos * phys_sky[0].secunda_aperture_cos);
 				uv = uv * .5 + .5;
 
-				psout.Color.rgb = TexSecunda.Sample(SampBaseSampler, uv).rgb * phys_sky[0].secunda_brightness;
-			} else if (is_sun) {
-				psout.Color.rgb = phys_sky[0].sun_color;
-
-				float norm_dist = sqrt(1 - cos_sun_view * cos_sun_view) * rsqrt(1 - phys_sky[0].sun_aperture_cos * phys_sky[0].sun_aperture_cos);
-				float3 darken_factor = limbDarken(norm_dist, phys_sky[0].limb_darken_model);
-				psout.Color.rgb *= pow(darken_factor, phys_sky[0].limb_darken_power);
+				float4 samp = TexSecunda.Sample(SampBaseSampler, uv);
+				psout.Color.rgb = lerp(psout.Color.rgb, samp.rgb * phys_sky[0].secunda_brightness, samp.w);
 			}
 
 			// AURORA
-			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx, aurora(float3(0, 0, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer));
+			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx, aurora(float3(5, 6, 0).xzy, view_dir.xzy, input.Position.xy, phys_sky[0].timer));
 			psout.Color.rgb += aur.rgb * aur.a * 3;
 		}
 
@@ -260,7 +268,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 		if (phys_sky[0].enable_tonemap) {
 			// TONEMAP
-			psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz);
+			psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz * phys_sky[0].tonemap_keyval);
 
 			// DITHER
 			float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
@@ -269,7 +277,11 @@ PS_OUTPUT main(PS_INPUT input)
 		}
 
 		psout.Color.a = 1.0;
-#	elif !defined(OCCLUSION) && !(defined(DITHER) && defined(TEX))  // sunocclusion and sunglare
+// #	elif defined(OCCLUSION) || (defined(DITHER) && defined(TEX))  // sunocclusion and sunglare
+// 		discard;
+#	elif defined(HORIZFADE)  // stars
+		// PLACEHOLDER
+#	else
 		discard;
 #	endif
 	}

@@ -976,7 +976,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 view_dir = normalize(input.WorldPosition.xyz);
 		ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
 		if (phys_sky[0].enable_tonemap)
-			ap.rgb = jodieReinhardTonemap(ap.rgb);
+			ap.rgb = jodieReinhardTonemap(ap.rgb * phys_sky[0].tonemap_keyval);
 
 		float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
 		float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);

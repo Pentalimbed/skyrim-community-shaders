@@ -217,6 +217,7 @@ void PhysicalSky::UpdatePhysSkySB()
 		.enable_sky = settings.enable_sky && (RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull),
 		.enable_scatter = settings.enable_scatter,
 		.enable_tonemap = settings.enable_tonemap,
+		.tonemap_keyval = settings.tonemap_keyval,
 
 		.transmittance_step = settings.transmittance_step,
 		.multiscatter_step = settings.multiscatter_step,
@@ -230,7 +231,8 @@ void PhysicalSky::UpdatePhysSkySB()
 		.atmos_thickness = settings.atmos_thickness,
 		.ground_albedo = settings.ground_albedo,
 
-		.light_color = settings.light_color,
+		.sunlight_color = settings.sunlight_color,
+		.moonlight_color = settings.moonlight_color,
 
 		.limb_darken_model = static_cast<uint32_t>(settings.limb_darken_model),
 		.limb_darken_power = settings.limb_darken_power,
@@ -267,12 +269,16 @@ void PhysicalSky::UpdatePhysSkySB()
 	custom_timer += uint32_t(RE::GetSecondsSinceLastFrame() * 1e3f);
 	phys_sky_sb_content.timer = custom_timer * 1e-3f;
 
-	auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
-	auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
-	if (dir_light) {
-		auto sun_dir = -dir_light->GetWorldDirection();
-		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
-	}
+	auto calendar = RE::Calendar::GetSingleton();
+	if (calendar)
+		phys_sky_sb_content.game_time = calendar->GetHour();
+
+	// auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
+	// auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
+	// if (dir_light) {
+	// 	auto sun_dir = -dir_light->GetWorldDirection();
+	// 	phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	// }
 
 	RE::NiPoint3 cam_pos = { 0, 0, 0 };
 	if (auto cam = RE::PlayerCamera::GetSingleton(); cam && cam->cameraRoot) {
@@ -281,14 +287,18 @@ void PhysicalSky::UpdatePhysSkySB()
 	}
 
 	auto sky = RE::Sky::GetSingleton();
-	// auto sun = sky->sun;
+	auto sun = sky->sun;
 	auto masser = sky->masser;
 	auto secunda = sky->secunda;
-	// if (sun) {
-	// 	auto sun_dir = sun->sunBase->world.translate - cam_pos;
-	// 	sun_dir.Unitize();
-	// 	phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
-	// } // during night it flips
+	// auto stars = sky->stars;
+	if (sun) {
+		RE::NiPoint3 rise_dir = { 0.995, 0.1, 0 };
+		auto sun_dir = sun->sunBase->world.translate - cam_pos;
+		sun_dir.Unitize();
+		if (abs(sun->light->GetWorldDirection().z) < 1e-10)            // rise / set
+			sun_dir = rise_dir * 2 * rise_dir.Dot(sun_dir) - sun_dir;  // flip
+		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	}  // during night it flips
 	if (masser) {
 		auto masser_dir = masser->moonMesh->world.translate - cam_pos;
 		masser_dir.Unitize();
@@ -305,6 +315,17 @@ void PhysicalSky::UpdatePhysSkySB()
 		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
 		phys_sky_sb_content.secunda_upvec = { secunda_upvec.x, secunda_upvec.y, secunda_upvec.z };
 	}
+	// if (stars && stars->stars) {
+	// 	auto stars_rot = stars->stars->world.rotate.Transpose();
+	// 	auto entry = stars_rot.entry;
+	// 	phys_sky_sb_content.galaxy_rotate = DirectX::XMFLOAT3X3{
+	// 		entry[0][0], entry[0][1], entry[0][2],
+	// 		entry[1][0], entry[1][1], entry[1][2],
+	// 		entry[2][0], entry[2][1], entry[2][2]
+	// 	};
+	// }
+
+	UploadPhysSkySB();
 }
 
 void PhysicalSky::UploadPhysSkySB()
@@ -321,8 +342,6 @@ void PhysicalSky::GenerateLuts()
 	static FrameChecker frame_checker;
 	if (!frame_checker.isNewFrame())
 		return;
-
-	UploadPhysSkySB();
 
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
@@ -415,14 +434,16 @@ void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 	auto tech_enum = static_cast<SkyShaderTechniques>(descriptor);
 
-	// static ID3D11ShaderResourceView* srv_star = nullptr;
-	{
-		if (tech_enum == SkyShaderTechniques::Stars)
-			context->PSGetShaderResources(0, 1, &srv_stars);
-	}
-
 	if (tech_enum != SkyShaderTechniques::Sky)
 		return;
+
+	/* ---- FETCH ---- */
+	if (!srv_galaxy) {
+		RE::NiTexturePtr tex_galaxy;
+		RE::BSShaderManager::GetTexture("data/textures/sky/skyrimgalaxy.dds", true, tex_galaxy, false);
+		if (tex_galaxy)
+			srv_galaxy = reinterpret_cast<RE::NiSourceTexture*>(tex_galaxy.get())->rendererTexture->m_ResourceView;
+	}
 
 	context->PSSetShaderResources(16, 1, phys_sky_sb->srv.put());
 	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());
@@ -443,6 +464,8 @@ void PhysicalSky::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 		if (secunda_tex)
 			context->PSSetShaderResources(20, 1, &secunda_tex->rendererTexture->m_ResourceView);
 	}
+
+	context->PSSetShaderResources(21, 1, &srv_galaxy);
 }
 #pragma endregion DRAW
 
@@ -489,6 +512,8 @@ void PhysicalSky::DrawSettingsGeneral()
 
 	ImGui::Checkbox("Enable Aerial Perspective", &settings.enable_scatter);
 	ImGui::Checkbox("Enable Tonemapping", &settings.enable_tonemap);
+	if (settings.enable_tonemap)
+		ImGui::SliderFloat("Tonemap Exposure", &settings.tonemap_keyval, 0.f, 2.f);
 }
 
 void PhysicalSky::DrawSettingsQuality()
@@ -524,7 +549,8 @@ void PhysicalSky::DrawSettingsWorld()
 
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
 
-	ImGui::ColorEdit3("Light Color", &settings.light_color.x, hdr_color_edit_flags);
+	ImGui::ColorEdit3("Sunlight Color", &settings.sunlight_color.x, hdr_color_edit_flags);
+	ImGui::ColorEdit3("Moonlight Color", &settings.moonlight_color.x, hdr_color_edit_flags);
 }
 
 void PhysicalSky::DrawSettingsAtmosphere()
@@ -660,17 +686,6 @@ void PhysicalSky::DrawSettingsDebug()
 
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
-
-	if (srv_stars) {
-		ImGui::BulletText("Stars");
-		ID3D11Texture2D* tex_stars = nullptr;
-		srv_stars->GetResource((ID3D11Resource**)&tex_stars);
-		if (tex_stars) {
-			D3D11_TEXTURE2D_DESC desc;
-			tex_stars->GetDesc(&desc);
-			ImGui::Image((void*)(srv_stars), { (float)desc.Width, (float)desc.Height });
-		}
-	}
 }
 #pragma region IMGUI
 

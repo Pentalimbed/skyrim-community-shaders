@@ -25,6 +25,8 @@ Texture2D<float4> tex_multiscatter : register(t2);
 
 float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, uint nsteps, uint2 tid)
 {
+	const float3 light_color = isNight(phys_sky[0].game_time) ? phys_sky[0].moonlight_color : phys_sky[0].sunlight_color;
+
 	float cos_theta = dot(ray_dir, sun_dir);
 
 	float mie_phase = miePhase(cos_theta, phys_sky[0].mie_asymmetry, phys_sky[0].mie_phase_func);
@@ -67,7 +69,7 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 		transmittance *= sample_transmittance;
 #ifndef SKY_VIEW
 	}
-	tex_aerial_perspective[uint3(tid.xy, i + 1)] = float4(lum * phys_sky[0].light_color, rgbLuminance(transmittance));
+	tex_aerial_perspective[uint3(tid.xy, i + 1)] = float4(lum * light_color, rgbLuminance(transmittance));
 #endif
 }
 return lum;
@@ -101,6 +103,6 @@ return lum;
 		tid.xy);
 
 #ifdef SKY_VIEW
-	tex_skyview[tid.xy] = float4(lum * phys_sky[0].light_color, 1);
+	tex_skyview[tid.xy] = float4(lum * (isNight(phys_sky[0].game_time) ? phys_sky[0].moonlight_color : phys_sky[0].sunlight_color), 1);
 #endif
 }
