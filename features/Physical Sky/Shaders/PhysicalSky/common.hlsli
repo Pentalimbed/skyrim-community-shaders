@@ -22,7 +22,6 @@ SamplerState MirrorLinearSampler : register(s1)
 struct PhysSkySB
 {
 	float timer;
-	float game_time;
 	float3 sun_dir;
 	float3 masser_dir;
 	float3 masser_upvec;
@@ -80,11 +79,6 @@ struct PhysSkySB
 	float ap_transmittance_mix;
 	float light_transmittance_mix;
 };
-
-bool isNight(float hour)
-{
-	return (hour < 6.f) || (hour > 18.f);
-}
 
 /*-------- GEOMETRIC --------*/
 // return distance to sphere surface

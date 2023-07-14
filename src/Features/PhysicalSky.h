@@ -105,7 +105,6 @@ struct PhysicalSky : Feature
 	struct PhysSkySB
 	{
 		float timer = 0;
-		float game_time;
 		DirectX::XMFLOAT3 sun_dir;
 		DirectX::XMFLOAT3 masser_dir;
 		DirectX::XMFLOAT3 masser_upvec;

@@ -269,10 +269,6 @@ void PhysicalSky::UpdatePhysSkySB()
 	custom_timer += uint32_t(RE::GetSecondsSinceLastFrame() * 1e3f);
 	phys_sky_sb_content.timer = custom_timer * 1e-3f;
 
-	auto calendar = RE::Calendar::GetSingleton();
-	if (calendar)
-		phys_sky_sb_content.game_time = calendar->GetHour();
-
 	// auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
 	// auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
 	// if (dir_light) {

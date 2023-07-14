@@ -220,7 +220,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float cos_secunda_view = dot(phys_sky[0].secunda_dir, view_dir);
 
 		bool is_sky = rayIntersectSphere(float3(0, 0, height), view_dir, phys_sky[0].ground_radius) < 0;
-		bool is_sun = (cos_sun_view > phys_sky[0].sun_aperture_cos) && !isNight(phys_sky[0].game_time);
+		bool is_sun = (cos_sun_view > phys_sky[0].sun_aperture_cos);
 		bool is_masser = cos_masser_view > phys_sky[0].masser_aperture_cos;
 		bool is_secunda = cos_secunda_view > phys_sky[0].secunda_aperture_cos;
 
