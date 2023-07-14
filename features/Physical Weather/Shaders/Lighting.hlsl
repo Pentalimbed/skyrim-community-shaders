@@ -705,14 +705,6 @@ float3 fresnelSchlick(float cosTheta, float3 F0)
 
 static const float PI = 3.14159265;
 
-#	ifdef PHYSICAL_SKY
-#		define PHYS_SKY_NO_PI
-#		include "PhysicalSky/common.hlsli"
-Texture3D<float4> TexAerialPerspective : register(t16);
-Texture2D<float4> TexTransmittance : register(t17);
-StructuredBuffer<PhysSkySB> phys_sky : register(t18);
-#	endif
-
 float DistributionGGX(float NdotH, float roughness)
 {
 	float a = roughness * roughness;
@@ -958,6 +950,14 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 
 #	if defined(WATER_BLENDING)
 #		include "WaterBlending/WaterBlending.hlsli"
+#	endif
+
+#	ifdef PHYSICAL_SKY
+#		define PHYS_SKY_NO_PI
+#		include "PhysicalWeather/common.hlsli"
+Texture3D<float4> TexAerialPerspective : register(t16);
+Texture2D<float4> TexTransmittance : register(t17);
+StructuredBuffer<PhysSkySB> phys_sky : register(t18);
 #	endif
 
 PS_OUTPUT main(PS_INPUT input)

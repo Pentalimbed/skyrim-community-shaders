@@ -10,7 +10,7 @@
 
 #include "Feature.h"
 #include "Features/ExtendedMaterials.h"
-#include "Features/PhysicalSky.h"
+#include "Features/PhysicalWeather.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/WaterBlending.h"
 
@@ -309,7 +309,7 @@ void Menu::DrawSettings()
 			if (ImGui::Button("Clear Shader Cache", { -1, 0 })) {
 				shaderCache.Clear();
 				ScreenSpaceShadows::GetSingleton()->ClearComputeShader();
-				PhysicalSky::GetSingleton()->RecompileShaders();
+				PhysicalWeather::GetSingleton()->RecompileShaders();
 			}
 			if (ImGui::IsItemHovered()) {
 				ImGui::BeginTooltip();

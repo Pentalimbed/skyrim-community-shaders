@@ -8,7 +8,7 @@
 
 #include "Features/ExtendedMaterials.h"
 #include "Features/GrassCollision.h"
-#include "Features/PhysicalSky.h"
+#include "Features/PhysicalWeather.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/WaterBlending.h"
 #include "State.h"
@@ -116,7 +116,7 @@ namespace SIE
 				++defines;
 			}
 
-			if (PhysicalSky::GetSingleton()->loaded) {
+			if (PhysicalWeather::GetSingleton()->loaded) {
 				defines[0] = { "PHYSICAL_SKY", nullptr };
 				++defines;
 			}

@@ -133,8 +133,8 @@ Texture2D<float4> TexBaseSampler : register(t0);
 Texture2D<float4> TexBlendSampler : register(t1);
 Texture2D<float4> TexNoiseGradSampler : register(t2);
 
-#	include "PhysicalSky/aurora.hlsli"
-#	include "PhysicalSky/common.hlsli"
+#	include "PhysicalWeather/aurora.hlsli"
+#	include "PhysicalWeather/common.hlsli"
 StructuredBuffer<PhysSkySB> phys_sky : register(t16);
 Texture2D<float4> TexSkyView : register(t17);
 Texture2D<float4> TexTransmittance : register(t18);

@@ -4,7 +4,7 @@
 #include "Features/ExtendedMaterials.h"
 #include "Features/GrassCollision.h"
 #include "Features/GrassLighting.h"
-#include "Features/PhysicalSky.h"
+#include "Features/PhysicalWeather.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/WaterBlending.h"
 
@@ -77,7 +77,7 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		ScreenSpaceShadows::GetSingleton(),
 		ExtendedMaterials::GetSingleton(),
 		WaterBlending::GetSingleton(),
-		PhysicalSky::GetSingleton()
+		PhysicalWeather::GetSingleton()
 	};
 	return features;
 }

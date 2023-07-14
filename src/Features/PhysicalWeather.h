@@ -3,17 +3,17 @@
 #include "Buffer.h"
 #include "Feature.h"
 
-struct PhysicalSky : Feature
+struct PhysicalWeather : Feature
 {
 	// boilerplates
 	inline static auto* GetSingleton()
 	{
-		static PhysicalSky singleton;
+		static PhysicalWeather singleton;
 		return &singleton;
 	}
 
-	virtual inline std::string GetName() { return "Physical Sky"; }
-	virtual inline std::string GetShortName() { return "PhysicalSky"; }
+	virtual inline std::string GetName() { return "Physical Weather"; }
+	virtual inline std::string GetShortName() { return "PhysicalWeather"; }
 
 	// params
 	constexpr static uint16_t s_transmittance_width = 256;
