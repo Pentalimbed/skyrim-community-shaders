@@ -1810,8 +1810,10 @@ PS_OUTPUT main(PS_INPUT input)
 	}
 #	endif
 
+#	if !defined(LANDSCAPE) && defined(SPECULAR)
 	// Green reflections fix
-	psout.ScreenSpaceNormals.w = psout.ScreenSpaceNormals.w * psout.Albedo.w * psout.Albedo.w;
+	psout.ScreenSpaceNormals.w = psout.ScreenSpaceNormals.w * (psout.Albedo.w == 1);
+#	endif
 
 	float3 screenSpaceNormal;
 	screenSpaceNormal.x = dot(input.ScreenNormalTransform0.xyz, normal.xyz);
