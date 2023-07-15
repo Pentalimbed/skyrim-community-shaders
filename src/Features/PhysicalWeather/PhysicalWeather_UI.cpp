@@ -14,11 +14,11 @@ void OrbitEdit(Orbit& orbit)
 
 void TrajectoryEdit(Trajectory& traj)
 {
-	if (ImGui::TreeNodeEx("Orbit A")) {
+	if (ImGui::TreeNodeEx("Low Orbit")) {
 		OrbitEdit(traj.minima);
 		ImGui::TreePop();
 	}
-	if (ImGui::TreeNodeEx("Orbit B")) {
+	if (ImGui::TreeNodeEx("High Orbit")) {
 		OrbitEdit(traj.maxima);
 		ImGui::TreePop();
 	}
@@ -118,12 +118,25 @@ void PhysicalWeather::DrawSettingsWorld()
 
 void PhysicalWeather::DrawSettingsOrbits()
 {
+	ImGui::TextWrapped(
+		"ORBITS\n"
+		"Controling how celestials move across the sky at different time of the day/year.");
+	ImGui::Separator();
+
 	ImGui::SliderAngle("Critical Sun Angle", &settings.critcial_sun_angle, 0, 90);
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("When the sun dips this much below the horizon, the sky will be lit by moonlight instead.");
 
 	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
 		TrajectoryEdit(settings.sun_trajectory);
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNodeEx("Masser", ImGuiTreeNodeFlags_DefaultOpen)) {
+		TrajectoryEdit(settings.masser_trajectory);
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNodeEx("Secunda", ImGuiTreeNodeFlags_DefaultOpen)) {
+		TrajectoryEdit(settings.secunda_trajectory);
 		ImGui::TreePop();
 	}
 }

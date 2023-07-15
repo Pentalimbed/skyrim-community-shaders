@@ -75,8 +75,21 @@ struct PhysicalWeather : Feature
 		DirectX::XMFLOAT3 moonlight_color = { 1, 1, 1 };
 
 		// ORBITS
+		bool override_light_color = false;
+		bool override_light_dir = false;
 		float critcial_sun_angle = 10 * RE::NI_PI / 180.0;
+
 		Trajectory sun_trajectory;
+		Trajectory masser_trajectory = {
+			.minima = { .offset = -.174 },
+			.maxima = { .offset = -.174 },
+			.offset_dirunal = .456
+		};
+		Trajectory secunda_trajectory = {
+			.minima = { .offset = -.446 },
+			.maxima = { .offset = -.446 },
+			.offset_dirunal = .423
+		};
 
 		// CELESTIALS
 		int32_t limb_darken_model = 1;

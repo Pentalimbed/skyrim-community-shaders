@@ -978,9 +978,11 @@ PS_OUTPUT main(PS_INPUT input)
 		if (phys_sky[0].enable_tonemap)
 			ap.rgb = jodieReinhardTonemap(ap.rgb * phys_sky[0].tonemap_keyval);
 
-		float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
-		float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].dirlight_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-		sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, lut_uv, 0).rgb;
+		if (phys_sky[0].dirlight_dir.z > 0) {
+			float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
+			float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].dirlight_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+			sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, lut_uv, 0).rgb;
+		}
 	}
 #	endif
 
@@ -1440,6 +1442,10 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 dirLightColor = DirLightColor.xyz;
 	float selfShadowFactor = 1.0f;
 
+#	ifdef PHYSICAL_SKY
+	dirLightColor *= lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
+#	endif
+
 	float3 nsDirLightColor = dirLightColor;
 
 #	if defined(DEFSHADOW) && defined(SHADOW_DIR)
@@ -1449,10 +1455,6 @@ PS_OUTPUT main(PS_INPUT input)
 #	if defined(SCREEN_SPACE_SHADOWS)
 	float dirLightSShadow = PrepassScreenSpaceShadows(input.WorldPosition);
 	dirLightColor *= dirLightSShadow;
-#	endif
-
-#	ifdef PHYSICAL_SKY
-	dirLightColor *= lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
 #	endif
 
 #	if defined(CPM_AVAILABLE) && (defined(SKINNED) || !defined(MODELSPACENORMALS))
@@ -1643,7 +1645,7 @@ PS_OUTPUT main(PS_INPUT input)
 #		ifdef PHYSICAL_SKY
 	if (phys_sky[0].enable_tonemap) {
 		color.xyz *= lerp(1, ap.w, phys_sky[0].ap_transmittance_mix);
-		color.xyz = lerp(color.xyz, lerp(color.xyz, ap.xyz, phys_sky[0].ap_inscatter_mix), 1 - ap.w);
+		color.xyz = lerp(color.xyz, lerp(color.xyz, max(color.xyz, ap.xyz), phys_sky[0].ap_inscatter_mix), 1 - ap.w);
 	} else
 		color.xyz = color.xyz * lerp(1, ap.w, phys_sky[0].ap_transmittance_mix) + ap.xyz * phys_sky[0].ap_inscatter_mix;
 #		endif

@@ -211,8 +211,16 @@ void PhysicalWeather::UpdateOrbits()
 {
 	auto calendar = RE::Calendar::GetSingleton();
 	if (calendar) {
-		auto sun_dir = settings.sun_trajectory.getDir(calendar->GetCurrentGameTime());
+		auto game_time = calendar->GetCurrentGameTime();
+
+		auto sun_dir = settings.sun_trajectory.getDir(game_time);
 		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+
+		auto masser_dir = settings.masser_trajectory.getDir(game_time);
+		phys_sky_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
+
+		auto secunda_dir = settings.secunda_trajectory.getDir(game_time);
+		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
 	}
 
 	// sun or moon
