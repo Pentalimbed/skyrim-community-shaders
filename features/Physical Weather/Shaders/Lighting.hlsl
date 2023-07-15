@@ -979,7 +979,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ap.rgb = jodieReinhardTonemap(ap.rgb * phys_sky[0].tonemap_keyval);
 
 		float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
-		float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+		float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].dirlight_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
 		sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, lut_uv, 0).rgb;
 	}
 #	endif

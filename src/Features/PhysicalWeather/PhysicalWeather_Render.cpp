@@ -133,7 +133,7 @@ void PhysicalWeather::Draw(const RE::BSShader* shader, [[maybe_unused]] const ui
 	if (!loaded)
 		return;
 
-	UpdatePhysSkySB();
+	Update();
 	if (phys_sky_sb_content.enable_sky)
 		GenerateLuts();
 

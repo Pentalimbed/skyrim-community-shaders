@@ -5,11 +5,36 @@
 
 constexpr auto hdr_color_edit_flags = ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR;
 
+void OrbitEdit(Orbit& orbit)
+{
+	ImGui::SliderAngle("Azimuth", &orbit.azimuth, -180, 180);
+	ImGui::SliderAngle("Zenith", &orbit.zenith, -90, 90);
+	ImGui::SliderFloat("Offset", &orbit.offset, -1, 1);
+}
+
+void TrajectoryEdit(Trajectory& traj)
+{
+	if (ImGui::TreeNodeEx("Orbit A")) {
+		OrbitEdit(traj.minima);
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNodeEx("Orbit B")) {
+		OrbitEdit(traj.maxima);
+		ImGui::TreePop();
+	}
+	ImGui::InputFloat("Dirunal Period", &traj.period_dirunal, 0, 0, "%.3f day(s)");
+	traj.period_dirunal = max(1e-6f, traj.period_dirunal);
+	ImGui::SliderFloat("Dirunal Offset", &traj.offset_dirunal, -traj.period_dirunal, traj.period_dirunal, "%.3f day(s)");
+	ImGui::InputFloat("Orbit Shift Period", &traj.period_shift), 0, 0, "%.1f day(s)";
+	traj.period_shift = max(1e-6f, traj.period_shift);
+	ImGui::SliderFloat("Orbit Shift Offset", &traj.offset_shift, -traj.period_shift, traj.period_shift, "%.1f day(s)");
+}
+
 void PhysicalWeather::DrawSettings()
 {
 	static int pagenum = 0;
 
-	ImGui::Combo("Page", &pagenum, "General\0Quality\0World\0Atmosphere\0Celestials\0Debug\0");
+	ImGui::Combo("Page", &pagenum, "General\0Quality\0World\0Orbits\0Celestials\0Atmosphere\0Debug\0");
 
 	ImGui::Separator();
 
@@ -24,12 +49,15 @@ void PhysicalWeather::DrawSettings()
 		DrawSettingsWorld();
 		break;
 	case 3:
-		DrawSettingsAtmosphere();
+		DrawSettingsOrbits();
 		break;
 	case 4:
 		DrawSettingsCelestials();
 		break;
 	case 5:
+		DrawSettingsAtmosphere();
+		break;
+	case 6:
 		DrawSettingsDebug();
 		break;
 	default:
@@ -86,6 +114,44 @@ void PhysicalWeather::DrawSettingsWorld()
 
 	ImGui::ColorEdit3("Sunlight Color", &settings.sunlight_color.x, hdr_color_edit_flags);
 	ImGui::ColorEdit3("Moonlight Color", &settings.moonlight_color.x, hdr_color_edit_flags);
+}
+
+void PhysicalWeather::DrawSettingsOrbits()
+{
+	ImGui::SliderAngle("Critical Sun Angle", &settings.critcial_sun_angle, 0, 90);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("When the sun dips this much below the horizon, the sky will be lit by moonlight instead.");
+
+	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
+		TrajectoryEdit(settings.sun_trajectory);
+		ImGui::TreePop();
+	}
+}
+
+void PhysicalWeather::DrawSettingsCelestials()
+{
+	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::ColorEdit3("Sun Color", &settings.sun_color.x, hdr_color_edit_flags);
+		ImGui::SliderAngle("Sun Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::Combo("Limb Darkening Model", &settings.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
+		ImGui::SliderFloat("Limb Darken Strength", &settings.limb_darken_power, 0.f, 5.f, "%.1f");
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Masser", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderAngle("Masser Aperture", &settings.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Masser Brightness", &settings.masser_brightness, 0.f, 5.f, "%.1f");
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Secunda", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderAngle("Secunda Aperture", &settings.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Secunda Brightness", &settings.secunda_brightness, 0.f, 5.f, "%.1f");
+
+		ImGui::TreePop();
+	}
 }
 
 void PhysicalWeather::DrawSettingsAtmosphere()
@@ -168,31 +234,6 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
 		ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
 		ImPlot::EndPlot();
-	}
-}
-void PhysicalWeather::DrawSettingsCelestials()
-{
-	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::ColorEdit3("Sun Color", &settings.sun_color.x, hdr_color_edit_flags);
-		ImGui::SliderAngle("Sun Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::Combo("Limb Darkening Model", &settings.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
-		ImGui::SliderFloat("Limb Darken Strength", &settings.limb_darken_power, 0.f, 5.f, "%.1f");
-
-		ImGui::TreePop();
-	}
-
-	if (ImGui::TreeNodeEx("Masser", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Masser Aperture", &settings.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::SliderFloat("Masser Brightness", &settings.masser_brightness, 0.f, 5.f, "%.1f");
-
-		ImGui::TreePop();
-	}
-
-	if (ImGui::TreeNodeEx("Secunda", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Secunda Aperture", &settings.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::SliderFloat("Secunda Brightness", &settings.secunda_brightness, 0.f, 5.f, "%.1f");
-
-		ImGui::TreePop();
 	}
 }
 

@@ -47,8 +47,8 @@ struct PhysSkySB
 	float atmos_thickness;
 	float3 ground_albedo;
 
-	float3 sunlight_color;
-	float3 moonlight_color;
+	float3 dirlight_color;
+	float3 dirlight_dir;
 
 	uint limb_darken_model;
 	float limb_darken_power;

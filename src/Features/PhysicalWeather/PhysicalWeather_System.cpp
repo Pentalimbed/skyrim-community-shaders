@@ -1,27 +1,47 @@
 #include "../PhysicalWeather.h"
 #include "PhysicalWeather_Common.h"
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Orbit, azimuth, zenith, offset)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Trajectory,
+	minima,
+	maxima,
+	period_dirunal,
+	offset_dirunal,
+	period_shift,
+	offset_shift)
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalWeather::Settings,
 	enable_sky,
 	enable_scatter,
+	enable_tonemap,
+	tonemap_keyval,
 	transmittance_step,
 	multiscatter_step,
 	multiscatter_sqrt_samples,
 	skyview_step,
-	aerial_perspective_max_dist, unit_scale,
+	aerial_perspective_max_dist,
+	unit_scale,
 	bottom_z,
 	ground_radius,
-	atmos_thickness, ground_albedo,
-	sun_color,
+	atmos_thickness,
+	ground_albedo,
+	sunlight_color,
+	moonlight_color,
+	critcial_sun_angle,
+	sun_trajectory,
 	limb_darken_model,
 	limb_darken_power,
 	sun_color,
 	sun_aperture_angle,
 	masser_aperture_angle,
+	masser_brightness,
 	secunda_aperture_angle,
+	secunda_brightness,
 	rayleigh_scatter,
 	rayleigh_absorption,
 	rayleigh_decay,
+	mie_phase_func,
+	mie_asymmetry,
 	mie_scatter,
 	mie_absorption,
 	mie_decay,
@@ -31,6 +51,32 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalWeather::Settings,
 	ap_inscatter_mix,
 	ap_transmittance_mix,
 	light_transmittance_mix)
+
+RE::NiPoint3 Orbit::getDir(float t)
+{
+	float t_rad = t * 2 * RE::NI_PI;
+
+	float orbit_r = sqrt(1 - offset * offset);
+	RE::NiPoint3 result = { sin(t_rad) * orbit_r, offset, -cos(t_rad) * orbit_r };
+
+	RE::NiMatrix3 rotmat;
+	rotmat.SetEulerAnglesXYZ(zenith, 0, azimuth);
+	result = rotmat * result;
+
+	return result;
+}
+
+RE::NiPoint3 Trajectory::getDir(float gameDaysPassed)
+{
+	auto lerp = sin((gameDaysPassed + offset_shift) / period_shift * 2 * RE::NI_PI) * .5f + .5f;
+	Orbit orbit = {
+		.azimuth = std::lerp(minima.azimuth, maxima.azimuth, lerp),
+		.zenith = std::lerp(minima.zenith, maxima.zenith, lerp),
+		.offset = std::lerp(minima.offset, maxima.offset, lerp)
+	};
+	auto t = (gameDaysPassed + offset_dirunal) / period_dirunal;
+	return orbit.getDir(t);
+}
 
 void PhysicalWeather::Load(json& o_json)
 {
@@ -45,7 +91,7 @@ void PhysicalWeather::Save(json& o_json)
 	o_json[GetName()] = settings;
 }
 
-void PhysicalWeather::UpdatePhysSkySB()
+void PhysicalWeather::Update()
 {
 	static FrameChecker frame_checker;
 	if (!frame_checker.isNewFrame())
@@ -68,9 +114,6 @@ void PhysicalWeather::UpdatePhysSkySB()
 		.ground_radius = settings.ground_radius,
 		.atmos_thickness = settings.atmos_thickness,
 		.ground_albedo = settings.ground_albedo,
-
-		.sunlight_color = settings.sunlight_color,
-		.moonlight_color = settings.moonlight_color,
 
 		.limb_darken_model = static_cast<uint32_t>(settings.limb_darken_model),
 		.limb_darken_power = settings.limb_darken_power,
@@ -121,18 +164,18 @@ void PhysicalWeather::UpdatePhysSkySB()
 	}
 
 	auto sky = RE::Sky::GetSingleton();
-	auto sun = sky->sun;
+	// auto sun = sky->sun;
 	auto masser = sky->masser;
 	auto secunda = sky->secunda;
 	// auto stars = sky->stars;
-	if (sun) {
-		RE::NiPoint3 rise_dir = { 0.995, 0.1, 0 };
-		auto sun_dir = sun->sunBase->world.translate - cam_pos;
-		sun_dir.Unitize();
-		if (abs(sun->light->GetWorldDirection().z) < 1e-10)            // rise / set
-			sun_dir = rise_dir * 2 * rise_dir.Dot(sun_dir) - sun_dir;  // flip
-		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
-	}  // during night it flips
+	// if (sun) {
+	// 	RE::NiPoint3 rise_dir = { 0.995, 0.1, 0 };
+	// 	auto sun_dir = sun->sunBase->world.translate - cam_pos;
+	// 	sun_dir.Unitize();
+	// 	if (abs(sun->light->GetWorldDirection().z) < 1e-10)            // rise / set
+	// 		sun_dir = rise_dir * 2 * rise_dir.Dot(sun_dir) - sun_dir;  // flip
+	// 	phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	// }  // during night it flips
 	if (masser) {
 		auto masser_dir = masser->moonMesh->world.translate - cam_pos;
 		masser_dir.Unitize();
@@ -159,5 +202,25 @@ void PhysicalWeather::UpdatePhysSkySB()
 	// 	};
 	// }
 
+	UpdateOrbits();
+
 	UploadPhysSkySB();
+}
+
+void PhysicalWeather::UpdateOrbits()
+{
+	auto calendar = RE::Calendar::GetSingleton();
+	if (calendar) {
+		auto sun_dir = settings.sun_trajectory.getDir(calendar->GetCurrentGameTime());
+		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	}
+
+	// sun or moon
+	if (phys_sky_sb_content.sun_dir.z > -sin(settings.critcial_sun_angle)) {
+		phys_sky_sb_content.dirlight_color = settings.sunlight_color;
+		phys_sky_sb_content.dirlight_dir = phys_sky_sb_content.sun_dir;
+	} else {
+		phys_sky_sb_content.dirlight_color = settings.moonlight_color;
+		phys_sky_sb_content.dirlight_dir = phys_sky_sb_content.masser_dir;
+	}
 }

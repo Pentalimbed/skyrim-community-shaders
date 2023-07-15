@@ -3,6 +3,29 @@
 #include "Buffer.h"
 #include "Feature.h"
 
+struct Orbit
+{
+	// in rad
+	float azimuth = 0;  // E-W
+	float zenith = 20 * RE::NI_PI / 180.0;
+	// in [-1, 1]
+	float offset = 0;
+
+	RE::NiPoint3 getDir(float t);  // t = fraction of a cycle, start at the bottom
+};
+
+struct Trajectory
+{
+	Orbit minima, maxima;
+	// in days
+	float period_dirunal = 1;  // circling one orbit
+	float offset_dirunal = 0;  // add to gameDaysPassed
+	float period_shift = 364;  // from minima to maxima and back
+	float offset_shift = 0;    // start from the mean of minima and maxima
+
+	RE::NiPoint3 getDir(float gameDaysPassed);
+};
+
 struct PhysicalWeather : Feature
 {
 	// boilerplates
@@ -41,7 +64,7 @@ struct PhysicalWeather : Feature
 		uint32_t skyview_step = 30;
 		float aerial_perspective_max_dist = 50;  // in km
 
-		// WORLDSPACE
+		// WORLD
 		DirectX::XMFLOAT2 unit_scale = { 10, 1 };
 		float bottom_z = -15000;       // in game unit
 		float ground_radius = 6.36f;   // in megameter
@@ -50,6 +73,10 @@ struct PhysicalWeather : Feature
 
 		DirectX::XMFLOAT3 sunlight_color = { 100, 100, 100 };
 		DirectX::XMFLOAT3 moonlight_color = { 1, 1, 1 };
+
+		// ORBITS
+		float critcial_sun_angle = 10 * RE::NI_PI / 180.0;
+		Trajectory sun_trajectory;
 
 		// CELESTIALS
 		int32_t limb_darken_model = 1;
@@ -87,12 +114,16 @@ struct PhysicalWeather : Feature
 	void DrawSettingsGeneral();
 	void DrawSettingsQuality();
 	void DrawSettingsWorld();
+	void DrawSettingsOrbits();
 	void DrawSettingsAtmosphere();
 	void DrawSettingsCelestials();
 	void DrawSettingsDebug();
 
 	virtual void Load(json& o_json);
 	virtual void Save(json& o_json);
+
+	void Update();
+	void UpdateOrbits();
 
 	// resources
 	std::unique_ptr<Texture2D> transmittance_lut = nullptr;
@@ -130,8 +161,8 @@ struct PhysicalWeather : Feature
 		float atmos_thickness;
 		DirectX::XMFLOAT3 ground_albedo;
 
-		DirectX::XMFLOAT3 sunlight_color;
-		DirectX::XMFLOAT3 moonlight_color;
+		DirectX::XMFLOAT3 dirlight_color;
+		DirectX::XMFLOAT3 dirlight_dir;
 
 		uint32_t limb_darken_model;
 		float limb_darken_power;
@@ -164,7 +195,6 @@ struct PhysicalWeather : Feature
 	} phys_sky_sb_content;
 
 	std::unique_ptr<Buffer> phys_sky_sb = nullptr;
-	void UpdatePhysSkySB();
 	void UploadPhysSkySB();
 
 	winrt::com_ptr<ID3D11ComputeShader> transmittance_program = nullptr;

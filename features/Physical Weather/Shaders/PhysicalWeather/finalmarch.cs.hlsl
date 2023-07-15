@@ -25,7 +25,7 @@ Texture2D<float4> tex_multiscatter : register(t2);
 
 float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, uint nsteps, uint2 tid)
 {
-	const float3 light_color = phys_sky[0].sunlight_color;
+	const float3 light_color = phys_sky[0].dirlight_color;
 
 	float cos_theta = dot(ray_dir, sun_dir);
 
@@ -94,7 +94,7 @@ return lum;
 	float atmos_dist = rayIntersectSphere(view_pos, ray_dir, phys_sky[0].ground_radius + phys_sky[0].atmos_thickness);
 	float t_max = ground_dist > 0.0 ? ground_dist : atmos_dist;
 
-	float3 lum = raymarchScatter(view_pos, ray_dir, phys_sky[0].sun_dir, t_max,
+	float3 lum = raymarchScatter(view_pos, ray_dir, phys_sky[0].dirlight_dir, t_max,
 #ifdef SKY_VIEW
 		phys_sky[0].skyview_step,
 #else
@@ -103,6 +103,6 @@ return lum;
 		tid.xy);
 
 #ifdef SKY_VIEW
-	tex_skyview[tid.xy] = float4(lum * phys_sky[0].sunlight_color, 1);
+	tex_skyview[tid.xy] = float4(lum * phys_sky[0].dirlight_color, 1);
 #endif
 }
