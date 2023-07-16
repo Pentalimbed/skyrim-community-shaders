@@ -66,7 +66,20 @@ RE::NiPoint3 Orbit::getDir(float t)
 	return result;
 }
 
-RE::NiPoint3 Trajectory::getDir(float gameDaysPassed)
+RE::NiPoint3 Orbit::getTangent(float t)
+{
+	float t_rad = t * 2 * RE::NI_PI;
+
+	RE::NiPoint3 result = { cos(t_rad), 0, sin(t_rad) };
+
+	RE::NiMatrix3 rotmat;
+	rotmat.SetEulerAnglesXYZ(zenith, 0, azimuth);
+	result = rotmat * result;
+
+	return result;
+}
+
+Orbit Trajectory::getMixedOrbit(float gameDaysPassed)
 {
 	auto lerp = sin((gameDaysPassed + offset_shift) / period_shift * 2 * RE::NI_PI) * .5f + .5f;
 	Orbit orbit = {
@@ -74,8 +87,19 @@ RE::NiPoint3 Trajectory::getDir(float gameDaysPassed)
 		.zenith = std::lerp(minima.zenith, maxima.zenith, lerp),
 		.offset = std::lerp(minima.offset, maxima.offset, lerp)
 	};
+	return orbit;
+}
+
+RE::NiPoint3 Trajectory::getDir(float gameDaysPassed)
+{
 	auto t = (gameDaysPassed + offset_dirunal) / period_dirunal;
-	return orbit.getDir(t);
+	return getMixedOrbit(gameDaysPassed).getDir(t);
+}
+
+RE::NiPoint3 Trajectory::getTangent(float gameDaysPassed)
+{
+	auto t = (gameDaysPassed + offset_dirunal) / period_dirunal;
+	return getMixedOrbit(gameDaysPassed).getTangent(t);
 }
 
 void PhysicalWeather::Load(json& o_json)
@@ -97,7 +121,7 @@ void PhysicalWeather::Update()
 	if (!frame_checker.isNewFrame())
 		return;
 
-	phys_sky_sb_content = {
+	phys_weather_sb_content = {
 		.enable_sky = settings.enable_sky && (RE::Sky::GetSingleton()->mode.get() == RE::Sky::Mode::kFull),
 		.enable_scatter = settings.enable_scatter,
 		.enable_tonemap = settings.enable_tonemap,
@@ -126,6 +150,8 @@ void PhysicalWeather::Update()
 		.secunda_aperture_cos = cos(settings.secunda_aperture_angle),
 		.secunda_brightness = settings.secunda_brightness,
 
+		.stars_brightness = settings.stars_brightness,
+
 		.rayleigh_scatter = settings.rayleigh_scatter,
 		.rayleigh_absorption = settings.rayleigh_absorption,
 		.rayleigh_decay = settings.rayleigh_decay,
@@ -148,19 +174,19 @@ void PhysicalWeather::Update()
 	// dynamic variables
 	static uint32_t custom_timer = 0;
 	custom_timer += uint32_t(RE::GetSecondsSinceLastFrame() * 1e3f);
-	phys_sky_sb_content.timer = custom_timer * 1e-3f;
+	phys_weather_sb_content.timer = custom_timer * 1e-3f;
 
 	// auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
 	// auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
 	// if (dir_light) {
 	// 	auto sun_dir = -dir_light->GetWorldDirection();
-	// 	phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	// 	phys_weather_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
 	// }
 
 	RE::NiPoint3 cam_pos = { 0, 0, 0 };
 	if (auto cam = RE::PlayerCamera::GetSingleton(); cam && cam->cameraRoot) {
 		cam_pos = cam->cameraRoot->world.translate;
-		phys_sky_sb_content.player_cam_pos = { cam_pos.x, cam_pos.y, cam_pos.z };
+		phys_weather_sb_content.player_cam_pos = { cam_pos.x, cam_pos.y, cam_pos.z };
 	}
 
 	auto sky = RE::Sky::GetSingleton();
@@ -174,28 +200,28 @@ void PhysicalWeather::Update()
 	// 	sun_dir.Unitize();
 	// 	if (abs(sun->light->GetWorldDirection().z) < 1e-10)            // rise / set
 	// 		sun_dir = rise_dir * 2 * rise_dir.Dot(sun_dir) - sun_dir;  // flip
-	// 	phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	// 	phys_weather_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
 	// }  // during night it flips
 	if (masser) {
 		auto masser_dir = masser->moonMesh->world.translate - cam_pos;
 		masser_dir.Unitize();
 		auto masser_upvec = masser->moonMesh->world.rotate * RE::NiPoint3{ 0, 1, 0 };
 
-		phys_sky_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
-		phys_sky_sb_content.masser_upvec = { masser_upvec.x, masser_upvec.y, masser_upvec.z };
+		phys_weather_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
+		phys_weather_sb_content.masser_upvec = { masser_upvec.x, masser_upvec.y, masser_upvec.z };
 	}
 	if (secunda) {
 		auto secunda_dir = secunda->moonMesh->world.translate - cam_pos;
 		secunda_dir.Unitize();
 		auto secunda_upvec = secunda->moonMesh->world.rotate * RE::NiPoint3{ 0, 1, 0 };
 
-		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
-		phys_sky_sb_content.secunda_upvec = { secunda_upvec.x, secunda_upvec.y, secunda_upvec.z };
+		phys_weather_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
+		phys_weather_sb_content.secunda_upvec = { secunda_upvec.x, secunda_upvec.y, secunda_upvec.z };
 	}
 	// if (stars && stars->stars) {
 	// 	auto stars_rot = stars->stars->world.rotate.Transpose();
 	// 	auto entry = stars_rot.entry;
-	// 	phys_sky_sb_content.galaxy_rotate = DirectX::XMFLOAT3X3{
+	// 	phys_weather_sb_content.galaxy_rotate = DirectX::XMFLOAT3X3{
 	// 		entry[0][0], entry[0][1], entry[0][2],
 	// 		entry[1][0], entry[1][1], entry[1][2],
 	// 		entry[2][0], entry[2][1], entry[2][2]
@@ -204,7 +230,7 @@ void PhysicalWeather::Update()
 
 	UpdateOrbits();
 
-	UploadPhysSkySB();
+	UploadPhysWeatherSB();
 }
 
 void PhysicalWeather::UpdateOrbits()
@@ -214,21 +240,25 @@ void PhysicalWeather::UpdateOrbits()
 		auto game_time = calendar->GetCurrentGameTime();
 
 		auto sun_dir = settings.sun_trajectory.getDir(game_time);
-		phys_sky_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+		phys_weather_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
 
 		auto masser_dir = settings.masser_trajectory.getDir(game_time);
-		phys_sky_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
+		auto masser_up = masser_dir.Cross(settings.masser_trajectory.getTangent(game_time));
+		phys_weather_sb_content.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
+		phys_weather_sb_content.masser_upvec = { masser_up.x, masser_up.y, masser_up.z };
 
 		auto secunda_dir = settings.secunda_trajectory.getDir(game_time);
-		phys_sky_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
+		auto secunda_up = secunda_dir.Cross(settings.secunda_trajectory.getTangent(game_time));
+		phys_weather_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
+		phys_weather_sb_content.secunda_upvec = { secunda_up.x, secunda_up.y, secunda_up.z };
 	}
 
 	// sun or moon
-	if (phys_sky_sb_content.sun_dir.z > -sin(settings.critcial_sun_angle)) {
-		phys_sky_sb_content.dirlight_color = settings.sunlight_color;
-		phys_sky_sb_content.dirlight_dir = phys_sky_sb_content.sun_dir;
+	if (phys_weather_sb_content.sun_dir.z > -sin(settings.critcial_sun_angle)) {
+		phys_weather_sb_content.dirlight_color = settings.sunlight_color;
+		phys_weather_sb_content.dirlight_dir = phys_weather_sb_content.sun_dir;
 	} else {
-		phys_sky_sb_content.dirlight_color = settings.moonlight_color;
-		phys_sky_sb_content.dirlight_dir = phys_sky_sb_content.masser_dir;
+		phys_weather_sb_content.dirlight_color = settings.moonlight_color;
+		phys_weather_sb_content.dirlight_dir = phys_weather_sb_content.masser_dir;
 	}
 }

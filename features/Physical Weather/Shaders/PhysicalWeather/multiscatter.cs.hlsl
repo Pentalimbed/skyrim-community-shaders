@@ -7,15 +7,15 @@
 
 RWTexture2D<float4> tex_multiscatter : register(u0);
 
-StructuredBuffer<PhysSkySB> phys_sky : register(t0);
+StructuredBuffer<PhysWeatherSB> phys_weather : register(t0);
 Texture2D<float4> tex_transmittance : register(t1);
 
 void getMultiscatterValues(
 	float3 pos, float3 sun_dir,
 	out float3 lum_total, out float3 f_ms)
 {
-	const uint nsteps = phys_sky[0].multiscatter_step;
-	const uint sqrt_samples = phys_sky[0].multiscatter_sqrt_samples;
+	const uint nsteps = phys_weather[0].multiscatter_step;
+	const uint sqrt_samples = phys_weather[0].multiscatter_sqrt_samples;
 
 	lum_total = 0;
 	f_ms = 0;
@@ -27,12 +27,12 @@ void getMultiscatterValues(
 			float phi = acos(1.0 - 2.0 * (j + 0.5) / sqrt_samples);
 			float3 ray_dir = sphericalDir(theta, phi);
 
-			float ground_dist = rayIntersectSphere(pos, ray_dir, phys_sky[0].ground_radius);
-			float atmos_dist = rayIntersectSphere(pos, ray_dir, phys_sky[0].ground_radius + phys_sky[0].atmos_thickness);
+			float ground_dist = rayIntersectSphere(pos, ray_dir, phys_weather[0].ground_radius);
+			float atmos_dist = rayIntersectSphere(pos, ray_dir, phys_weather[0].ground_radius + phys_weather[0].atmos_thickness);
 			float t_max = ground_dist > 0 ? ground_dist : atmos_dist;
 
 			float cos_theta = dot(ray_dir, sun_dir);
-			float mie_phase = miePhase(cos_theta, phys_sky[0].mie_asymmetry, phys_sky[0].mie_phase_func);
+			float mie_phase = miePhase(cos_theta, phys_weather[0].mie_asymmetry, phys_weather[0].mie_phase_func);
 			float rayleigh_phase = rayleighPhase(-cos_theta);
 
 			float3 lum = 0, lum_factor = 0, transmittance = 1;
@@ -44,7 +44,7 @@ void getMultiscatterValues(
 				float3 new_pos = pos + t * ray_dir;
 
 				float3 rayleigh_scatter, mie_scatter, extinction;
-				scatterValues(new_pos, phys_sky[0], rayleigh_scatter, mie_scatter, extinction);
+				scatterValues(new_pos, phys_weather[0], rayleigh_scatter, mie_scatter, extinction);
 
 				float3 sample_transmittance = exp(-dt * extinction);
 
@@ -52,7 +52,7 @@ void getMultiscatterValues(
 				float3 scatter_f = (scatter_no_phase - scatter_no_phase * sample_transmittance) / extinction;
 				lum_factor += transmittance * scatter_f;
 
-				float2 samp_coord = getLutUv(new_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+				float2 samp_coord = getLutUv(new_pos, sun_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
 				float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
 				float3 rayleigh_inscatter = rayleigh_scatter * rayleigh_phase;
@@ -68,9 +68,9 @@ void getMultiscatterValues(
 			if (ground_dist > 0) {
 				float3 hit_pos = pos + ground_dist * ray_dir;
 				if (dot(pos, sun_dir) > 0) {
-					hit_pos = normalize(hit_pos) * phys_sky[0].ground_radius;
-					float2 samp_coord = getLutUv(hit_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
-					lum += transmittance * phys_sky[0].ground_albedo * tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
+					hit_pos = normalize(hit_pos) * phys_weather[0].ground_radius;
+					float2 samp_coord = getLutUv(hit_pos, sun_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
+					lum += transmittance * phys_weather[0].ground_albedo * tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 				}
 			}
 
@@ -86,7 +86,7 @@ void getMultiscatterValues(
 	float2 uv = (tid.xy + 0.5) / out_dims;
 
 	float cos_zenith = 2.0 * uv.x - 1.0;
-	float height = phys_sky[0].ground_radius + phys_sky[0].atmos_thickness * uv.y;
+	float height = phys_weather[0].ground_radius + phys_weather[0].atmos_thickness * uv.y;
 
 	float3 pos = float3(0, 0, height);
 	float3 sun_dir = normalize(float3(0, -sqrt(1 - cos_zenith * cos_zenith), cos_zenith));

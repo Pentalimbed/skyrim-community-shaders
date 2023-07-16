@@ -952,35 +952,35 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		include "WaterBlending/WaterBlending.hlsli"
 #	endif
 
-#	ifdef PHYSICAL_SKY
-#		define PHYS_SKY_NO_PI
+#	ifdef PHYSICAL_WEATHER
+#		define phys_weather_NO_PI
 #		include "PhysicalWeather/common.hlsli"
 Texture3D<float4> TexAerialPerspective : register(t16);
 Texture2D<float4> TexTransmittance : register(t17);
-StructuredBuffer<PhysSkySB> phys_sky : register(t18);
+StructuredBuffer<PhysWeatherSB> phys_weather : register(t18);
 #	endif
 
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT psout;
 
-#	ifdef PHYSICAL_SKY
+#	ifdef PHYSICAL_WEATHER
 	float4 ap = { 0, 0, 0, 1 };
 	float3 sun_transmittance = { 1, 1, 1 };
-	if (phys_sky[0].enable_sky && phys_sky[0].enable_scatter) {
+	if (phys_weather[0].enable_sky && phys_weather[0].enable_scatter) {
 		uint3 ap_dims;
 		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
 
-		float dist = length(input.WorldPosition.xyz) * phys_sky[0].unit_scale.x * 1.428e-5;
-		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_sky[0].aerial_perspective_max_dist));
+		float dist = length(input.WorldPosition.xyz) * phys_weather[0].unit_scale.x * 1.428e-5;
+		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist));
 		float3 view_dir = normalize(input.WorldPosition.xyz);
 		ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
-		if (phys_sky[0].enable_tonemap)
-			ap.rgb = jodieReinhardTonemap(ap.rgb * phys_sky[0].tonemap_keyval);
+		if (phys_weather[0].enable_tonemap)
+			ap.rgb = jodieReinhardTonemap(ap.rgb * phys_weather[0].tonemap_keyval);
 
-		if (phys_sky[0].dirlight_dir.z > 0) {
-			float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
-			float2 lut_uv = getLutUv(float3(0, 0, height), phys_sky[0].dirlight_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+		if (phys_weather[0].dirlight_dir.z > 0) {
+			float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale.y * 1.428e-8 + phys_weather[0].ground_radius;
+			float2 lut_uv = getLutUv(float3(0, 0, height), phys_weather[0].dirlight_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
 			sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, lut_uv, 0).rgb;
 		}
 	}
@@ -1442,8 +1442,8 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 dirLightColor = DirLightColor.xyz;
 	float selfShadowFactor = 1.0f;
 
-#	ifdef PHYSICAL_SKY
-	dirLightColor *= lerp(1, sun_transmittance, phys_sky[0].light_transmittance_mix);
+#	ifdef PHYSICAL_WEATHER
+	dirLightColor *= lerp(1, sun_transmittance, phys_weather[0].light_transmittance_mix);
 #	endif
 
 	float3 nsDirLightColor = dirLightColor;
@@ -1642,12 +1642,12 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 color;
 	color.xyz = diffuseColor * baseColor.xyz;
 
-#		ifdef PHYSICAL_SKY
-	if (phys_sky[0].enable_tonemap) {
-		color.xyz *= lerp(1, ap.w, phys_sky[0].ap_transmittance_mix);
-		color.xyz = lerp(color.xyz, lerp(color.xyz, max(color.xyz, ap.xyz), phys_sky[0].ap_inscatter_mix), 1 - ap.w);
+#		ifdef PHYSICAL_WEATHER
+	if (phys_weather[0].enable_tonemap) {
+		color.xyz *= lerp(1, ap.w, phys_weather[0].ap_transmittance_mix);
+		color.xyz = lerp(color.xyz, lerp(color.xyz, max(color.xyz, ap.xyz), phys_weather[0].ap_inscatter_mix), 1 - ap.w);
 	} else
-		color.xyz = color.xyz * lerp(1, ap.w, phys_sky[0].ap_transmittance_mix) + ap.xyz * phys_sky[0].ap_inscatter_mix;
+		color.xyz = color.xyz * lerp(1, ap.w, phys_weather[0].ap_transmittance_mix) + ap.xyz * phys_weather[0].ap_inscatter_mix;
 #		endif
 
 #	endif

@@ -117,7 +117,7 @@ namespace SIE
 			}
 
 			if (PhysicalWeather::GetSingleton()->loaded) {
-				defines[0] = { "PHYSICAL_SKY", nullptr };
+				defines[0] = { "PHYSICAL_WEATHER", nullptr };
 				++defines;
 			}
 
@@ -251,6 +251,11 @@ namespace SIE
 					++defines;
 					break;
 				}
+			}
+
+			if (PhysicalWeather::GetSingleton()->loaded) {
+				defines[0] = { "PHYSICAL_WEATHER", nullptr };
+				++defines;
 			}
 
 			defines[0] = { nullptr, nullptr };
@@ -1300,10 +1305,9 @@ namespace SIE
 			return nullptr;
 		}
 
-		if (shader.shaderType.get() == RE::BSShader::Type::Water)
-		{
+		if (shader.shaderType.get() == RE::BSShader::Type::Water) {
 			const auto technique = (descriptor >> 11) & 0xF;
-			if (technique == 9) { // LOD
+			if (technique == 9) {  // LOD
 				return nullptr;
 			}
 		}

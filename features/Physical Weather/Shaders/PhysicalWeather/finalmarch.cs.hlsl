@@ -19,17 +19,17 @@ cbuffer PerGeometry : register(b0)
 	float3 EyePosition : packoffset(c12);
 };
 
-StructuredBuffer<PhysSkySB> phys_sky : register(t0);
+StructuredBuffer<PhysWeatherSB> phys_weather : register(t0);
 Texture2D<float4> tex_transmittance : register(t1);
 Texture2D<float4> tex_multiscatter : register(t2);
 
 float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, uint nsteps, uint2 tid)
 {
-	const float3 light_color = phys_sky[0].dirlight_color;
+	const float3 light_color = phys_weather[0].dirlight_color;
 
 	float cos_theta = dot(ray_dir, sun_dir);
 
-	float mie_phase = miePhase(cos_theta, phys_sky[0].mie_asymmetry, phys_sky[0].mie_phase_func);
+	float mie_phase = miePhase(cos_theta, phys_weather[0].mie_asymmetry, phys_weather[0].mie_phase_func);
 	float rayleigh_phase = rayleighPhase(-cos_theta);
 
 	float3 lum = 0, transmittance = 1;
@@ -43,7 +43,7 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 #ifdef SKY_VIEW
 		float new_t = float(i) / nsteps * t_max;
 #else
-		float new_t = float(i + 1) / nsteps * phys_sky[0].aerial_perspective_max_dist * 1e-3;
+		float new_t = float(i + 1) / nsteps * phys_weather[0].aerial_perspective_max_dist * 1e-3;
 		if (new_t <= t_max) {
 #endif
 		float dt = new_t - t;
@@ -51,11 +51,11 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 		float3 new_pos = pos + t * ray_dir;
 
 		float3 rayleigh_scatter, mie_scatter, extinction;
-		scatterValues(new_pos, phys_sky[0], rayleigh_scatter, mie_scatter, extinction);
+		scatterValues(new_pos, phys_weather[0], rayleigh_scatter, mie_scatter, extinction);
 
 		float3 sample_transmittance = exp(-dt * extinction);
 
-		float2 samp_coord = getLutUv(new_pos, sun_dir, phys_sky[0].ground_radius, phys_sky[0].atmos_thickness);
+		float2 samp_coord = getLutUv(new_pos, sun_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
 		float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 		float3 psi_ms = tex_multiscatter.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
@@ -88,21 +88,21 @@ return lum;
 	float3 ray_dir = invCylinderMapAdjusted(uv);
 	// float3 ray_dir = invLambAzAdjusted(uv, 0);
 
-	float height = (EyePosition.z - phys_sky[0].bottom_z) * phys_sky[0].unit_scale.y * 1.428e-8 + phys_sky[0].ground_radius;
+	float height = (EyePosition.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale.y * 1.428e-8 + phys_weather[0].ground_radius;
 	float3 view_pos = float3(0, 0, height);
-	float ground_dist = rayIntersectSphere(view_pos, ray_dir, phys_sky[0].ground_radius);
-	float atmos_dist = rayIntersectSphere(view_pos, ray_dir, phys_sky[0].ground_radius + phys_sky[0].atmos_thickness);
+	float ground_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius);
+	float atmos_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius + phys_weather[0].atmos_thickness);
 	float t_max = ground_dist > 0.0 ? ground_dist : atmos_dist;
 
-	float3 lum = raymarchScatter(view_pos, ray_dir, phys_sky[0].dirlight_dir, t_max,
+	float3 lum = raymarchScatter(view_pos, ray_dir, phys_weather[0].dirlight_dir, t_max,
 #ifdef SKY_VIEW
-		phys_sky[0].skyview_step,
+		phys_weather[0].skyview_step,
 #else
 			out_dims.z - 1,
 #endif
 		tid.xy);
 
 #ifdef SKY_VIEW
-	tex_skyview[tid.xy] = float4(lum * phys_sky[0].dirlight_color, 1);
+	tex_skyview[tid.xy] = float4(lum * phys_weather[0].dirlight_color, 1);
 #endif
 }

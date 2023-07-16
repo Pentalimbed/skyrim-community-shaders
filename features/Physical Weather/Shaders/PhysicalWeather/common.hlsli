@@ -1,4 +1,4 @@
-#ifndef PHYS_SKY_NO_PI
+#ifndef phys_weather_NO_PI
 static const float PI = 3.141592653589793238462643383279;
 #endif
 static const float RCP_PI = 1.0 / PI;
@@ -19,7 +19,7 @@ SamplerState MirrorLinearSampler : register(s1)
 	AddressW = Mirror;
 };
 
-struct PhysSkySB
+struct PhysWeatherSB
 {
 	float timer;
 	float3 sun_dir;
@@ -60,6 +60,8 @@ struct PhysSkySB
 
 	float secunda_aperture_cos;
 	float secunda_brightness;
+
+	float stars_brightness;
 
 	float3 rayleigh_scatter;
 	float3 rayleigh_absorption;
@@ -111,7 +113,7 @@ float3 sphericalDir(float azimuth, float zenith)
 
 void scatterValues(
 	float3 pos,  // position relative to the center of the planet, in megameter
-	PhysSkySB sky,
+	PhysWeatherSB sky,
 	out float3 rayleigh_scatter,
 	out float3 mie_scatter,
 	out float3 extinction)

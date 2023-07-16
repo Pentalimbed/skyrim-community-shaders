@@ -9,12 +9,12 @@ void PhysicalWeather::SetupResources()
 		logger::debug("Creating structured buffers...");
 		{
 			D3D11_BUFFER_DESC sb_desc{
-				.ByteWidth = sizeof(PhysSkySB),
+				.ByteWidth = sizeof(PhysWeatherSB),
 				.Usage = D3D11_USAGE_DYNAMIC,
 				.BindFlags = D3D11_BIND_SHADER_RESOURCE,
 				.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
 				.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-				.StructureByteStride = sizeof(PhysSkySB)
+				.StructureByteStride = sizeof(PhysWeatherSB)
 			};
 			D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc{
 				.Format = DXGI_FORMAT_UNKNOWN,
@@ -22,8 +22,8 @@ void PhysicalWeather::SetupResources()
 				.Buffer = { .FirstElement = 0, .NumElements = 1 }
 			};
 
-			phys_sky_sb = std::make_unique<Buffer>(sb_desc);
-			phys_sky_sb->CreateSRV(srv_desc);
+			phys_weather_sb = std::make_unique<Buffer>(sb_desc);
+			phys_weather_sb->CreateSRV(srv_desc);
 		}
 
 		logger::debug("Creating LUT textures...");
@@ -134,7 +134,7 @@ void PhysicalWeather::Draw(const RE::BSShader* shader, [[maybe_unused]] const ui
 		return;
 
 	Update();
-	if (phys_sky_sb_content.enable_sky)
+	if (phys_weather_sb_content.enable_sky)
 		GenerateLuts();
 
 	switch (shader->shaderType.get()) {
@@ -149,13 +149,13 @@ void PhysicalWeather::Draw(const RE::BSShader* shader, [[maybe_unused]] const ui
 	}
 }
 
-void PhysicalWeather::UploadPhysSkySB()
+void PhysicalWeather::UploadPhysWeatherSB()
 {
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 	D3D11_MAPPED_SUBRESOURCE mapped;
-	DX::ThrowIfFailed(context->Map(phys_sky_sb->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
-	memcpy_s(mapped.pData, sizeof(PhysSkySB), &phys_sky_sb_content, sizeof(PhysSkySB));
-	context->Unmap(phys_sky_sb->resource.get(), 0);
+	DX::ThrowIfFailed(context->Map(phys_weather_sb->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+	memcpy_s(mapped.pData, sizeof(PhysWeatherSB), &phys_weather_sb_content, sizeof(PhysWeatherSB));
+	context->Unmap(phys_weather_sb->resource.get(), 0);
 }
 
 void PhysicalWeather::GenerateLuts()
@@ -182,7 +182,7 @@ void PhysicalWeather::GenerateLuts()
 	context->CSGetUnorderedAccessViews(0, 1, &old.uav);
 
 	/* ---- DISPATCH ---- */
-	context->CSSetShaderResources(0, 1, phys_sky_sb->srv.put());
+	context->CSSetShaderResources(0, 1, phys_weather_sb->srv.put());
 
 	ID3D11Buffer* pergeo_cb;
 	context->VSGetConstantBuffers(2, 1, &pergeo_cb);
@@ -206,7 +206,7 @@ void PhysicalWeather::GenerateLuts()
 	context->Dispatch(((s_sky_view_width - 1) >> 5) + 1, ((s_sky_view_height - 1) >> 5) + 1, 1);
 
 	// -> aerial perspective
-	if (phys_sky_sb_content.enable_scatter) {
+	if (phys_weather_sb_content.enable_scatter) {
 		context->CSSetUnorderedAccessViews(0, 1, aerial_perspective_lut->uav.put(), nullptr);
 		context->CSSetShader(aerial_perspective_program.get(), nullptr, 0);
 		context->Dispatch(((s_aerial_perspective_width - 1) >> 5) + 1, ((s_aerial_perspective_height - 1) >> 5) + 1, 1);
@@ -234,7 +234,7 @@ void PhysicalWeather::ModifyLighting()
 
 	context->PSSetShaderResources(16, 1, aerial_perspective_lut->srv.put());
 	context->PSSetShaderResources(17, 1, transmittance_lut->srv.put());
-	context->PSSetShaderResources(18, 1, phys_sky_sb->srv.put());
+	context->PSSetShaderResources(18, 1, phys_weather_sb->srv.put());
 }
 
 void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
@@ -266,7 +266,7 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 			srv_galaxy = reinterpret_cast<RE::NiSourceTexture*>(tex_galaxy.get())->rendererTexture->m_ResourceView;
 	}
 
-	context->PSSetShaderResources(16, 1, phys_sky_sb->srv.put());
+	context->PSSetShaderResources(16, 1, phys_weather_sb->srv.put());
 	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());
 	context->PSSetShaderResources(18, 1, transmittance_lut->srv.put());
 

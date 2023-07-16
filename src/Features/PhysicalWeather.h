@@ -12,6 +12,7 @@ struct Orbit
 	float offset = 0;
 
 	RE::NiPoint3 getDir(float t);  // t = fraction of a cycle, start at the bottom
+	RE::NiPoint3 getTangent(float t);
 };
 
 struct Trajectory
@@ -23,7 +24,9 @@ struct Trajectory
 	float period_shift = 364;  // from minima to maxima and back
 	float offset_shift = 0;    // start from the mean of minima and maxima
 
+	Orbit getMixedOrbit(float gameDaysPassed);
 	RE::NiPoint3 getDir(float gameDaysPassed);
+	RE::NiPoint3 getTangent(float gameDaysPassed);
 };
 
 struct PhysicalWeather : Feature
@@ -81,14 +84,14 @@ struct PhysicalWeather : Feature
 
 		Trajectory sun_trajectory;
 		Trajectory masser_trajectory = {
-			.minima = { .offset = -.174 },
-			.maxima = { .offset = -.174 },
+			.minima = { .zenith = 0, .offset = -.174 },
+			.maxima = { .zenith = 0, .offset = -.174 },
 			.offset_dirunal = .456
 		};
 		Trajectory secunda_trajectory = {
-			.minima = { .offset = -.446 },
-			.maxima = { .offset = -.446 },
-			.offset_dirunal = .423
+			.minima = { .zenith = 0, .offset = -.446 },
+			.maxima = { .zenith = 0, .offset = -.446 },
+			.offset_dirunal = .403
 		};
 
 		// CELESTIALS
@@ -102,6 +105,8 @@ struct PhysicalWeather : Feature
 
 		float secunda_aperture_angle = 4.5 * RE::NI_PI / 180.0;
 		float secunda_brightness = 1;
+
+		float stars_brightness = 1;
 
 		// ATMOSPHERE
 		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802f, 13.558f, 33.1f };  // in megameter^-1
@@ -146,7 +151,7 @@ struct PhysicalWeather : Feature
 
 	ID3D11ShaderResourceView* srv_galaxy = nullptr;
 
-	struct PhysSkySB
+	struct PhysWeatherSB
 	{
 		float timer = 0;
 		DirectX::XMFLOAT3 sun_dir;
@@ -188,6 +193,8 @@ struct PhysicalWeather : Feature
 		float secunda_aperture_cos;
 		float secunda_brightness;
 
+		float stars_brightness;
+
 		DirectX::XMFLOAT3 rayleigh_scatter;
 		DirectX::XMFLOAT3 rayleigh_absorption;
 		float rayleigh_decay;
@@ -205,10 +212,10 @@ struct PhysicalWeather : Feature
 		float ap_inscatter_mix;
 		float ap_transmittance_mix;
 		float light_transmittance_mix;
-	} phys_sky_sb_content;
+	} phys_weather_sb_content;
 
-	std::unique_ptr<Buffer> phys_sky_sb = nullptr;
-	void UploadPhysSkySB();
+	std::unique_ptr<Buffer> phys_weather_sb = nullptr;
+	void UploadPhysWeatherSB();
 
 	winrt::com_ptr<ID3D11ComputeShader> transmittance_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> multiscatter_program = nullptr;

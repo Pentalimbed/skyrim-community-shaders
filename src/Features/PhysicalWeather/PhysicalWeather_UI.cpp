@@ -144,8 +144,8 @@ void PhysicalWeather::DrawSettingsOrbits()
 void PhysicalWeather::DrawSettingsCelestials()
 {
 	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::ColorEdit3("Sun Color", &settings.sun_color.x, hdr_color_edit_flags);
-		ImGui::SliderAngle("Sun Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::ColorEdit3("Color", &settings.sun_color.x, hdr_color_edit_flags);
+		ImGui::SliderAngle("Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
 		ImGui::Combo("Limb Darkening Model", &settings.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
 		ImGui::SliderFloat("Limb Darken Strength", &settings.limb_darken_power, 0.f, 5.f, "%.1f");
 
@@ -153,18 +153,20 @@ void PhysicalWeather::DrawSettingsCelestials()
 	}
 
 	if (ImGui::TreeNodeEx("Masser", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Masser Aperture", &settings.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::SliderFloat("Masser Brightness", &settings.masser_brightness, 0.f, 5.f, "%.1f");
+		ImGui::SliderAngle("Aperture", &settings.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Brightness", &settings.masser_brightness, 0.f, 5.f, "%.1f");
 
 		ImGui::TreePop();
 	}
 
 	if (ImGui::TreeNodeEx("Secunda", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Secunda Aperture", &settings.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
-		ImGui::SliderFloat("Secunda Brightness", &settings.secunda_brightness, 0.f, 5.f, "%.1f");
+		ImGui::SliderAngle("Aperture", &settings.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderFloat("Brightness", &settings.secunda_brightness, 0.f, 5.f, "%.1f");
 
 		ImGui::TreePop();
 	}
+
+	ImGui::SliderFloat("Stars Brightness", &settings.stars_brightness, 0.f, 1.f, "%.2f");
 }
 
 void PhysicalWeather::DrawSettingsAtmosphere()
@@ -238,7 +240,7 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		constexpr size_t n_datapoints = 101;
 		std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
 		for (size_t i = 0; i < n_datapoints; i++) {
-			heights[i] = phys_sky_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
+			heights[i] = phys_weather_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
 			rayleigh_data[i] = exp(-heights[i] / settings.rayleigh_decay);
 			mie_data[i] = exp(-heights[i] / settings.mie_decay);
 			ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.ozone_height) / (settings.ozone_thickness * .5f));
@@ -259,13 +261,13 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 
 void PhysicalWeather::DrawSettingsDebug()
 {
-	ImGui::InputFloat("Timer", &phys_sky_sb_content.timer, 0, 0, "%.6f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3("Sun Direction", &phys_sky_sb_content.sun_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3("Masser Direction", &phys_sky_sb_content.masser_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3("Masser Up", &phys_sky_sb_content.masser_upvec.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3("Secunda Direction", &phys_sky_sb_content.secunda_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3("Secunda Up", &phys_sky_sb_content.secunda_upvec.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-	ImGui::InputFloat3("Cam Pos", &phys_sky_sb_content.player_cam_pos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat("Timer", &phys_weather_sb_content.timer, 0, 0, "%.6f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Sun Direction", &phys_weather_sb_content.sun_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Masser Direction", &phys_weather_sb_content.masser_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Masser Up", &phys_weather_sb_content.masser_upvec.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Secunda Direction", &phys_weather_sb_content.secunda_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Secunda Up", &phys_weather_sb_content.secunda_upvec.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputFloat3("Cam Pos", &phys_weather_sb_content.player_cam_pos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::BulletText("Transmittance LUT");
 	ImGui::Image((void*)(transmittance_lut->srv.get()), { s_transmittance_width, s_transmittance_height });
