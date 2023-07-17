@@ -32,7 +32,8 @@ void getMultiscatterValues(
 			float t_max = ground_dist > 0 ? ground_dist : atmos_dist;
 
 			float cos_theta = dot(ray_dir, sun_dir);
-			float mie_phase = miePhase(cos_theta, phys_weather[0].mie_asymmetry, phys_weather[0].mie_phase_func);
+			float mie_phase = miePhase(phys_weather[0].mie_phase_func, cos_theta,
+				phys_weather[0].mie_g0, phys_weather[0].mie_g1, phys_weather[0].mie_w, phys_weather[0].mie_d);
 			float rayleigh_phase = rayleighPhase(-cos_theta);
 
 			float3 lum = 0, lum_factor = 0, transmittance = 1;

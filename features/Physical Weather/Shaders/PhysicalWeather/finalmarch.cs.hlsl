@@ -29,7 +29,8 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 
 	float cos_theta = dot(ray_dir, sun_dir);
 
-	float mie_phase = miePhase(cos_theta, phys_weather[0].mie_asymmetry, phys_weather[0].mie_phase_func);
+	float mie_phase = miePhase(phys_weather[0].mie_phase_func, cos_theta,
+		phys_weather[0].mie_g0, phys_weather[0].mie_g1, phys_weather[0].mie_w, phys_weather[0].mie_d);
 	float rayleigh_phase = rayleighPhase(-cos_theta);
 
 	float3 lum = 0, transmittance = 1;

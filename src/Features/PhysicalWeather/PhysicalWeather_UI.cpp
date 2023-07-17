@@ -85,7 +85,7 @@ void PhysicalWeather::DrawSettingsQuality()
 	ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.multiscatter_step);
 	ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.multiscatter_sqrt_samples);
 	ImGui::DragScalar("Sky View Steps", ImGuiDataType_U32, &settings.skyview_step);
-	ImGui::DragFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist);
+	ImGui::SliderFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist, 0, settings.atmos_thickness, "%.3f km");
 	ImGui::TreePop();
 }
 
@@ -97,18 +97,18 @@ void PhysicalWeather::DrawSettingsWorld()
 			"Relative scale of the game length unit compared to real physical ones, used by atmosphere rendering and others.\n"
 			"First number controls distances. Renders far landscape less clear and thus look further.\n"
 			"Second number affects elevation. Makes vistas on the short mountains in game feel higher.");
-	ImGui::InputFloat("Bottom Z", &settings.bottom_z);
+	ImGui::InputFloat("Bottom Z", &settings.bottom_z, 0, 0, "%.3f game unit");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(
-			"The lowest elevation of the worldspace you shall reach. In game unit. "
+			"The lowest elevation of the worldspace you shall reach. "
 			"You can check it using \"getpos z\" console command.");
 
-	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f);
+	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f, "%.3f megameter");
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("The supposed radius of the planet Nirn, or whatever rock you are on. In megameter (10^6 m).");
-	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f);
+		ImGui::SetTooltip("The supposed radius of the planet Nirn, or whatever rock you are on. ");
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f megameter");
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. In megameter (10^6 m).");
+		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. ");
 
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
 
@@ -145,7 +145,7 @@ void PhysicalWeather::DrawSettingsCelestials()
 {
 	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::ColorEdit3("Color", &settings.sun_color.x, hdr_color_edit_flags);
-		ImGui::SliderAngle("Aperture", &settings.sun_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderAngle("Aperture", &settings.sun_aperture_angle, 0.f, 45.f, "%.3f deg");
 		ImGui::Combo("Limb Darkening Model", &settings.limb_darken_model, "Disabled\0Neckel (Simple)\0Hestroffer (Accurate)\0");
 		ImGui::SliderFloat("Limb Darken Strength", &settings.limb_darken_power, 0.f, 5.f, "%.1f");
 
@@ -153,14 +153,14 @@ void PhysicalWeather::DrawSettingsCelestials()
 	}
 
 	if (ImGui::TreeNodeEx("Masser", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Aperture", &settings.masser_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderAngle("Aperture", &settings.masser_aperture_angle, 0.f, 45.f, "%.3f deg");
 		ImGui::SliderFloat("Brightness", &settings.masser_brightness, 0.f, 5.f, "%.1f");
 
 		ImGui::TreePop();
 	}
 
 	if (ImGui::TreeNodeEx("Secunda", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Aperture", &settings.secunda_aperture_angle, 0.f, 90.f, "%.3f deg");
+		ImGui::SliderAngle("Aperture", &settings.secunda_aperture_angle, 0.f, 45.f, "%.3f deg");
 		ImGui::SliderFloat("Brightness", &settings.secunda_brightness, 0.f, 5.f, "%.1f");
 
 		ImGui::TreePop();
@@ -183,9 +183,9 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		ImGui::TreePop();
 	}
 
-	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f);
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f megameter");
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. In megameter (10^6 m).");
+		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum.");
 
 	if (ImGui::TreeNodeEx("Air Molecules (Rayleigh)", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::TextWrapped(
@@ -206,8 +206,26 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 			"Solid and liquid particles greater than 1/10 of the light wavelength but not too much, like dust. Strongly anisotropic (Mie Scattering). "
 			"They contributes to the aureole around bright celestial bodies. Increase in dustier weather.");
 
-		ImGui::Combo("Phase Function", &settings.mie_phase_func, "Henyey-Greenstein (Simple)\0Cornette-Shanks (Complex)\0");
-		ImGui::SliderFloat("Asymmetry", &settings.mie_asymmetry, -1, 1);
+		ImGui::Combo("Phase Function", &settings.mie_phase_func, "Henyey-Greenstein\0Henyey-Greenstein (Dual-Lobe)\0Cornette-Shanks\0Xiao-Lei Fan (Good for Low Asymmetry)\0Jendersie-d'Eon\0");
+		ImGui::Indent();
+		switch (settings.mie_phase_func) {
+		case 0:
+		case 2:
+		case 3:
+			ImGui::SliderFloat("Asymmetry", &settings.mie_g0, -1, 1);
+			break;
+		case 1:
+			ImGui::SliderFloat("Forward Asymmetry", &settings.mie_g0, 0, 1);
+			ImGui::SliderFloat("Backward Asymmetry 1", &settings.mie_g1, -1, 0);
+			ImGui::SliderFloat("Backward Weight", &settings.mie_w, 0, 1);
+			break;
+		case 4:
+			ImGui::SliderFloat("Particle Diameter", &settings.mie_d, 2, 20, "%.1f um");
+			break;
+		default:
+			break;
+		}
+		ImGui::Unindent();
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("Makes scattered light more concentrated to the back (-1) or the front (1).");
 		ImGui::ColorEdit3("Scatter", &settings.mie_scatter.x, hdr_color_edit_flags);
@@ -225,8 +243,8 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 			"It keeps the zenith sky blue, especially at sunrise or sunset.");
 
 		ImGui::ColorEdit3("Absorption", &settings.ozone_absorption.x, hdr_color_edit_flags);
-		ImGui::DragFloat("Layer Height", &settings.ozone_height, .1f, 0.f, 100.f);
-		ImGui::DragFloat("Layer Thickness", &settings.ozone_thickness, .1f, 0.f, 50.f);
+		ImGui::DragFloat("Layer Height", &settings.ozone_height, .1f, 0.f, 100.f, "%.3f km");
+		ImGui::DragFloat("Layer Thickness", &settings.ozone_thickness, .1f, 0.f, 50.f, "%.3f km");
 
 		ImGui::TreePop();
 	}

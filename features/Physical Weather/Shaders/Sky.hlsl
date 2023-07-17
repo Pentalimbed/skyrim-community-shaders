@@ -141,7 +141,6 @@ Texture2D<float4> TexSkyView : register(t17);
 Texture2D<float4> TexTransmittance : register(t18);
 Texture2D<float4> TexMasser : register(t19);
 Texture2D<float4> TexSecunda : register(t20);
-Texture2D<float4> TexGalaxy : register(t21);
 #	endif
 
 cbuffer PerFrame : register(b12)
@@ -280,10 +279,9 @@ PS_OUTPUT main(PS_INPUT input)
 			// TONEMAP
 			psout.Color.rgb = jodieReinhardTonemap(psout.Color.xyz * phys_weather[0].tonemap_keyval);
 
-			// DITHER
-			float2 noiseGradUv = float2(0.125, 0.125) * input.Position.xy;
-			float noiseGrad = TexNoiseGradSampler.Sample(SampNoiseGradSampler, noiseGradUv).x * 0.03125 + -0.0078125;
+#		if defined(DITHER)
 			psout.Color.rgb += noiseGrad;
+#		endif
 		}
 
 		psout.Color.a = 1.0;

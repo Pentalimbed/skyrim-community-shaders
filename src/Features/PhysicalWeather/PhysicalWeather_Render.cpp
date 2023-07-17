@@ -258,14 +258,6 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 	if (tech_enum != SkyShaderTechniques::Sky)
 		return;
 
-	/* ---- FETCH ---- */
-	if (!srv_galaxy) {
-		RE::NiTexturePtr tex_galaxy;
-		RE::BSShaderManager::GetTexture("data/textures/sky/skyrimgalaxy.dds", true, tex_galaxy, false);
-		if (tex_galaxy)
-			srv_galaxy = reinterpret_cast<RE::NiSourceTexture*>(tex_galaxy.get())->rendererTexture->m_ResourceView;
-	}
-
 	context->PSSetShaderResources(16, 1, phys_weather_sb->srv.put());
 	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());
 	context->PSSetShaderResources(18, 1, transmittance_lut->srv.put());
@@ -285,6 +277,4 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 		if (secunda_tex)
 			context->PSSetShaderResources(20, 1, &secunda_tex->rendererTexture->m_ResourceView);
 	}
-
-	context->PSSetShaderResources(21, 1, &srv_galaxy);
 }

@@ -67,7 +67,10 @@ struct PhysWeatherSB
 	float rayleigh_decay;
 
 	uint mie_phase_func;
-	float mie_asymmetry;
+	float mie_g0;
+	float mie_g1;
+	float mie_w;
+	float mie_d;
 	float3 mie_scatter;
 	float3 mie_absorption;
 	float mie_decay;
@@ -136,30 +139,78 @@ void scatterValues(
 float miePhaseHenyeyGreenstein(float cos_theta, float g)
 {
 	const float scale = .25 * RCP_PI;
+	const float g2 = g * g;
 
-	float num = (1.0 - g * g);
-	float denom = pow(abs(1.0 + g * g - 2.0 * g * cos_theta), 1.5);
+	float num = (1.0 - g2);
+	float denom = pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5);
 
 	return scale * num / denom;
+}
+
+float miePhaseHenyeyGreensteinDualLobe(float cos_theta, float g_0, float g_1, float w)
+{
+	return lerp(miePhaseHenyeyGreenstein(cos_theta, g_0), miePhaseHenyeyGreenstein(cos_theta, g_1), w);
 }
 
 float miePhaseCornetteShanks(float cos_theta, float g)
 {
 	const float scale = .375 * RCP_PI;
+	const float g2 = g * g;
 
-	float num = (1.0 - g * g) * (1.0 + cos_theta * cos_theta);
-	float denom = (2.0 + g * g) * pow(abs(1.0 + g * g - 2.0 * g * cos_theta), 1.5);
+	float num = (1.0 - g2) * (1.0 + cos_theta * cos_theta);
+	float denom = (2.0 + g2) * pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5);
 
 	return scale * num / denom;
 }
 
-float miePhase(float cos_theta, float g, uint func)
+float miePhaseXiaoLeiFan(float cos_theta, float g)
 {
-	if (func == 0)
-		return miePhaseHenyeyGreenstein(cos_theta, g);
-	else if (func == 1)
-		return miePhaseCornetteShanks(cos_theta, g);
-	return .5 * RCP_PI;
+	const float scale = 1.5;
+	const float g2 = g * g;
+
+	float num = (1.0 - g2) * (1.0 + cos_theta * cos_theta);
+	float denom = (1.0 + g2) * (1.0 + g2 - 2.0 * g * cos_theta);
+
+	return 1.5 * num / denom + g * cos_theta;
+}
+
+float miePhaseDraine(float cos_theta, float g, float alpha)
+{
+	const float scale = .25 * RCP_PI;
+	const float g2 = g * g;
+
+	float num = (1.0 - g2) * (1.0 + alpha * cos_theta * cos_theta);
+	float denom = pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5) * (1.0 + alpha * (1.0 + 2.0 * g2) * .333333333333333);
+
+	return scale * num / denom;
+}
+
+float miePhaseJendersieDEon(float cos_theta, float d)  // d = particle diameter / um
+{
+	const float g_hg = exp(-0.09905670 / (d - 1.67154));
+	const float g_d = exp(-2.20679 / (d + 3.91029) - 0.428934);
+	const float alpha_d = exp(3.62489 - 8.29288 / (d + 5.52825));
+	const float w_d = exp(-0.599085 / (d - 0.641583) - 0.665888);
+
+	return lerp(miePhaseHenyeyGreenstein(cos_theta, g_hg), miePhaseDraine(cos_theta, g_d, alpha_d), w_d);
+}
+
+float miePhase(uint func, float cos_theta, float g_0, float g_1, float w, float d)
+{
+	switch (func) {
+	case 0:
+		return miePhaseHenyeyGreenstein(cos_theta, g_0);
+	case 1:
+		return miePhaseHenyeyGreensteinDualLobe(cos_theta, g_0, g_1, w);
+	case 2:
+		return miePhaseCornetteShanks(cos_theta, g_0);
+	case 3:
+		return miePhaseXiaoLeiFan(cos_theta, g_0);
+	case 4:
+		return miePhaseJendersieDEon(cos_theta, d);
+	default:
+		return .5 * RCP_PI;
+	}
 }
 
 float rayleighPhase(float cos_theta)

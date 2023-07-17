@@ -57,7 +57,7 @@ struct PhysicalWeather : Feature
 	{
 		bool enable_sky = true;
 		bool enable_scatter = true;
-		bool enable_tonemap = true;
+		bool enable_tonemap = false;
 		float tonemap_keyval = 1.f;
 
 		// PERFORMANCE
@@ -114,7 +114,10 @@ struct PhysicalWeather : Feature
 		float rayleigh_decay = 8.f;  // in km^-1
 
 		int32_t mie_phase_func = 1;
-		float mie_asymmetry = 0.85;  // the g, 0.8
+		float mie_g0 = 0.8;  // 0.8
+		float mie_g1 = -0.8;
+		float mie_w = 0.2;
+		float mie_d = 5;  // in um
 		DirectX::XMFLOAT3 mie_scatter = { 3.996f, 3.996f, 3.996f };
 		DirectX::XMFLOAT3 mie_absorption = { .444f, .444f, .444f };
 		float mie_decay = 1.2f;
@@ -148,8 +151,6 @@ struct PhysicalWeather : Feature
 	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
 	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
 	std::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
-
-	ID3D11ShaderResourceView* srv_galaxy = nullptr;
 
 	struct PhysWeatherSB
 	{
@@ -199,7 +200,10 @@ struct PhysicalWeather : Feature
 		float rayleigh_decay;
 
 		uint32_t mie_phase_func;
-		float mie_asymmetry;
+		float mie_g0;
+		float mie_g1;
+		float mie_w;
+		float mie_d;
 		DirectX::XMFLOAT3 mie_scatter;
 		DirectX::XMFLOAT3 mie_absorption;
 		float mie_decay;

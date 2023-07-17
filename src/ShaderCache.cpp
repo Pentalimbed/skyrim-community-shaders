@@ -6,12 +6,13 @@
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 
+#include "State.h"
+
 #include "Features/ExtendedMaterials.h"
 #include "Features/GrassCollision.h"
 #include "Features/PhysicalWeather.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/WaterBlending.h"
-#include "State.h"
 
 namespace SIE
 {

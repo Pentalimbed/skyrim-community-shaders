@@ -2,6 +2,7 @@
 
 #include "Hooks.h"
 #include "ShaderTools/BSGraphicsTypes.h"
+#include "ShaderTools/BSSkyShaderProperty.h"
 #include "Util.h"
 
 class FrameChecker
