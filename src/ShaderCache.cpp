@@ -293,6 +293,10 @@ namespace SIE
 				++defines;
 			}
 
+			if (REL::Module::IsVR()) {
+				defines[0] = { "VR", nullptr };
+				++defines;
+			}
 			defines[0] = { nullptr, nullptr };
 		}
 
@@ -1440,7 +1444,7 @@ namespace SIE
 
 	ShaderCache::ShaderCache()
 	{
-		static const auto compilationThreadCount = max(1, (static_cast<int32_t>(std::thread::hardware_concurrency() - 4)));
+		static const auto compilationThreadCount = static_cast<int32_t>(std::thread::hardware_concurrency());
 		for (size_t threadIndex = 0; threadIndex < compilationThreadCount; ++threadIndex) {
 			compilationThreads.push_back(std::jthread(&ShaderCache::ProcessCompilationSet, this));
 		}
