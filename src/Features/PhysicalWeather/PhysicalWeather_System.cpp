@@ -52,7 +52,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalWeather::Settings,
 	ozone_thickness,
 	ap_inscatter_mix,
 	ap_transmittance_mix,
-	light_transmittance_mix)
+	light_transmittance_mix,
+	cloud_vanilla_height)
 
 RE::NiPoint3 Orbit::getDir(float t)
 {
@@ -173,7 +174,9 @@ void PhysicalWeather::Update()
 
 		.ap_inscatter_mix = settings.ap_inscatter_mix,
 		.ap_transmittance_mix = settings.ap_transmittance_mix,
-		.light_transmittance_mix = settings.light_transmittance_mix
+		.light_transmittance_mix = settings.light_transmittance_mix,
+
+		.cloud_vanilla_height = settings.cloud_vanilla_height
 	};
 
 	// dynamic variables

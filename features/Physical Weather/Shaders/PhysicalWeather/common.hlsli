@@ -82,6 +82,8 @@ struct PhysWeatherSB
 	float ap_inscatter_mix;
 	float ap_transmittance_mix;
 	float light_transmittance_mix;
+
+	float cloud_vanilla_height;
 };
 
 /*-------- RANDOM --------*/

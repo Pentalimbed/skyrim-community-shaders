@@ -260,7 +260,8 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 
 	context->PSSetShaderResources(16, 1, phys_weather_sb->srv.put());
 	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());
-	context->PSSetShaderResources(18, 1, transmittance_lut->srv.put());
+	context->PSSetShaderResources(18, 1, aerial_perspective_lut->srv.put());
+	context->PSSetShaderResources(19, 1, transmittance_lut->srv.put());
 
 	auto sky = RE::Sky::GetSingleton();
 	auto masser = sky->masser;
@@ -269,12 +270,12 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 		RE::NiSourceTexturePtr masser_tex;
 		Hooks::BSShaderManager_GetTexture::func(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);  // TODO: find the phase
 		if (masser_tex)
-			context->PSSetShaderResources(19, 1, &masser_tex->rendererTexture->m_ResourceView);
+			context->PSSetShaderResources(20, 1, &masser_tex->rendererTexture->m_ResourceView);
 	}
 	if (secunda) {
 		RE::NiSourceTexturePtr secunda_tex;
 		Hooks::BSShaderManager_GetTexture::func(secunda->stateTextures[RE::Moon::Phase::kFull].c_str(), true, secunda_tex, false);
 		if (secunda_tex)
-			context->PSSetShaderResources(20, 1, &secunda_tex->rendererTexture->m_ResourceView);
+			context->PSSetShaderResources(21, 1, &secunda_tex->rendererTexture->m_ResourceView);
 	}
 }

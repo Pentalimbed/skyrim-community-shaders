@@ -109,6 +109,7 @@ void PhysicalWeather::DrawSettingsWorld()
 	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f megameter");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. ");
+	ImGui::SliderFloat("Vanilla Cloud Height", &settings.cloud_vanilla_height, 0.f, 10.f, "%.3f km");
 
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
 

@@ -89,8 +89,8 @@ struct PhysicalWeather : Feature
 			.offset_dirunal = .456
 		};
 		Trajectory secunda_trajectory = {
-			.minima = { .zenith = 0, .offset = -.403 },
-			.maxima = { .zenith = 0, .offset = -.403 },
+			.minima = { .zenith = 0, .offset = -.423 },
+			.maxima = { .zenith = 0, .offset = -.423 },
 			.offset_dirunal = .446
 		};
 
@@ -129,6 +129,9 @@ struct PhysicalWeather : Feature
 		float ap_inscatter_mix = 1.f;
 		float ap_transmittance_mix = 1.f;
 		float light_transmittance_mix = 1.f;
+
+		// CLOUDS
+		float cloud_vanilla_height = 2;  // in km
 	} settings;
 
 	virtual void DrawSettings();
@@ -215,6 +218,8 @@ struct PhysicalWeather : Feature
 		float ap_inscatter_mix;
 		float ap_transmittance_mix;
 		float light_transmittance_mix;
+
+		float cloud_vanilla_height;
 	} phys_weather_sb_content;
 
 	std::unique_ptr<Buffer> phys_weather_sb = nullptr;

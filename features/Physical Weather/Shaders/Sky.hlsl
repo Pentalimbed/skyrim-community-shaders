@@ -138,9 +138,10 @@ Texture2D<float4> TexNoiseGradSampler : register(t2);
 #		include "PhysicalWeather/common.hlsli"
 StructuredBuffer<PhysWeatherSB> phys_weather : register(t16);
 Texture2D<float4> TexSkyView : register(t17);
-Texture2D<float4> TexTransmittance : register(t18);
-Texture2D<float4> TexMasser : register(t19);
-Texture2D<float4> TexSecunda : register(t20);
+Texture3D<float4> TexAerialPerspective : register(t18);
+Texture2D<float4> TexTransmittance : register(t19);
+Texture2D<float4> TexMasser : register(t20);
+Texture2D<float4> TexSecunda : register(t21);
 #	endif
 
 cbuffer PerFrame : register(b12)
@@ -255,8 +256,8 @@ PS_OUTPUT main(PS_INPUT input)
 			}
 
 			// AURORA
-			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx, aurora(float3(5, 6, 0).xzy, view_dir.xzy, input.Position.xy, phys_weather[0].timer));
-			psout.Color.rgb += aur.rgb * aur.a * 3;
+			// float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx, aurora(float3(5, 6, 0).xzy, view_dir.xzy, input.Position.xy, phys_weather[0].timer));
+			// psout.Color.rgb += aur.rgb * aur.a * 3;
 
 			psout.Color.a = 1.0;
 		}
@@ -273,11 +274,22 @@ PS_OUTPUT main(PS_INPUT input)
 		discard;
 #		endif
 
+#		if defined(CLOUDS)
+		// In-atmosphere
+		uint3 ap_dims;
+		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
+
+		float dist = rayIntersectSphere(float3(0, 0, height), view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_vanilla_height * 1e-3);
+		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist * 1e3));
+		float4 ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
+		psout.Color.rgb = psout.Color.rgb * lerp(1, ap.w, phys_weather[0].ap_transmittance_mix) + ap.xyz * phys_weather[0].ap_inscatter_mix;
+#		else
+		// Ex-atmosphere
 		float2 trans_uv = getLutUv(float3(0, 0, height), view_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
 		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, trans_uv, 0).rgb;
-
-#		if defined(DITHER) && !defined(TEX)  // SKY
+#			if defined(DITHER) && !defined(TEX)  // SKY
 		psout.Color.rgb += TexSkyView.SampleLevel(SampSkyView, cylinderMapAdjusted(view_dir), 0).rgb;
+#			endif
 #		endif
 
 		if (phys_weather[0].enable_tonemap) {
