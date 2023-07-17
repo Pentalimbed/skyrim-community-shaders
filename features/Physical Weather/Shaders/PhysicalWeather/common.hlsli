@@ -84,6 +84,8 @@ struct PhysWeatherSB
 	float light_transmittance_mix;
 };
 
+/*-------- RANDOM --------*/
+
 /*-------- GEOMETRIC --------*/
 // return distance to sphere surface
 // url: https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
@@ -165,7 +167,7 @@ float miePhaseCornetteShanks(float cos_theta, float g)
 
 float miePhaseXiaoLeiFan(float cos_theta, float g)
 {
-	const float scale = 1.5;
+	const float scale = .375 * RCP_PI;
 	const float g2 = g * g;
 
 	float num = (1.0 - g2) * (1.0 + cos_theta * cos_theta);

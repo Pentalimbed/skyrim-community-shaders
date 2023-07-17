@@ -113,7 +113,7 @@ struct PhysicalWeather : Feature
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
 		float rayleigh_decay = 8.f;  // in km^-1
 
-		int32_t mie_phase_func = 1;
+		int32_t mie_phase_func = 2;
 		float mie_g0 = 0.8;  // 0.8
 		float mie_g1 = -0.8;
 		float mie_w = 0.2;

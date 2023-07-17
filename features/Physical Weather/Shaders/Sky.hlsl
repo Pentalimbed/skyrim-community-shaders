@@ -257,13 +257,18 @@ PS_OUTPUT main(PS_INPUT input)
 			// AURORA
 			float4 aur = smoothstep(0.0.xxxx, 1.5.xxxx, aurora(float3(5, 6, 0).xzy, view_dir.xzy, input.Position.xy, phys_weather[0].timer));
 			psout.Color.rgb += aur.rgb * aur.a * 3;
+
+			psout.Color.a = 1.0;
 		}
-#		elif defined(OCCLUSION) || (defined(DITHER) && defined(TEX))  // sunocclusion and sunglare
-		discard;
-#		elif defined(HORIZFADE)                                       // stars
+		// #		elif defined(OCCLUSION) || (defined(DITHER) && defined(TEX))  // sunocclusion and sunglare
+		// 		discard;
+#		elif defined(CLOUDS)
+		// placeholder
+#		elif defined(HORIZFADE)  // stars
 		if (is_sun || is_masser || is_secunda)
 			discard;
 		psout.Color.rgb = baseColor.rgb * baseColor.w * input.TexCoord2.x * phys_weather[0].stars_brightness;
+		psout.Color.a = 1.0;
 #		else
 		discard;
 #		endif
@@ -283,8 +288,6 @@ PS_OUTPUT main(PS_INPUT input)
 			psout.Color.rgb += noiseGrad;
 #		endif
 		}
-
-		psout.Color.a = 1.0;
 	}
 #	endif
 

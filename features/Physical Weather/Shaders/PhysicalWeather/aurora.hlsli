@@ -5,7 +5,7 @@
 		url: https://www.shadertoy.com/view/XtGGRt
 */
 
-float2x2 mm2(in float a)
+float2x2 rotMat2x2(in float a)
 {
 	float c, s;
 	sincos(a, s, c);
@@ -20,11 +20,11 @@ float triNoise2d(in float2 p, float spd, float time)
 	float z = 1.8;
 	float z2 = 2.5;
 	float rz = 0.;
-	p = mul(mm2(p.x * 0.06), p);
+	p = mul(rotMat2x2(p.x * 0.06), p);
 	float2 bp = p;
 	for (float i = 0.; i < 5.; i++) {
 		float2 dg = tri2(bp * 1.85) * .75;
-		dg = mul(mm2(time * spd), dg);
+		dg = mul(rotMat2x2(time * spd), dg);
 		p -= dg / z2;
 
 		bp *= 1.3;
