@@ -176,12 +176,12 @@ void PhysicalWeather::Update()
 	custom_timer += uint32_t(RE::GetSecondsSinceLastFrame() * 1e3f);
 	phys_weather_sb_content.timer = custom_timer * 1e-3f;
 
-	// auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
-	// auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
-	// if (dir_light) {
-	// 	auto sun_dir = -dir_light->GetWorldDirection();
-	// 	phys_weather_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
-	// }
+	auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
+	auto dir_light = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
+	if (dir_light) {
+		auto sun_dir = -dir_light->GetWorldDirection();
+		phys_weather_sb_content.sun_dir = { sun_dir.x, sun_dir.y, sun_dir.z };
+	}
 
 	RE::NiPoint3 cam_pos = { 0, 0, 0 };
 	if (auto cam = RE::PlayerCamera::GetSingleton(); cam && cam->cameraRoot) {
@@ -218,15 +218,6 @@ void PhysicalWeather::Update()
 		phys_weather_sb_content.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
 		phys_weather_sb_content.secunda_upvec = { secunda_upvec.x, secunda_upvec.y, secunda_upvec.z };
 	}
-	// if (stars && stars->stars) {
-	// 	auto stars_rot = stars->stars->world.rotate.Transpose();
-	// 	auto entry = stars_rot.entry;
-	// 	phys_weather_sb_content.galaxy_rotate = DirectX::XMFLOAT3X3{
-	// 		entry[0][0], entry[0][1], entry[0][2],
-	// 		entry[1][0], entry[1][1], entry[1][2],
-	// 		entry[2][0], entry[2][1], entry[2][2]
-	// 	};
-	// }
 
 	UpdateOrbits();
 

@@ -89,9 +89,9 @@ struct PhysicalWeather : Feature
 			.offset_dirunal = .456
 		};
 		Trajectory secunda_trajectory = {
-			.minima = { .zenith = 0, .offset = -.446 },
-			.maxima = { .zenith = 0, .offset = -.446 },
-			.offset_dirunal = .403
+			.minima = { .zenith = 0, .offset = -.403 },
+			.maxima = { .zenith = 0, .offset = -.403 },
+			.offset_dirunal = .446
 		};
 
 		// CELESTIALS
@@ -159,7 +159,6 @@ struct PhysicalWeather : Feature
 		DirectX::XMFLOAT3 masser_upvec;
 		DirectX::XMFLOAT3 secunda_dir;
 		DirectX::XMFLOAT3 secunda_upvec;
-		// DirectX::XMFLOAT3X3 galaxy_rotate;
 		DirectX::XMFLOAT3 player_cam_pos;
 
 		uint32_t enable_sky;

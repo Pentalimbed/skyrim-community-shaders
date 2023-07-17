@@ -27,7 +27,6 @@ struct PhysWeatherSB
 	float3 masser_upvec;
 	float3 secunda_dir;
 	float3 secunda_upvec;
-	// row_major float3x3 galaxy_rotate;
 	float3 player_cam_pos;
 
 	uint enable_sky;
