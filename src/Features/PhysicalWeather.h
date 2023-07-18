@@ -117,7 +117,7 @@ struct PhysicalWeather : Feature
 		float mie_g0 = 0.8;  // 0.8
 		float mie_g1 = -0.8;
 		float mie_w = 0.2;
-		float mie_d = 5;  // in um
+		float mie_d = 3;  // in um
 		DirectX::XMFLOAT3 mie_scatter = { 3.996f, 3.996f, 3.996f };
 		DirectX::XMFLOAT3 mie_absorption = { .444f, .444f, .444f };
 		float mie_decay = 1.2f;

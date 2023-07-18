@@ -276,13 +276,15 @@ PS_OUTPUT main(PS_INPUT input)
 
 #		if defined(CLOUDS)
 		// In-atmosphere
-		uint3 ap_dims;
-		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
+		if (phys_weather[0].enable_scatter) {
+			uint3 ap_dims;
+			TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
 
-		float dist = rayIntersectSphere(float3(0, 0, height), view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_vanilla_height * 1e-3);
-		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist * 1e3));
-		float4 ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
-		psout.Color.rgb = psout.Color.rgb * lerp(1, ap.w, phys_weather[0].ap_transmittance_mix) + ap.xyz * phys_weather[0].ap_inscatter_mix;
+			float dist = rayIntersectSphere(float3(0, 0, height), view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_vanilla_height * 1e-3);
+			float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist * 1e3));
+			float4 ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
+			psout.Color.rgb = psout.Color.rgb * lerp(1, ap.w, phys_weather[0].ap_transmittance_mix) + ap.xyz * phys_weather[0].ap_inscatter_mix;
+		}
 #		else
 		// Ex-atmosphere
 		float2 trans_uv = getLutUv(float3(0, 0, height), view_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
