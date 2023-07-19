@@ -67,8 +67,11 @@ struct PhysicalWeather : Feature
 		uint32_t skyview_step = 30;
 		float aerial_perspective_max_dist = 50;  // in km
 
+		uint32_t cloud_march_step = 12;
+		uint32_t cloud_self_shadow_step = 6;
+
 		// WORLD
-		DirectX::XMFLOAT2 unit_scale = { 10, 1 };
+		float unit_scale = 10;
 		float bottom_z = -15000;       // in game unit
 		float ground_radius = 6.36f;   // in megameter
 		float atmos_thickness = .05f;  // 0.1
@@ -131,7 +134,11 @@ struct PhysicalWeather : Feature
 		float light_transmittance_mix = 1.f;
 
 		// CLOUDS
-		float cloud_vanilla_height = 2;  // in km
+		float cloud_bottom_height = 2;  // in km
+		float cloud_upper_height = 2.5;
+		DirectX::XMFLOAT3 cloud_noise_freq = { 1.f, 1.f, 1.f };
+		DirectX::XMFLOAT3 cloud_scatter = { 1000.f, 1000.f, 1000.f };  // in megameter^-1
+		DirectX::XMFLOAT3 cloud_absorption = { 0.f, 0.f, 0.f };
 	} settings;
 
 	virtual void DrawSettings();
@@ -176,7 +183,10 @@ struct PhysicalWeather : Feature
 		uint32_t skyview_step;
 		float aerial_perspective_max_dist;
 
-		DirectX::XMFLOAT2 unit_scale;
+		uint32_t cloud_march_step;
+		uint32_t cloud_self_shadow_step;
+
+		float unit_scale;
 		float bottom_z;
 		float ground_radius;
 		float atmos_thickness;
@@ -219,7 +229,11 @@ struct PhysicalWeather : Feature
 		float ap_transmittance_mix;
 		float light_transmittance_mix;
 
-		float cloud_vanilla_height;
+		float cloud_bottom_height;
+		float cloud_upper_height;
+		DirectX::XMFLOAT3 cloud_noise_freq;
+		DirectX::XMFLOAT3 cloud_scatter;
+		DirectX::XMFLOAT3 cloud_absorption;
 	} phys_weather_sb_content;
 
 	std::unique_ptr<Buffer> phys_weather_sb = nullptr;

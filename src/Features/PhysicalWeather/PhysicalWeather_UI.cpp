@@ -85,13 +85,16 @@ void PhysicalWeather::DrawSettingsQuality()
 	ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.multiscatter_step);
 	ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.multiscatter_sqrt_samples);
 	ImGui::DragScalar("Sky View Steps", ImGuiDataType_U32, &settings.skyview_step);
-	ImGui::SliderFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist, 0, settings.atmos_thickness, "%.3f km");
+	ImGui::SliderFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist, 0, settings.atmos_thickness * 1e3, "%.3f km");
+
+	ImGui::DragScalar("Cloud March Steps", ImGuiDataType_U32, &settings.cloud_march_step);
+
 	ImGui::TreePop();
 }
 
 void PhysicalWeather::DrawSettingsWorld()
 {
-	ImGui::SliderFloat2("Unit Scale", &settings.unit_scale.x, 0.1f, 50.f);
+	ImGui::SliderFloat("Unit Scale", &settings.unit_scale, 0.1f, 50.f);
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(
 			"Relative scale of the game length unit compared to real physical ones, used by atmosphere rendering and others.\n"
@@ -103,13 +106,18 @@ void PhysicalWeather::DrawSettingsWorld()
 			"The lowest elevation of the worldspace you shall reach. "
 			"You can check it using \"getpos z\" console command.");
 
-	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f, "%.3f megameter");
+	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f, "%.3f Mm");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed radius of the planet Nirn, or whatever rock you are on. ");
-	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f megameter");
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f Mm");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. ");
-	ImGui::SliderFloat("Vanilla Cloud Height", &settings.cloud_vanilla_height, 0.f, 10.f, "%.3f km");
+
+	ImGui::SliderFloat("Cloud Bottom Height", &settings.cloud_bottom_height, 0.f, 10.f, "%.3f km");
+	ImGui::SliderFloat("Cloud Upper Height", &settings.cloud_upper_height, 0.f, 50.f, "%.3f km");
+	ImGui::SliderFloat3("Cloud Noise Freq", &settings.cloud_noise_freq.x, 0.f, 10.f);
+	ImGui::ColorEdit3("Cloud Scatter", &settings.cloud_scatter.x, hdr_color_edit_flags);
+	ImGui::ColorEdit3("Cloud Absorption", &settings.cloud_absorption.x, hdr_color_edit_flags);
 
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
 
@@ -184,7 +192,7 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		ImGui::TreePop();
 	}
 
-	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f megameter");
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f Mm");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum.");
 

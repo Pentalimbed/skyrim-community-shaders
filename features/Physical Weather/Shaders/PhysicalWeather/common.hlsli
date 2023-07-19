@@ -40,14 +40,17 @@ struct PhysWeatherSB
 	uint skyview_step;
 	float aerial_perspective_max_dist;
 
-	float2 unit_scale;
+	uint cloud_march_step;
+	uint cloud_self_shadow_step;
+
+	float unit_scale;
 	float bottom_z;
 	float ground_radius;
 	float atmos_thickness;
 	float3 ground_albedo;
 
 	float3 dirlight_color;
-	float3 dirlight_dir;
+	float3 dirlight_dir;  // from eye to source
 
 	uint limb_darken_model;
 	float limb_darken_power;
@@ -83,10 +86,12 @@ struct PhysWeatherSB
 	float ap_transmittance_mix;
 	float light_transmittance_mix;
 
-	float cloud_vanilla_height;
+	float cloud_bottom_height;
+	float cloud_upper_height;
+	float3 cloud_noise_freq;
+	float3 cloud_scatter;
+	float3 cloud_absorption;
 };
-
-/*-------- RANDOM --------*/
 
 /*-------- GEOMETRIC --------*/
 // return distance to sphere surface
@@ -119,7 +124,7 @@ float3 sphericalDir(float azimuth, float zenith)
 
 void scatterValues(
 	float3 pos,  // position relative to the center of the planet, in megameter
-	PhysWeatherSB sky,
+	in PhysWeatherSB sky,
 	out float3 rayleigh_scatter,
 	out float3 mie_scatter,
 	out float3 extinction)

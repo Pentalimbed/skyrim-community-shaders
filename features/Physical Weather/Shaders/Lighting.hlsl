@@ -971,7 +971,7 @@ PS_OUTPUT main(PS_INPUT input)
 		uint3 ap_dims;
 		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
 
-		float dist = length(input.WorldPosition.xyz) * phys_weather[0].unit_scale.x * 1.428e-5;
+		float dist = length(input.WorldPosition.xyz) * phys_weather[0].unit_scale * 1.428e-5;
 		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist));
 		float3 view_dir = normalize(input.WorldPosition.xyz);
 		ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
@@ -979,7 +979,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ap.rgb = jodieReinhardTonemap(ap.rgb * phys_weather[0].tonemap_keyval);
 
 		if (phys_weather[0].dirlight_dir.z > 0) {
-			float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale.y * 1.428e-8 + phys_weather[0].ground_radius;
+			float height = (input.WorldPosition.z + CurrentPosAdjust.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-8 + phys_weather[0].ground_radius;
 			float2 lut_uv = getLutUv(float3(0, 0, height), phys_weather[0].dirlight_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
 			sun_transmittance = TexTransmittance.SampleLevel(SampColorSampler, lut_uv, 0).rgb;
 		}

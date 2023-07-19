@@ -89,7 +89,7 @@ return lum;
 	float3 ray_dir = invCylinderMapAdjusted(uv);
 	// float3 ray_dir = invLambAzAdjusted(uv, 0);
 
-	float height = (EyePosition.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale.y * 1.428e-8 + phys_weather[0].ground_radius;
+	float height = (EyePosition.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-8 + phys_weather[0].ground_radius;
 	float3 view_pos = float3(0, 0, height);
 	float ground_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius);
 	float atmos_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius + phys_weather[0].atmos_thickness);

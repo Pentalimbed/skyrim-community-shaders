@@ -53,7 +53,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalWeather::Settings,
 	ap_inscatter_mix,
 	ap_transmittance_mix,
 	light_transmittance_mix,
-	cloud_vanilla_height)
+	cloud_bottom_height)
 
 RE::NiPoint3 Orbit::getDir(float t)
 {
@@ -136,6 +136,9 @@ void PhysicalWeather::Update()
 		.skyview_step = settings.skyview_step,
 		.aerial_perspective_max_dist = settings.aerial_perspective_max_dist,
 
+		.cloud_march_step = settings.cloud_march_step,
+		.cloud_self_shadow_step = settings.cloud_self_shadow_step,
+
 		.unit_scale = settings.unit_scale,
 		.bottom_z = settings.bottom_z,
 		.ground_radius = settings.ground_radius,
@@ -176,7 +179,11 @@ void PhysicalWeather::Update()
 		.ap_transmittance_mix = settings.ap_transmittance_mix,
 		.light_transmittance_mix = settings.light_transmittance_mix,
 
-		.cloud_vanilla_height = settings.cloud_vanilla_height
+		.cloud_bottom_height = settings.cloud_bottom_height,
+		.cloud_upper_height = settings.cloud_upper_height,
+		.cloud_noise_freq = settings.cloud_noise_freq,
+		.cloud_scatter = settings.cloud_scatter,
+		.cloud_absorption = settings.cloud_absorption,
 	};
 
 	// dynamic variables
