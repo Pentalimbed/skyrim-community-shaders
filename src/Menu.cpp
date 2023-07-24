@@ -218,9 +218,6 @@ RE::BSEventNotifyControl Menu::ProcessEvent(RE::InputEvent* const* a_event, RE::
 						settingToggleKey = false;
 					} else if (key == toggleKey) {
 						IsEnabled = !IsEnabled;
-						if (const auto controlMap = RE::ControlMap::GetSingleton()) {
-							controlMap->GetRuntimeData().ignoreKeyboardMouse = IsEnabled;
-						}
 					}
 				}
 
@@ -245,6 +242,9 @@ RE::BSEventNotifyControl Menu::ProcessEvent(RE::InputEvent* const* a_event, RE::
 				break;
 			default:
 				continue;
+			}
+			if (const auto controlMap = RE::ControlMap::GetSingleton()) {
+				controlMap->GetRuntimeData().ignoreKeyboardMouse = IsEnabled;
 			}
 		}
 	}
