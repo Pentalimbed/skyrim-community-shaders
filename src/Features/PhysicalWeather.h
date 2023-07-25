@@ -29,6 +29,15 @@ struct Trajectory
 	RE::NiPoint3 getTangent(float gameDaysPassed);
 };
 
+struct PhaseFunc
+{
+	int32_t func = 2;
+	float g0 = 0.8;  // 0.8
+	float g1 = -0.8;
+	float w = 0.2;
+	float d = 15;  // in um
+};
+
 struct PhysicalWeather : Feature
 {
 	// boilerplates
@@ -72,9 +81,9 @@ struct PhysicalWeather : Feature
 
 		// WORLD
 		float unit_scale = 10;
-		float bottom_z = -15000;       // in game unit
-		float ground_radius = 6.36f;   // in megameter
-		float atmos_thickness = .05f;  // 0.1
+		float bottom_z = -15000;        // in game unit
+		float ground_radius = 6.36e3f;  // 6360 km
+		float atmos_thickness = 50.f;   // 10 km
 		DirectX::XMFLOAT3 ground_albedo = { .3f, .3f, .3f };
 
 		DirectX::XMFLOAT3 sunlight_color = { 100, 100, 100 };
@@ -112,20 +121,16 @@ struct PhysicalWeather : Feature
 		float stars_brightness = 1;
 
 		// ATMOSPHERE
-		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802f, 13.558f, 33.1f };  // in megameter^-1
+		DirectX::XMFLOAT3 rayleigh_scatter = { 5.802e-3f, 13.558e-3f, 33.1e-3f };  // in megameter^-1
 		DirectX::XMFLOAT3 rayleigh_absorption = { 0.f, 0.f, 0.f };
-		float rayleigh_decay = 8.f;  // in km^-1
+		float rayleigh_decay = 1 / 8.f;  // in km^-1
 
-		int32_t mie_phase_func = 2;
-		float mie_g0 = 0.8;  // 0.8
-		float mie_g1 = -0.8;
-		float mie_w = 0.2;
-		float mie_d = 3;  // in um
-		DirectX::XMFLOAT3 mie_scatter = { 3.996f, 3.996f, 3.996f };
-		DirectX::XMFLOAT3 mie_absorption = { .444f, .444f, .444f };
-		float mie_decay = 1.2f;
+		PhaseFunc aerosol_phase_func;
+		DirectX::XMFLOAT3 aerosol_scatter = { 3.996e-3f, 3.996e-3f, 3.996e-3f };
+		DirectX::XMFLOAT3 aerosol_absorption = { .444e-3f, .444e-3f, .444e-3f };
+		float aerosol_decay = 1 / 1.2f;
 
-		DirectX::XMFLOAT3 ozone_absorption = { 0.650f, 1.881f, 0.085f };
+		DirectX::XMFLOAT3 ozone_absorption = { 0.650e-3f, 1.881e-3f, 0.085e-3f };
 		float ozone_height = 25.f;  // in km
 		float ozone_thickness = 30.f;
 
@@ -137,7 +142,7 @@ struct PhysicalWeather : Feature
 		float cloud_bottom_height = 2;  // in km
 		float cloud_upper_height = 2.5;
 		DirectX::XMFLOAT3 cloud_noise_freq = { 1.f, 1.f, 1.f };
-		DirectX::XMFLOAT3 cloud_scatter = { 1000.f, 1000.f, 1000.f };  // in megameter^-1
+		DirectX::XMFLOAT3 cloud_scatter = { 1.f, 1.f, 1.f };  // in megameter^-1
 		DirectX::XMFLOAT3 cloud_absorption = { 0.f, 0.f, 0.f };
 	} settings;
 
@@ -212,14 +217,10 @@ struct PhysicalWeather : Feature
 		DirectX::XMFLOAT3 rayleigh_absorption;
 		float rayleigh_decay;
 
-		uint32_t mie_phase_func;
-		float mie_g0;
-		float mie_g1;
-		float mie_w;
-		float mie_d;
-		DirectX::XMFLOAT3 mie_scatter;
-		DirectX::XMFLOAT3 mie_absorption;
-		float mie_decay;
+		PhaseFunc aerosol_phase_func;
+		DirectX::XMFLOAT3 aerosol_scatter;
+		DirectX::XMFLOAT3 aerosol_absorption;
+		float aerosol_decay;
 
 		DirectX::XMFLOAT3 ozone_absorption;
 		float ozone_height;

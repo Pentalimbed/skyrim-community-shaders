@@ -27,8 +27,8 @@ float3 getSunTransmittance(float3 pos, float3 sun_dir)
 		t = new_t;
 		float3 new_pos = pos + t * sun_dir;
 
-		float3 rayleigh_scatter, mie_scatter, extinction;
-		scatterValues(new_pos, phys_weather[0], rayleigh_scatter, mie_scatter, extinction);
+		float3 rayleigh_scatter, aerosol_scatter, extinction;
+		scatterValues(new_pos, phys_weather[0], rayleigh_scatter, aerosol_scatter, extinction);
 
 		transmittance *= exp(-dt * extinction);
 	}

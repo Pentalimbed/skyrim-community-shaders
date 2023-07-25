@@ -213,7 +213,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	ifdef PHYSICAL_WEATHER
 	if (phys_weather[0].enable_sky) {
 		float3 view_dir = normalize(input.WorldPosition.xyz);
-		float height = (phys_weather[0].player_cam_pos.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-8 + phys_weather[0].ground_radius;
+		float height = (phys_weather[0].player_cam_pos.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-5 + phys_weather[0].ground_radius;
 
 		float cos_sun_view = dot(phys_weather[0].sun_dir, view_dir);
 		float cos_masser_view = dot(phys_weather[0].masser_dir, view_dir);
@@ -281,8 +281,8 @@ PS_OUTPUT main(PS_INPUT input)
 			uint3 ap_dims;
 			TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
 
-			float dist = rayIntersectSphere(float3(0, 0, height), view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_bottom_height * 1e-3);
-			float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist * 1e3));
+			float dist = rayIntersectSphere(float3(0, 0, height), view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_bottom_height);
+			float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / phys_weather[0].aerial_perspective_max_dist));
 			float4 ap = TexAerialPerspective.SampleLevel(SampSkyView, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
 			psout.Color.rgb = psout.Color.rgb * lerp(1, ap.w, phys_weather[0].ap_transmittance_mix) + ap.xyz * phys_weather[0].ap_inscatter_mix;
 		}

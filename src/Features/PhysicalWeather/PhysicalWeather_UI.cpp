@@ -30,6 +30,29 @@ void TrajectoryEdit(Trajectory& traj)
 	ImGui::SliderFloat("Orbit Shift Offset", &traj.offset_shift, -traj.period_shift, traj.period_shift, "%.1f day(s)");
 }
 
+void PhaseFuncEdit(PhaseFunc& phase)
+{
+	ImGui::Combo("Phase Function", &phase.func, "Henyey-Greenstein\0Henyey-Greenstein (Dual-Lobe)\0Cornette-Shanks\0Jendersie-d'Eon (Complex)\0");
+	ImGui::Indent();
+	switch (phase.func) {
+	case 0:
+	case 2:
+		ImGui::SliderFloat("Asymmetry", &phase.g0, -1, 1);
+		break;
+	case 1:
+		ImGui::SliderFloat("Forward Asymmetry", &phase.g0, 0, 1);
+		ImGui::SliderFloat("Backward Asymmetry 1", &phase.g1, -1, 0);
+		ImGui::SliderFloat("Backward Weight", &phase.w, 0, 1);
+		break;
+	case 3:
+		ImGui::SliderFloat("Particle Diameter", &phase.d, 2, 20, "%.1f um");
+		break;
+	default:
+		break;
+	}
+	ImGui::Unindent();
+}
+
 void PhysicalWeather::DrawSettings()
 {
 	static int pagenum = 0;
@@ -85,7 +108,7 @@ void PhysicalWeather::DrawSettingsQuality()
 	ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.multiscatter_step);
 	ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.multiscatter_sqrt_samples);
 	ImGui::DragScalar("Sky View Steps", ImGuiDataType_U32, &settings.skyview_step);
-	ImGui::SliderFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist, 0, settings.atmos_thickness * 1e3, "%.3f km");
+	ImGui::SliderFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist, 0, settings.atmos_thickness, "%.3f km");
 
 	ImGui::DragScalar("Cloud March Steps", ImGuiDataType_U32, &settings.cloud_march_step);
 
@@ -106,10 +129,10 @@ void PhysicalWeather::DrawSettingsWorld()
 			"The lowest elevation of the worldspace you shall reach. "
 			"You can check it using \"getpos z\" console command.");
 
-	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f, "%.3f Mm");
+	ImGui::SliderFloat("Ground Radius", &settings.ground_radius, 0.f, 10.f, "%.3f km");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed radius of the planet Nirn, or whatever rock you are on. ");
-	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f Mm");
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f km");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. ");
 
@@ -192,7 +215,7 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		ImGui::TreePop();
 	}
 
-	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f Mm");
+	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f km");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum.");
 
@@ -205,7 +228,7 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		ImGui::ColorEdit3("Absorption", &settings.rayleigh_absorption.x, hdr_color_edit_flags);
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("Usually zero.");
-		ImGui::DragFloat("Height Decay", &settings.rayleigh_decay, .1f, 0.f, 100.f);
+		ImGui::SliderFloat("Height Decay", &settings.rayleigh_decay, 0.f, 2.f);
 
 		ImGui::TreePop();
 	}
@@ -215,33 +238,12 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 			"Solid and liquid particles greater than 1/10 of the light wavelength but not too much, like dust. Strongly anisotropic (Mie Scattering). "
 			"They contributes to the aureole around bright celestial bodies. Increase in dustier weather.");
 
-		ImGui::Combo("Phase Function", &settings.mie_phase_func, "Henyey-Greenstein\0Henyey-Greenstein (Dual-Lobe)\0Cornette-Shanks\0Xiao-Lei Fan (Good for Low Asymmetry)\0Jendersie-d'Eon\0");
-		ImGui::Indent();
-		switch (settings.mie_phase_func) {
-		case 0:
-		case 2:
-		case 3:
-			ImGui::SliderFloat("Asymmetry", &settings.mie_g0, -1, 1);
-			break;
-		case 1:
-			ImGui::SliderFloat("Forward Asymmetry", &settings.mie_g0, 0, 1);
-			ImGui::SliderFloat("Backward Asymmetry 1", &settings.mie_g1, -1, 0);
-			ImGui::SliderFloat("Backward Weight", &settings.mie_w, 0, 1);
-			break;
-		case 4:
-			ImGui::SliderFloat("Particle Diameter", &settings.mie_d, 2, 20, "%.1f um");
-			break;
-		default:
-			break;
-		}
-		ImGui::Unindent();
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("Makes scattered light more concentrated to the back (-1) or the front (1).");
-		ImGui::ColorEdit3("Scatter", &settings.mie_scatter.x, hdr_color_edit_flags);
-		ImGui::ColorEdit3("Absorption", &settings.mie_absorption.x, hdr_color_edit_flags);
+		PhaseFuncEdit(settings.aerosol_phase_func);
+		ImGui::ColorEdit3("Scatter", &settings.aerosol_scatter.x, hdr_color_edit_flags);
+		ImGui::ColorEdit3("Absorption", &settings.aerosol_absorption.x, hdr_color_edit_flags);
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("Usually 1/9 of scatter coefficient. Dust/pollution is lower, fog is higher.");
-		ImGui::DragFloat("Height Decay", &settings.mie_decay, .1f, 0.f, 100.f);
+		ImGui::SliderFloat("Height Decay", &settings.aerosol_decay, 0.f, 2.f);
 
 		ImGui::TreePop();
 	}
@@ -265,15 +267,15 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 		ImPlot::SetupLegend(ImPlotLocation_NorthEast);
 
 		constexpr size_t n_datapoints = 101;
-		std::array<float, n_datapoints> heights, rayleigh_data, mie_data, ozone_data;
+		std::array<float, n_datapoints> heights, rayleigh_data, aerosol_data, ozone_data;
 		for (size_t i = 0; i < n_datapoints; i++) {
-			heights[i] = phys_weather_sb_content.atmos_thickness * 1e3f * i / (n_datapoints - 1);
+			heights[i] = phys_weather_sb_content.atmos_thickness * i / (n_datapoints - 1);
 			rayleigh_data[i] = exp(-heights[i] / settings.rayleigh_decay);
-			mie_data[i] = exp(-heights[i] / settings.mie_decay);
+			aerosol_data[i] = exp(-heights[i] / settings.aerosol_decay);
 			ozone_data[i] = max(0.f, 1 - abs(heights[i] - settings.ozone_height) / (settings.ozone_thickness * .5f));
 		}
 		ImPlot::PlotLine("Rayleigh", heights.data(), rayleigh_data.data(), n_datapoints);
-		ImPlot::PlotLine("Mie", heights.data(), mie_data.data(), n_datapoints);
+		ImPlot::PlotLine("Mie", heights.data(), aerosol_data.data(), n_datapoints);
 		ImPlot::PlotLine("Ozone", heights.data(), ozone_data.data(), n_datapoints);
 		ImPlot::EndPlot();
 	}

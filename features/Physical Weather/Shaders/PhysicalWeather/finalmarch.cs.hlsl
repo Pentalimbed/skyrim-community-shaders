@@ -29,8 +29,7 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 
 	float cos_theta = dot(ray_dir, sun_dir);
 
-	float mie_phase = miePhase(phys_weather[0].mie_phase_func, cos_theta,
-		phys_weather[0].mie_g0, phys_weather[0].mie_g1, phys_weather[0].mie_w, phys_weather[0].mie_d);
+	float aerosol_phase = miePhase(cos_theta, phys_weather[0].aerosol_phase_func);
 	float rayleigh_phase = rayleighPhase(-cos_theta);
 
 	float3 lum = 0, transmittance = 1;
@@ -51,8 +50,8 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 		t = new_t;
 		float3 new_pos = pos + t * ray_dir;
 
-		float3 rayleigh_scatter, mie_scatter, extinction;
-		scatterValues(new_pos, phys_weather[0], rayleigh_scatter, mie_scatter, extinction);
+		float3 rayleigh_scatter, aerosol_scatter, extinction;
+		scatterValues(new_pos, phys_weather[0], rayleigh_scatter, aerosol_scatter, extinction);
 
 		float3 sample_transmittance = exp(-dt * extinction);
 
@@ -61,8 +60,8 @@ float3 raymarchScatter(float3 pos, float3 ray_dir, float3 sun_dir, float t_max, 
 		float3 psi_ms = tex_multiscatter.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
 		float3 rayleigh_inscatter = rayleigh_scatter * (rayleigh_phase * sun_transmittance + psi_ms);
-		float3 mie_inscatter = mie_scatter * (mie_phase * sun_transmittance + psi_ms);
-		float3 in_scatter = rayleigh_inscatter + mie_inscatter;
+		float3 aerosol_inscatter = aerosol_scatter * (aerosol_phase * sun_transmittance + psi_ms);
+		float3 in_scatter = rayleigh_inscatter + aerosol_inscatter;
 
 		float3 scatter_integeral = in_scatter * (1 - sample_transmittance) / extinction;
 
@@ -89,7 +88,7 @@ return lum;
 	float3 ray_dir = invCylinderMapAdjusted(uv);
 	// float3 ray_dir = invLambAzAdjusted(uv, 0);
 
-	float height = (EyePosition.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-8 + phys_weather[0].ground_radius;
+	float height = (EyePosition.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-5 + phys_weather[0].ground_radius;
 	float3 view_pos = float3(0, 0, height);
 	float ground_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius);
 	float atmos_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius + phys_weather[0].atmos_thickness);

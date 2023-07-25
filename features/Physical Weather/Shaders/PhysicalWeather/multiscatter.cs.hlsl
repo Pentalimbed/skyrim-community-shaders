@@ -32,8 +32,7 @@ void getMultiscatterValues(
 			float t_max = ground_dist > 0 ? ground_dist : atmos_dist;
 
 			float cos_theta = dot(ray_dir, sun_dir);
-			float mie_phase = miePhase(phys_weather[0].mie_phase_func, cos_theta,
-				phys_weather[0].mie_g0, phys_weather[0].mie_g1, phys_weather[0].mie_w, phys_weather[0].mie_d);
+			float aerosol_phase = miePhase(cos_theta, phys_weather[0].aerosol_phase_func);
 			float rayleigh_phase = rayleighPhase(-cos_theta);
 
 			float3 lum = 0, lum_factor = 0, transmittance = 1;
@@ -44,12 +43,12 @@ void getMultiscatterValues(
 				t = new_t;
 				float3 new_pos = pos + t * ray_dir;
 
-				float3 rayleigh_scatter, mie_scatter, extinction;
-				scatterValues(new_pos, phys_weather[0], rayleigh_scatter, mie_scatter, extinction);
+				float3 rayleigh_scatter, aerosol_scatter, extinction;
+				scatterValues(new_pos, phys_weather[0], rayleigh_scatter, aerosol_scatter, extinction);
 
 				float3 sample_transmittance = exp(-dt * extinction);
 
-				float3 scatter_no_phase = rayleigh_scatter + mie_scatter;
+				float3 scatter_no_phase = rayleigh_scatter + aerosol_scatter;
 				float3 scatter_f = (scatter_no_phase - scatter_no_phase * sample_transmittance) / extinction;
 				lum_factor += transmittance * scatter_f;
 
@@ -57,8 +56,8 @@ void getMultiscatterValues(
 				float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
 				float3 rayleigh_inscatter = rayleigh_scatter * rayleigh_phase;
-				float mie_inscatter = mie_scatter * mie_phase;
-				float3 in_scatter = (rayleigh_inscatter + mie_inscatter) * sun_transmittance;
+				float aerosol_inscatter = aerosol_scatter * aerosol_phase;
+				float3 in_scatter = (rayleigh_inscatter + aerosol_inscatter) * sun_transmittance;
 
 				float3 scatter_integeral = (in_scatter - in_scatter * sample_transmittance) / extinction;
 
