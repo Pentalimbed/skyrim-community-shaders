@@ -26,6 +26,35 @@ void PhysicalWeather::SetupResources()
 			phys_weather_sb->CreateSRV(srv_desc);
 		}
 
+		logger::debug("Creating noise textures...");
+		{
+			D3D11_TEXTURE3D_DESC tex3d_desc{
+				.Width = s_noise_size,
+				.Height = s_noise_size,
+				.Depth = s_noise_size,
+				.MipLevels = 1,
+				.Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+				.Usage = D3D11_USAGE_DEFAULT,
+				.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET,
+				.CPUAccessFlags = 0,
+				.MiscFlags = 0
+			};
+			D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+				.Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+				.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D,
+				.Texture3D = { .MostDetailedMip = 0, .MipLevels = 1 }
+			};
+			D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
+				.Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+				.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D,
+				.Texture3D = { .MipSlice = 0, .FirstWSlice = 0, .WSize = s_noise_size }
+			};
+
+			noise_tex = std::make_unique<Texture3D>(tex3d_desc);
+			noise_tex->CreateSRV(srv_desc);
+			noise_tex->CreateUAV(uav_desc);
+		}
+
 		logger::debug("Creating LUT textures...");
 		{
 			D3D11_TEXTURE2D_DESC tex2d_desc{
@@ -101,6 +130,10 @@ void PhysicalWeather::CompileShaders()
 {
 	logger::debug("Compiling shaders...");
 	{
+		auto noisegen_program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\PhysicalWeather\\noisegen.cs.hlsl", {}, "cs_5_0"));
+		if (noisegen_program_ptr)
+			noisegen_program.attach(noisegen_program_ptr);
+
 		auto transmittance_program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\PhysicalWeather\\transmittance.cs.hlsl", {}, "cs_5_0"));
 		if (transmittance_program_ptr)
 			transmittance_program.attach(transmittance_program_ptr);
@@ -134,6 +167,7 @@ void PhysicalWeather::Draw(const RE::BSShader* shader, [[maybe_unused]] const ui
 		return;
 
 	Update();
+	GenerateNoise();
 	if (phys_weather_sb_content.enable_sky)
 		GenerateLuts();
 
@@ -156,6 +190,32 @@ void PhysicalWeather::UploadPhysWeatherSB()
 	DX::ThrowIfFailed(context->Map(phys_weather_sb->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
 	memcpy_s(mapped.pData, sizeof(PhysWeatherSB), &phys_weather_sb_content, sizeof(PhysWeatherSB));
 	context->Unmap(phys_weather_sb->resource.get(), 0);
+}
+
+void PhysicalWeather::GenerateNoise()
+{
+	static std::once_flag flag;
+	std::call_once(flag, [&]() {
+		auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+
+		/* ---- BACKUP ---- */
+		struct OldState
+		{
+			ID3D11UnorderedAccessView* uav;
+		} old;
+		context->CSGetUnorderedAccessViews(0, 1, &old.uav);
+
+		/* ---- DISPATCH ---- */
+		context->CSSetUnorderedAccessViews(0, 1, noise_tex->uav.put(), nullptr);
+		context->CSSetShader(noisegen_program.get(), nullptr, 0);
+		uint16_t dispsize = ((s_noise_size - 1) >> 3) + 1;
+		context->Dispatch(dispsize, dispsize, dispsize);
+
+		/* ---- RESTORE ---- */
+		context->CSSetUnorderedAccessViews(0, 1, &old.uav, nullptr);
+		if (old.uav)
+			old.uav->Release();
+	});
 }
 
 void PhysicalWeather::GenerateLuts()
@@ -183,10 +243,6 @@ void PhysicalWeather::GenerateLuts()
 
 	/* ---- DISPATCH ---- */
 	context->CSSetShaderResources(0, 1, phys_weather_sb->srv.put());
-
-	ID3D11Buffer* pergeo_cb;
-	context->VSGetConstantBuffers(2, 1, &pergeo_cb);
-	context->CSSetConstantBuffers(0, 1, &pergeo_cb);
 
 	// -> transmittance
 	context->CSSetUnorderedAccessViews(0, 1, transmittance_lut->uav.put(), nullptr);

@@ -14,11 +14,6 @@ RWTexture2D<float4> tex_skyview : register(u0);
 RWTexture3D<float4> tex_aerial_perspective : register(u0);
 #endif
 
-cbuffer PerGeometry : register(b0)
-{
-	float3 EyePosition : packoffset(c12);
-};
-
 StructuredBuffer<PhysWeatherSB> phys_weather : register(t0);
 Texture2D<float4> tex_transmittance : register(t1);
 Texture2D<float4> tex_multiscatter : register(t2);
@@ -88,7 +83,7 @@ return lum;
 	float3 ray_dir = invCylinderMapAdjusted(uv);
 	// float3 ray_dir = invLambAzAdjusted(uv, 0);
 
-	float height = (EyePosition.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-5 + phys_weather[0].ground_radius;
+	float height = (phys_weather[0].player_cam_pos.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-5 + phys_weather[0].ground_radius;
 	float3 view_pos = float3(0, 0, height);
 	float ground_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius);
 	float atmos_dist = rayIntersectSphere(view_pos, ray_dir, phys_weather[0].ground_radius + phys_weather[0].atmos_thickness);

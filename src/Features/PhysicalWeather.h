@@ -62,6 +62,8 @@ struct PhysicalWeather : Feature
 	virtual inline std::string GetShortName() { return "PhysicalWeather"; }
 
 	// params
+	constexpr static uint16_t s_noise_size = 128;
+
 	constexpr static uint16_t s_transmittance_width = 256;
 	constexpr static uint16_t s_transmittance_height = 64;
 	constexpr static uint16_t s_multiscatter_width = 32;
@@ -170,6 +172,10 @@ struct PhysicalWeather : Feature
 	void UpdateOrbits();
 
 	// resources
+	std::unique_ptr<Texture3D> noise_tex = nullptr;
+	// R: Perlin, oct = 8, per = 0.52, lac = 2.02
+	// G: Worley, oct = 4, per = 0.33, lac = 3
+
 	std::unique_ptr<Texture2D> transmittance_lut = nullptr;
 	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
 	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
@@ -245,6 +251,7 @@ struct PhysicalWeather : Feature
 	std::unique_ptr<Buffer> phys_weather_sb = nullptr;
 	void UploadPhysWeatherSB();
 
+	winrt::com_ptr<ID3D11ComputeShader> noisegen_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> transmittance_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> multiscatter_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> sky_view_program = nullptr;
@@ -257,6 +264,7 @@ struct PhysicalWeather : Feature
 	virtual void Reset(){};
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
+	void GenerateNoise();
 	void GenerateLuts();
 	void ModifySky(const RE::BSShader* shader, const uint32_t descriptor);
 	void ModifyLighting();
