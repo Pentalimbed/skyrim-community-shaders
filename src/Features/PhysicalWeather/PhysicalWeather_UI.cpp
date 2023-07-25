@@ -104,6 +104,11 @@ void PhysicalWeather::DrawSettingsGeneral()
 
 void PhysicalWeather::DrawSettingsQuality()
 {
+	ImGui::TextWrapped(
+		"QUALITY\n"
+		"Tradeoff options between better visual and better performance.");
+	ImGui::Separator();
+
 	ImGui::DragScalar("Transmittance Steps", ImGuiDataType_U32, &settings.transmittance_step);
 	ImGui::DragScalar("Multiscatter Steps", ImGuiDataType_U32, &settings.multiscatter_step);
 	ImGui::DragScalar("Multiscatter Sqrt Samples", ImGuiDataType_U32, &settings.multiscatter_sqrt_samples);
@@ -117,6 +122,11 @@ void PhysicalWeather::DrawSettingsQuality()
 
 void PhysicalWeather::DrawSettingsWorld()
 {
+	ImGui::TextWrapped(
+		"WORLD\n"
+		"The planetary properties of Nirn, or a macroscopic part of Nirn that is nearest to you.");
+	ImGui::Separator();
+
 	ImGui::SliderFloat("Unit Scale", &settings.unit_scale, 0.1f, 50.f);
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(
@@ -135,12 +145,6 @@ void PhysicalWeather::DrawSettingsWorld()
 	ImGui::SliderFloat("Atmosphere Thickness", &settings.atmos_thickness, 0.f, .5f, "%.3f km");
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("The supposed height of the atmosphere. Beyond this it is all trasparent vaccum. ");
-
-	ImGui::SliderFloat("Cloud Bottom Height", &settings.cloud_bottom_height, 0.f, 10.f, "%.3f km");
-	ImGui::SliderFloat("Cloud Upper Height", &settings.cloud_upper_height, 0.f, 50.f, "%.3f km");
-	ImGui::SliderFloat3("Cloud Noise Freq", &settings.cloud_noise_freq.x, 0.f, 10.f);
-	ImGui::ColorEdit3("Cloud Scatter", &settings.cloud_scatter.x, hdr_color_edit_flags);
-	ImGui::ColorEdit3("Cloud Absorption", &settings.cloud_absorption.x, hdr_color_edit_flags);
 
 	ImGui::ColorEdit3("Ground Albedo", &settings.ground_albedo.x, hdr_color_edit_flags);
 
@@ -175,6 +179,11 @@ void PhysicalWeather::DrawSettingsOrbits()
 
 void PhysicalWeather::DrawSettingsCelestials()
 {
+	ImGui::TextWrapped(
+		"CELESTIALS\n"
+		"Controling how celestials look by it self, its shape and brightness, etc.");
+	ImGui::Separator();
+
 	if (ImGui::TreeNodeEx("Sun", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::ColorEdit3("Color", &settings.sun_color.x, hdr_color_edit_flags);
 		ImGui::SliderAngle("Aperture", &settings.sun_aperture_angle, 0.f, 45.f, "%.3f deg");
@@ -204,8 +213,9 @@ void PhysicalWeather::DrawSettingsCelestials()
 void PhysicalWeather::DrawSettingsAtmosphere()
 {
 	ImGui::TextWrapped(
-		"Settings that controls the global characteristic of the worldspace atmosphere. "
-		"Keep in mind that these are planet-scale parameters, much larger compared to common weather phenomenons.");
+		"ATMOSPHERE\n"
+		"What the air above and around you is composed of, and how thick it is.");
+	ImGui::Separator();
 
 	if (ImGui::TreeNodeEx("Mixing", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SliderFloat("In-scatter", &settings.ap_inscatter_mix, 0.f, 1.f);
@@ -290,6 +300,11 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 
 void PhysicalWeather::DrawSettingsDebug()
 {
+	ImGui::TextWrapped(
+		"DEBUG\n"
+		"Mines crypto out of your machine...joking.");
+	ImGui::Separator();
+
 	ImGui::InputFloat("Timer", &phys_weather_sb_content.timer, 0, 0, "%.6f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Sun Direction", &phys_weather_sb_content.sun_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 	ImGui::InputFloat3("Masser Direction", &phys_weather_sb_content.masser_dir.x, "%.3f", ImGuiInputTextFlags_ReadOnly);

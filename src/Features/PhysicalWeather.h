@@ -38,6 +38,17 @@ struct PhaseFunc
 	float d = 15;  // in um
 };
 
+struct CloudLayer
+{
+	DirectX::XMFLOAT2 height_range = { 2, 4 };  // in km
+	DirectX::XMFLOAT3 freq = { 1.f, 1.f, 1.f };
+
+	DirectX::XMFLOAT3 scatter = { 1.f, 1.f, 1.f };  // in km^-1
+	DirectX::XMFLOAT3 absorption = { 0.1f, 0.1f, 0.1f };
+
+	float altocumulus_blend = 0.f;
+};
+
 struct PhysicalWeather : Feature
 {
 	// boilerplates
@@ -139,11 +150,8 @@ struct PhysicalWeather : Feature
 		float light_transmittance_mix = 1.f;
 
 		// CLOUDS
-		float cloud_bottom_height = 2;  // in km
-		float cloud_upper_height = 2.5;
-		DirectX::XMFLOAT3 cloud_noise_freq = { 1.f, 1.f, 1.f };
-		DirectX::XMFLOAT3 cloud_scatter = { 1.f, 1.f, 1.f };  // in megameter^-1
-		DirectX::XMFLOAT3 cloud_absorption = { 0.f, 0.f, 0.f };
+		PhaseFunc cloud_phase_func = { .func = 1 };
+		CloudLayer cloud_layer;
 	} settings;
 
 	virtual void DrawSettings();
@@ -230,11 +238,8 @@ struct PhysicalWeather : Feature
 		float ap_transmittance_mix;
 		float light_transmittance_mix;
 
-		float cloud_bottom_height;
-		float cloud_upper_height;
-		DirectX::XMFLOAT3 cloud_noise_freq;
-		DirectX::XMFLOAT3 cloud_scatter;
-		DirectX::XMFLOAT3 cloud_absorption;
+		PhaseFunc cloud_phase_func;
+		CloudLayer cloud_layer;
 	} phys_weather_sb_content;
 
 	std::unique_ptr<Buffer> phys_weather_sb = nullptr;

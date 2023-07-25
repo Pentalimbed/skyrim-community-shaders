@@ -28,6 +28,15 @@ struct PhaseFunc
 	float d;
 };
 
+struct CloudLayer
+{
+	float2 height_range;
+	float3 freq;
+	float3 scatter;
+	float3 absorption;
+	float altocumulus_blend;
+};
+
 struct PhysWeatherSB
 {
 	float timer;
@@ -96,6 +105,9 @@ struct PhysWeatherSB
 	float3 cloud_noise_freq;
 	float3 cloud_scatter;
 	float3 cloud_absorption;
+
+	PhaseFunc cloud_phase_func;
+	CloudLayer cloud_layer;
 };
 
 /*-------- GEOMETRIC --------*/

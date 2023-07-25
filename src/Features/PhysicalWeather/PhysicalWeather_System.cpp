@@ -3,19 +3,18 @@
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Orbit, azimuth, zenith, offset)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Trajectory,
-	minima,
-	maxima,
-	period_dirunal,
-	offset_dirunal,
-	period_shift,
-	offset_shift)
+	minima, maxima,
+	period_dirunal, offset_dirunal,
+	period_shift, offset_shift)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PhaseFunc, func, g0, g1, w, d)
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(CloudLayer,
+	height_range, freq, scatter, absorption,
+	altocumulus_blend)
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalWeather::Settings,
-	enable_sky,
-	enable_scatter,
-	enable_tonemap,
+	enable_sky, enable_scatter, enable_tonemap,
 	tonemap_keyval,
 	transmittance_step,
 	multiscatter_step,
@@ -31,28 +30,15 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalWeather::Settings,
 	moonlight_color,
 	critcial_sun_angle,
 	sun_trajectory,
-	limb_darken_model,
-	limb_darken_power,
-	sun_color,
-	sun_aperture_angle,
-	masser_aperture_angle,
-	masser_brightness,
-	secunda_aperture_angle,
-	secunda_brightness,
-	rayleigh_scatter,
-	rayleigh_absorption,
-	rayleigh_decay,
-	aerosol_phase_func,
-	aerosol_scatter,
-	aerosol_absorption,
-	aerosol_decay,
-	ozone_absorption,
-	ozone_height,
-	ozone_thickness,
-	ap_inscatter_mix,
-	ap_transmittance_mix,
-	light_transmittance_mix,
-	cloud_bottom_height)
+	limb_darken_model, limb_darken_power,
+	sun_color, sun_aperture_angle,
+	masser_aperture_angle, masser_brightness,
+	secunda_aperture_angle, secunda_brightness,
+	rayleigh_scatter, rayleigh_absorption, rayleigh_decay,
+	aerosol_phase_func, aerosol_scatter, aerosol_absorption, aerosol_decay,
+	ozone_absorption, ozone_height, ozone_thickness,
+	ap_inscatter_mix, ap_transmittance_mix, light_transmittance_mix,
+	cloud_phase_func, cloud_layer)
 
 RE::NiPoint3 Orbit::getDir(float t)
 {
@@ -174,11 +160,8 @@ void PhysicalWeather::Update()
 		.ap_transmittance_mix = settings.ap_transmittance_mix,
 		.light_transmittance_mix = settings.light_transmittance_mix,
 
-		.cloud_bottom_height = settings.cloud_bottom_height,
-		.cloud_upper_height = settings.cloud_upper_height,
-		.cloud_noise_freq = settings.cloud_noise_freq,
-		.cloud_scatter = settings.cloud_scatter,
-		.cloud_absorption = settings.cloud_absorption,
+		.cloud_phase_func = settings.cloud_phase_func,
+		.cloud_layer = settings.cloud_layer
 	};
 
 	// dynamic variables
