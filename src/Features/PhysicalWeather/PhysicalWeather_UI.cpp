@@ -53,11 +53,19 @@ void PhaseFuncEdit(PhaseFunc& phase)
 	ImGui::Unindent();
 }
 
+void CloudLayerEdit(CloudLayer& clouds)
+{
+	ImGui::SliderFloat2("Height Range", &clouds.height_range.x, 0, 20, "%.2f");
+	ImGui::SliderFloat3("Frequency", &clouds.freq.x, 0, 10.0);
+	ImGui::ColorEdit3("Scatter", &clouds.scatter.x, hdr_color_edit_flags);
+	ImGui::ColorEdit3("Absorption", &clouds.absorption.x, hdr_color_edit_flags);
+}
+
 void PhysicalWeather::DrawSettings()
 {
 	static int pagenum = 0;
 
-	ImGui::Combo("Page", &pagenum, "General\0Quality\0World\0Orbits\0Celestials\0Atmosphere\0Debug\0");
+	ImGui::Combo("Page", &pagenum, "General\0Quality\0World\0Orbits\0Celestials\0Atmosphere\0Clouds\0Debug\0");
 
 	ImGui::Separator();
 
@@ -81,6 +89,9 @@ void PhysicalWeather::DrawSettings()
 		DrawSettingsAtmosphere();
 		break;
 	case 6:
+		DrawSettingsClouds();
+		break;
+	case 7:
 		DrawSettingsDebug();
 		break;
 	default:
@@ -291,12 +302,11 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 	}
 }
 
-// void drawTrans(const char* label, RE::NiTransform t)
-// {
-// 	auto rel_pos = t.translate - RE::PlayerCamera::GetSingleton()->pos;
-// 	rel_pos.Unitize();
-// 	ImGui::InputFloat3(label, &rel_pos.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-// }
+void PhysicalWeather::DrawSettingsClouds()
+{
+	PhaseFuncEdit(settings.cloud_phase_func);
+	CloudLayerEdit(settings.cloud_layer);
+}
 
 void PhysicalWeather::DrawSettingsDebug()
 {
@@ -321,4 +331,10 @@ void PhysicalWeather::DrawSettingsDebug()
 
 	ImGui::BulletText("Sky-View LUT");
 	ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
+
+	ImGui::BulletText("Cloud scatter");
+	ImGui::Image((void*)(cloud_scatter_tex->srv.get()), { 1920 * s_volume_resolution_scale, 1080 * s_volume_resolution_scale });
+
+	ImGui::BulletText("Cloud Transmittance");
+	ImGui::Image((void*)(cloud_transmittance_tex->srv.get()), { 1920 * s_volume_resolution_scale, 1080 * s_volume_resolution_scale });
 }

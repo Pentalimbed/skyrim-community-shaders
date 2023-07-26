@@ -119,6 +119,44 @@ void PhysicalWeather::SetupResources()
 			aerial_perspective_lut->CreateUAV(uav_desc);
 		}
 
+		logger::debug("Creating cloud render targets...");
+		{
+			auto main_target = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
+			D3D11_TEXTURE2D_DESC main_target_desc;
+			main_target.texture->GetDesc(&main_target_desc);
+
+			D3D11_TEXTURE2D_DESC tex2d_desc{
+				.Width = UINT(main_target_desc.Width * s_volume_resolution_scale),
+				.Height = UINT(main_target_desc.Height * s_volume_resolution_scale),
+				.MipLevels = 1,
+				.ArraySize = 1,
+				.Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
+				.SampleDesc = { .Count = 1, .Quality = 0 },
+				.Usage = D3D11_USAGE_DEFAULT,
+				.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET,
+				.CPUAccessFlags = 0,
+				.MiscFlags = 0
+			};
+			D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+				.Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
+				.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+				.Texture2D = { .MostDetailedMip = 0, .MipLevels = 1 }
+			};
+			D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
+				.Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
+				.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
+				.Texture2D = { .MipSlice = 0 }
+			};
+
+			cloud_scatter_tex = std::make_unique<Texture2D>(tex2d_desc);
+			cloud_scatter_tex->CreateSRV(srv_desc);
+			cloud_scatter_tex->CreateUAV(uav_desc);
+
+			cloud_transmittance_tex = std::make_unique<Texture2D>(tex2d_desc);
+			cloud_transmittance_tex->CreateSRV(srv_desc);
+			cloud_transmittance_tex->CreateUAV(uav_desc);
+		}
+
 		CompileShaders();
 	} catch (DX::com_exception& e) {
 		logger::error("Error during resource setup:\n{}", e.what());
@@ -133,6 +171,7 @@ void PhysicalWeather::CompileShaders()
 		auto noisegen_program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\PhysicalWeather\\noisegen.cs.hlsl", {}, "cs_5_0"));
 		if (noisegen_program_ptr)
 			noisegen_program.attach(noisegen_program_ptr);
+		GenerateNoise();
 
 		auto transmittance_program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\PhysicalWeather\\transmittance.cs.hlsl", {}, "cs_5_0"));
 		if (transmittance_program_ptr)
@@ -149,15 +188,27 @@ void PhysicalWeather::CompileShaders()
 		auto aerial_perspective_program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\PhysicalWeather\\finalmarch.cs.hlsl", {}, "cs_5_0"));
 		if (aerial_perspective_program_ptr)
 			aerial_perspective_program.attach(aerial_perspective_program_ptr);
+
+		auto render_clouds_program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\PhysicalWeather\\renderclouds.cs.hlsl", {}, "cs_5_0"));
+		if (render_clouds_program_ptr)
+			render_clouds_program.attach(render_clouds_program_ptr);
 	}
 }
 
 void PhysicalWeather::RecompileShaders()
 {
-	transmittance_program->Release();
-	multiscatter_program->Release();
-	sky_view_program->Release();
-	aerial_perspective_program->Release();
+	if (noisegen_program)
+		noisegen_program->Release();
+	if (transmittance_program)
+		transmittance_program->Release();
+	if (multiscatter_program)
+		multiscatter_program->Release();
+	if (sky_view_program)
+		sky_view_program->Release();
+	if (aerial_perspective_program)
+		aerial_perspective_program->Release();
+	if (render_clouds_program)
+		render_clouds_program->Release();
 	CompileShaders();
 }
 
@@ -167,7 +218,6 @@ void PhysicalWeather::Draw(const RE::BSShader* shader, [[maybe_unused]] const ui
 		return;
 
 	Update();
-	GenerateNoise();
 	if (phys_weather_sb_content.enable_sky)
 		GenerateLuts();
 
@@ -194,28 +244,25 @@ void PhysicalWeather::UploadPhysWeatherSB()
 
 void PhysicalWeather::GenerateNoise()
 {
-	static std::once_flag flag;
-	std::call_once(flag, [&]() {
-		auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
-		/* ---- BACKUP ---- */
-		struct OldState
-		{
-			ID3D11UnorderedAccessView* uav;
-		} old;
-		context->CSGetUnorderedAccessViews(0, 1, &old.uav);
+	/* ---- BACKUP ---- */
+	struct OldState
+	{
+		ID3D11UnorderedAccessView* uav;
+	} old;
+	context->CSGetUnorderedAccessViews(0, 1, &old.uav);
 
-		/* ---- DISPATCH ---- */
-		context->CSSetUnorderedAccessViews(0, 1, noise_tex->uav.put(), nullptr);
-		context->CSSetShader(noisegen_program.get(), nullptr, 0);
-		uint16_t dispsize = ((s_noise_size - 1) >> 3) + 1;
-		context->Dispatch(dispsize, dispsize, dispsize);
+	/* ---- DISPATCH ---- */
+	context->CSSetUnorderedAccessViews(0, 1, noise_tex->uav.put(), nullptr);
+	context->CSSetShader(noisegen_program.get(), nullptr, 0);
+	uint16_t dispsize = ((s_noise_size - 1) >> 3) + 1;
+	context->Dispatch(dispsize, dispsize, dispsize);
 
-		/* ---- RESTORE ---- */
-		context->CSSetUnorderedAccessViews(0, 1, &old.uav, nullptr);
-		if (old.uav)
-			old.uav->Release();
-	});
+	/* ---- RESTORE ---- */
+	context->CSSetUnorderedAccessViews(0, 1, &old.uav, nullptr);
+	if (old.uav)
+		old.uav->Release();
 }
 
 void PhysicalWeather::GenerateLuts()
@@ -232,14 +279,14 @@ void PhysicalWeather::GenerateLuts()
 		ID3D11ShaderResourceView* srvs[4];
 		ID3D11ComputeShader* shader;
 		ID3D11Buffer* buffer;
-		ID3D11UnorderedAccessView* uav;
+		ID3D11UnorderedAccessView* uavs[1];
 		ID3D11ClassInstance* instance;
 		UINT numInstances;
 	} old;
 	context->CSGetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
 	context->CSGetShader(&old.shader, &old.instance, &old.numInstances);
 	context->CSGetConstantBuffers(0, 1, &old.buffer);
-	context->CSGetUnorderedAccessViews(0, 1, &old.uav);
+	context->CSGetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs);
 
 	/* ---- DISPATCH ---- */
 	context->CSSetShaderResources(0, 1, phys_weather_sb->srv.put());
@@ -279,9 +326,10 @@ void PhysicalWeather::GenerateLuts()
 	context->CSSetConstantBuffers(0, 1, &old.buffer);
 	if (old.buffer)
 		old.buffer->Release();
-	context->CSSetUnorderedAccessViews(0, 1, &old.uav, nullptr);
-	if (old.uav)
-		old.uav->Release();
+	context->CSSetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs, nullptr);
+	for (uint8_t i = 0; i < ARRAYSIZE(old.uavs); i++)
+		if (old.uavs[i])
+			old.uavs[i]->Release();
 }
 
 void PhysicalWeather::ModifyLighting()
@@ -311,8 +359,66 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 	auto tech_enum = static_cast<SkyShaderTechniques>(descriptor);
 
-	if (tech_enum != SkyShaderTechniques::Sky)
+	if (tech_enum != SkyShaderTechniques::Sky &&
+		tech_enum != SkyShaderTechniques::Stars &&
+		tech_enum != SkyShaderTechniques::Clouds &&
+		tech_enum != SkyShaderTechniques::CloudsLerp &&
+		tech_enum != SkyShaderTechniques::CloudsFade)
 		return;
+
+	// pre-render cloud
+	ID3D11RenderTargetView* rtv;
+	context->OMGetRenderTargets(1, &rtv, nullptr);
+	if (Util::GetNameFromRTV(rtv) == "kMAIN") {
+		static FrameChecker frame_checker;
+		if (frame_checker.isNewFrame()) {
+			struct OldState
+			{
+				ID3D11ShaderResourceView* srvs[2];
+				ID3D11ComputeShader* shader;
+				ID3D11Buffer* buffer;
+				ID3D11UnorderedAccessView* uavs[2];
+				ID3D11ClassInstance* instance;
+				UINT numInstances;
+			} old;
+			context->CSGetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
+			context->CSGetShader(&old.shader, &old.instance, &old.numInstances);
+			context->CSGetConstantBuffers(0, 1, &old.buffer);
+			context->CSGetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs);
+
+			ID3D11Buffer* perframe_cb;
+			context->PSGetConstantBuffers(12, 1, &perframe_cb);
+			context->CSSetConstantBuffers(0, 1, &perframe_cb);
+
+			context->CSSetShaderResources(0, 1, phys_weather_sb->srv.put());
+			context->CSSetShaderResources(1, 1, transmittance_lut->srv.put());
+			context->CSSetShaderResources(2, 1, noise_tex->srv.put());
+			context->CSSetUnorderedAccessViews(0, 1, cloud_scatter_tex->uav.put(), nullptr);
+			context->CSSetUnorderedAccessViews(1, 1, cloud_transmittance_tex->uav.put(), nullptr);
+			context->CSSetShader(render_clouds_program.get(), nullptr, 0);
+
+			D3D11_TEXTURE2D_DESC volume_tex_desc;
+			cloud_scatter_tex->resource->GetDesc(&volume_tex_desc);
+			context->Dispatch(((volume_tex_desc.Width - 1) >> 5) + 1, ((volume_tex_desc.Height - 1) >> 5) + 1, 1);
+
+			context->CSSetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
+			for (uint8_t i = 0; i < ARRAYSIZE(old.srvs); i++)
+				if (old.srvs[i])
+					old.srvs[i]->Release();
+			context->CSSetShader(old.shader, &old.instance, old.numInstances);
+			if (old.shader)
+				old.shader->Release();
+			context->CSSetConstantBuffers(0, 1, &old.buffer);
+			if (old.buffer)
+				old.buffer->Release();
+			context->CSSetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs, nullptr);
+			for (uint8_t i = 0; i < ARRAYSIZE(old.uavs); i++)
+				if (old.uavs[i])
+					old.uavs[i]->Release();
+		}
+	}
+
+	// actual sky
 
 	context->PSSetShaderResources(16, 1, phys_weather_sb->srv.put());
 	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());

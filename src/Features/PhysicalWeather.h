@@ -74,6 +74,8 @@ struct PhysicalWeather : Feature
 	constexpr static uint16_t s_aerial_perspective_height = 32;
 	constexpr static uint16_t s_aerial_perspective_depth = 64;
 
+	constexpr static float s_volume_resolution_scale = .5;
+
 	// io
 	struct Settings
 	{
@@ -163,6 +165,7 @@ struct PhysicalWeather : Feature
 	void DrawSettingsOrbits();
 	void DrawSettingsAtmosphere();
 	void DrawSettingsCelestials();
+	void DrawSettingsClouds();
 	void DrawSettingsDebug();
 
 	virtual void Load(json& o_json);
@@ -180,6 +183,9 @@ struct PhysicalWeather : Feature
 	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
 	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
 	std::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
+
+	std::unique_ptr<Texture2D> cloud_scatter_tex = nullptr;
+	std::unique_ptr<Texture2D> cloud_transmittance_tex = nullptr;
 
 	struct PhysWeatherSB
 	{
@@ -256,6 +262,7 @@ struct PhysicalWeather : Feature
 	winrt::com_ptr<ID3D11ComputeShader> multiscatter_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> sky_view_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> aerial_perspective_program = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> render_clouds_program = nullptr;
 
 	// rendering
 	virtual void SetupResources();

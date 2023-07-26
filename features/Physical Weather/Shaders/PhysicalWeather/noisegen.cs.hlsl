@@ -15,6 +15,8 @@ RWTexture3D<float4> tex_noise : register(u0);
 #define UI3 uint3(UI0, UI1, 2798796415U)
 #define UIF (1.0 / float(0xffffffffU))
 
+#define mod(x, y) ((x) - (y)*floor((x) / (y)))
+
 float3 hash33(float3 p)
 {
 	uint3 q = uint3(int3(p)) * UI3;
@@ -33,14 +35,14 @@ float gradientNoise(float3 x, float freq)
 	float3 u = w * w * w * (w * (w * 6. - 15.) + 10.);
 
 	// gradients
-	float3 ga = hash33(fmod(p + float3(0., 0., 0.), freq));
-	float3 gb = hash33(fmod(p + float3(1., 0., 0.), freq));
-	float3 gc = hash33(fmod(p + float3(0., 1., 0.), freq));
-	float3 gd = hash33(fmod(p + float3(1., 1., 0.), freq));
-	float3 ge = hash33(fmod(p + float3(0., 0., 1.), freq));
-	float3 gf = hash33(fmod(p + float3(1., 0., 1.), freq));
-	float3 gg = hash33(fmod(p + float3(0., 1., 1.), freq));
-	float3 gh = hash33(fmod(p + float3(1., 1., 1.), freq));
+	float3 ga = hash33(mod(p + float3(0., 0., 0.), freq));
+	float3 gb = hash33(mod(p + float3(1., 0., 0.), freq));
+	float3 gc = hash33(mod(p + float3(0., 1., 0.), freq));
+	float3 gd = hash33(mod(p + float3(1., 1., 0.), freq));
+	float3 ge = hash33(mod(p + float3(0., 0., 1.), freq));
+	float3 gf = hash33(mod(p + float3(1., 0., 1.), freq));
+	float3 gg = hash33(mod(p + float3(0., 1., 1.), freq));
+	float3 gh = hash33(mod(p + float3(1., 1., 1.), freq));
 
 	// projections
 	float va = dot(ga, w - float3(0., 0., 0.));
@@ -74,7 +76,7 @@ float worleyNoise(float3 uv, float freq)
 		for (float y = -1.; y <= 1.; ++y) {
 			for (float z = -1.; z <= 1.; ++z) {
 				float3 offset = float3(x, y, z);
-				float3 h = hash33(fmod(id + offset, freq)) * .5 + .5;
+				float3 h = hash33(mod(id + offset, freq)) * .5 + .5;
 				h += offset;
 				float3 d = p - h;
 				minDist = min(minDist, dot(d, d));
@@ -104,7 +106,7 @@ float worleyFbm(float3 uvw, uint octaves, float persistence, float lacunarity)
 	float mix = 1, freq = 10, val = 0, mix_sum = 0;
 	for (uint i = 0; i < octaves; ++i) {
 		mix_sum += mix;
-		val += mix * (worleyNoise(uvw * freq, freq) * .5 + .5);
+		val += mix * worleyNoise(uvw * freq, freq);
 		mix *= persistence;
 		freq *= lacunarity;
 	}
@@ -118,5 +120,5 @@ float worleyFbm(float3 uvw, uint octaves, float persistence, float lacunarity)
 	tex_noise.GetDimensions(out_dims.x, out_dims.y, out_dims.z);
 	float3 uvw = (tid + 0.5) / out_dims;
 
-	tex_noise[tid] = float4(gradientFbm(uvw, 9, 0.52, 2.02), worleyFbm(uvw, 4, 0.33, 3), 0, 0);
+	tex_noise[tid] = float4(gradientFbm(uvw, 8, 0.50, 2.0), worleyFbm(uvw, 4, 0.33, 3), 0, 0);
 }

@@ -11,7 +11,7 @@ SamplerState SampSkyView
 	AddressU = Mirror;
 };
 
-SamplerState MirrorLinearSampler : register(s1)
+SamplerState MirrorLinearSampler
 {
 	Filter = MIN_MAG_MIP_LINEAR;
 	AddressU = Mirror;
@@ -99,12 +99,6 @@ struct PhysWeatherSB
 	float ap_inscatter_mix;
 	float ap_transmittance_mix;
 	float light_transmittance_mix;
-
-	float cloud_bottom_height;
-	float cloud_upper_height;
-	float3 cloud_noise_freq;
-	float3 cloud_scatter;
-	float3 cloud_absorption;
 
 	PhaseFunc cloud_phase_func;
 	CloudLayer cloud_layer;
