@@ -133,10 +133,10 @@ float3 hash33(float3 p)
 				float octave_cloud_phase = oct < 1 ? cloud_phase.x : (oct < 2 ? cloud_phase.y : (oct < 3 ? cloud_phase.z : cloud_phase.w));
 
 				// beer-powder
-				sun_transmittance *= exp(-sun_optical_depth * falloff) * (1 - exp(-sun_optical_depth * sun_optical_depth * falloff * falloff));
-				float3 in_scatter = cloud_scatter * falloff * (octave_cloud_phase.x * sun_transmittance);
-				float3 scatter_integeral = in_scatter * (1 - pow(sample_transmittance, falloff)) / max(extinction * falloff, 1e-10);
-				lum += scatter_integeral * pow(transmittance, falloff);
+				float3 octave_sun_transmittance = sun_transmittance * exp(-sun_optical_depth * falloff) * (1 - exp(-sun_optical_depth * sun_optical_depth * falloff * falloff));
+				float3 in_scatter = cloud_scatter * falloff * (octave_cloud_phase.x * octave_sun_transmittance);
+				float3 scatter_integeral = in_scatter * (1 - sample_transmittance) / max(extinction, 1e-10);
+				lum += scatter_integeral * transmittance;
 
 				falloff *= 0.5;
 			}
