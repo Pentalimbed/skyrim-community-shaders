@@ -6,6 +6,23 @@ void PhysicalWeather::SetupResources()
 	if (!loaded)
 		return;
 	try {
+		auto renderer = RE::BSGraphics::Renderer::GetSingleton();
+		logger::debug("Creating samplers...");
+		{
+			auto device = renderer->GetRuntimeData().forwarder;
+
+			D3D11_SAMPLER_DESC sampler_desc = {
+				.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+				.AddressU = D3D11_TEXTURE_ADDRESS_WRAP,
+				.AddressV = D3D11_TEXTURE_ADDRESS_WRAP,
+				.AddressW = D3D11_TEXTURE_ADDRESS_WRAP,
+				.MaxAnisotropy = 1,
+				.MinLOD = 0,
+				.MaxLOD = D3D11_FLOAT32_MAX
+			};
+			DX::ThrowIfFailed(device->CreateSamplerState(&sampler_desc, &noise_sampler));
+		}
+
 		logger::debug("Creating structured buffers...");
 		{
 			D3D11_BUFFER_DESC sb_desc{
@@ -121,7 +138,7 @@ void PhysicalWeather::SetupResources()
 
 		logger::debug("Creating cloud render targets...");
 		{
-			auto main_target = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
+			auto main_target = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
 			D3D11_TEXTURE2D_DESC main_target_desc;
 			main_target.texture->GetDesc(&main_target_desc);
 
@@ -374,6 +391,7 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 		if (frame_checker.isNewFrame()) {
 			struct OldState
 			{
+				ID3D11SamplerState* sampler;
 				ID3D11ShaderResourceView* srvs[2];
 				ID3D11ComputeShader* shader;
 				ID3D11Buffer* buffer;
@@ -381,15 +399,13 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 				ID3D11ClassInstance* instance;
 				UINT numInstances;
 			} old;
+			context->CSGetSamplers(0, 1, &old.sampler);
 			context->CSGetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
 			context->CSGetShader(&old.shader, &old.instance, &old.numInstances);
 			context->CSGetConstantBuffers(0, 1, &old.buffer);
 			context->CSGetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs);
 
-			ID3D11Buffer* perframe_cb;
-			context->PSGetConstantBuffers(12, 1, &perframe_cb);
-			context->CSSetConstantBuffers(0, 1, &perframe_cb);
-
+			context->CSSetSamplers(0, 1, &noise_sampler);
 			context->CSSetShaderResources(0, 1, phys_weather_sb->srv.put());
 			context->CSSetShaderResources(1, 1, transmittance_lut->srv.put());
 			context->CSSetShaderResources(2, 1, noise_tex->srv.put());
@@ -397,10 +413,17 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 			context->CSSetUnorderedAccessViews(1, 1, cloud_transmittance_tex->uav.put(), nullptr);
 			context->CSSetShader(render_clouds_program.get(), nullptr, 0);
 
+			ID3D11Buffer* perframe_cb;
+			context->PSGetConstantBuffers(12, 1, &perframe_cb);
+			context->CSSetConstantBuffers(0, 1, &perframe_cb);
+
 			D3D11_TEXTURE2D_DESC volume_tex_desc;
 			cloud_scatter_tex->resource->GetDesc(&volume_tex_desc);
 			context->Dispatch(((volume_tex_desc.Width - 1) >> 5) + 1, ((volume_tex_desc.Height - 1) >> 5) + 1, 1);
 
+			context->CSSetSamplers(0, 1, &old.sampler);
+			if (old.sampler)
+				old.sampler->Release();
 			context->CSSetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
 			for (uint8_t i = 0; i < ARRAYSIZE(old.srvs); i++)
 				if (old.srvs[i])
@@ -419,11 +442,16 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 	}
 
 	// actual sky
-
-	context->PSSetShaderResources(16, 1, phys_weather_sb->srv.put());
-	context->PSSetShaderResources(17, 1, sky_view_lut->srv.put());
-	context->PSSetShaderResources(18, 1, aerial_perspective_lut->srv.put());
-	context->PSSetShaderResources(19, 1, transmittance_lut->srv.put());
+	std::array srvs = {
+		phys_weather_sb->srv.get(),          // 0 16
+		sky_view_lut->srv.get(),             // 1 17
+		aerial_perspective_lut->srv.get(),   // 2 18
+		transmittance_lut->srv.get(),        // 3 19
+		cloud_scatter_tex->srv.get(),        // 4 20
+		cloud_transmittance_tex->srv.get(),  // 5 21
+		(ID3D11ShaderResourceView*)nullptr,  // 6 22
+		(ID3D11ShaderResourceView*)nullptr   // 7 23
+	};
 
 	auto sky = RE::Sky::GetSingleton();
 	auto masser = sky->masser;
@@ -432,12 +460,14 @@ void PhysicalWeather::ModifySky(const RE::BSShader*, const uint32_t descriptor)
 		RE::NiSourceTexturePtr masser_tex;
 		Hooks::BSShaderManager_GetTexture::func(masser->stateTextures[RE::Moon::Phase::kFull].c_str(), true, masser_tex, false);  // TODO: find the phase
 		if (masser_tex)
-			context->PSSetShaderResources(20, 1, &masser_tex->rendererTexture->m_ResourceView);
+			srvs[6] = masser_tex->rendererTexture->m_ResourceView;
 	}
 	if (secunda) {
 		RE::NiSourceTexturePtr secunda_tex;
 		Hooks::BSShaderManager_GetTexture::func(secunda->stateTextures[RE::Moon::Phase::kFull].c_str(), true, secunda_tex, false);
 		if (secunda_tex)
-			context->PSSetShaderResources(21, 1, &secunda_tex->rendererTexture->m_ResourceView);
+			srvs[7] = secunda_tex->rendererTexture->m_ResourceView;
 	}
+
+	context->PSSetShaderResources(16, UINT(srvs.size()), srvs.data());
 }

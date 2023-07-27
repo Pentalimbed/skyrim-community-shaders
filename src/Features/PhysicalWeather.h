@@ -33,8 +33,8 @@ struct PhaseFunc
 {
 	int32_t func = 2;
 	float g0 = 0.8;  // 0.8
-	float g1 = -0.8;
-	float w = 0.2;
+	float g1 = -0.2;
+	float w = 0.5;
 	float d = 15;  // in um
 };
 
@@ -46,7 +46,7 @@ struct CloudLayer
 	DirectX::XMFLOAT3 scatter = { 1.f, 1.f, 1.f };  // in km^-1
 	DirectX::XMFLOAT3 absorption = { 0.1f, 0.1f, 0.1f };
 
-	float altocumulus_blend = 0.f;
+	float altocumulus_blend = 0.2f;
 };
 
 struct PhysicalWeather : Feature
@@ -155,6 +155,7 @@ struct PhysicalWeather : Feature
 
 		// CLOUDS
 		PhaseFunc cloud_phase_func = { .func = 1 };
+		uint32_t multiscatter_octaves = 1;
 		CloudLayer cloud_layer;
 	} settings;
 
@@ -186,6 +187,8 @@ struct PhysicalWeather : Feature
 
 	std::unique_ptr<Texture2D> cloud_scatter_tex = nullptr;
 	std::unique_ptr<Texture2D> cloud_transmittance_tex = nullptr;
+
+	ID3D11SamplerState* noise_sampler = nullptr;
 
 	struct PhysWeatherSB
 	{
@@ -251,6 +254,7 @@ struct PhysicalWeather : Feature
 		float light_transmittance_mix;
 
 		PhaseFunc cloud_phase_func;
+		uint32_t multiscatter_octaves;
 		CloudLayer cloud_layer;
 	} phys_weather_sb_content;
 

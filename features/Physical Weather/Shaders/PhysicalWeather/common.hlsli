@@ -101,6 +101,7 @@ struct PhysWeatherSB
 	float light_transmittance_mix;
 
 	PhaseFunc cloud_phase_func;
+	uint multiscatter_octaves;
 	CloudLayer cloud_layer;
 };
 
@@ -158,7 +159,7 @@ void scatterValues(
 
 float miePhaseHenyeyGreenstein(float cos_theta, float g)
 {
-	const float scale = .25 * RCP_PI;
+	static const float scale = .25 * RCP_PI;
 	const float g2 = g * g;
 
 	float num = (1.0 - g2);
@@ -174,7 +175,7 @@ float miePhaseHenyeyGreensteinDualLobe(float cos_theta, float g_0, float g_1, fl
 
 float miePhaseCornetteShanks(float cos_theta, float g)
 {
-	const float scale = .375 * RCP_PI;
+	static const float scale = .375 * RCP_PI;
 	const float g2 = g * g;
 
 	float num = (1.0 - g2) * (1.0 + cos_theta * cos_theta);
@@ -185,7 +186,7 @@ float miePhaseCornetteShanks(float cos_theta, float g)
 
 float miePhaseDraine(float cos_theta, float g, float alpha)
 {
-	const float scale = .25 * RCP_PI;
+	static const float scale = .25 * RCP_PI;
 	const float g2 = g * g;
 
 	float num = (1.0 - g2) * (1.0 + alpha * cos_theta * cos_theta);
@@ -236,7 +237,7 @@ float miePhase(float cos_theta, in PhaseFunc phase)
 	case 3:
 		return miePhaseJendersieDEon(cos_theta, phase.d);
 	default:
-		return .5 * RCP_PI;
+		return .25 * RCP_PI;
 	}
 }
 

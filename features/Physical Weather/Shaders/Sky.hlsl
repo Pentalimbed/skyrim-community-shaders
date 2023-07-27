@@ -140,8 +140,10 @@ StructuredBuffer<PhysWeatherSB> phys_weather : register(t16);
 Texture2D<float4> TexSkyView : register(t17);
 Texture3D<float4> TexAerialPerspective : register(t18);
 Texture2D<float4> TexTransmittance : register(t19);
-Texture2D<float4> TexMasser : register(t20);
-Texture2D<float4> TexSecunda : register(t21);
+Texture2D<float4> TexCloudScatter : register(t20);
+Texture2D<float4> TexCloudTransmittance : register(t21);
+Texture2D<float4> TexMasser : register(t22);
+Texture2D<float4> TexSecunda : register(t23);
 #	endif
 
 cbuffer PerFrame : register(b12)
@@ -208,6 +210,12 @@ PS_OUTPUT main(PS_INPUT input)
 #	else   // SunOcclude
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
+
+	float4 screenPosition = mul(ScreenProj, input.WorldPosition);
+	screenPosition.xy = screenPosition.xy / screenPosition.ww;
+	float4 previousScreenPosition = mul(PreviousScreenProj, input.PreviousWorldPosition);
+	previousScreenPosition.xy = previousScreenPosition.xy / previousScreenPosition.ww;
+	float2 screenMotionVector = float2(-0.5, 0.5) * (screenPosition.xy - previousScreenPosition.xy);
 
 #	ifdef PHYSICAL_WEATHER
 	if (phys_weather[0].enable_sky) {
@@ -286,11 +294,16 @@ PS_OUTPUT main(PS_INPUT input)
 		// 	psout.Color.rgb = psout.Color.rgb * lerp(1, ap.w, phys_weather[0].ap_transmittance_mix) + ap.xyz * phys_weather[0].ap_inscatter_mix;
 		// }
 #		else
+		float2 screen_coord = screenPosition.xy * float2(1, -1) * .5 + .5;
+		float3 cloud_tr = TexCloudTransmittance.SampleLevel(SampBaseSampler, screen_coord, 0).rgb;
+
 		// Ex-atmosphere
 		float2 trans_uv = getLutUv(float3(0, 0, height), view_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
-		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, trans_uv, 0).rgb;
+		psout.Color.rgb *= TexTransmittance.SampleLevel(SampBaseSampler, trans_uv, 0).rgb * cloud_tr;
+
 #			if defined(DITHER) && !defined(TEX)  // SKY
-		psout.Color.rgb += TexSkyView.SampleLevel(SampSkyView, cylinderMapAdjusted(view_dir), 0).rgb;
+		psout.Color.rgb += TexSkyView.SampleLevel(SampSkyView, cylinderMapAdjusted(view_dir), 0).rgb * cloud_tr +
+		                   TexCloudScatter.SampleLevel(SampBaseSampler, screen_coord, 0).rgb;
 #			endif
 #		endif
 
@@ -304,12 +317,6 @@ PS_OUTPUT main(PS_INPUT input)
 		}
 	}
 #	endif
-
-	float4 screenPosition = mul(ScreenProj, input.WorldPosition);
-	screenPosition.xy = screenPosition.xy / screenPosition.ww;
-	float4 previousScreenPosition = mul(PreviousScreenProj, input.PreviousWorldPosition);
-	previousScreenPosition.xy = previousScreenPosition.xy / previousScreenPosition.ww;
-	float2 screenMotionVector = float2(-0.5, 0.5) * (screenPosition.xy - previousScreenPosition.xy);
 
 	psout.MotionVectors = screenMotionVector;
 	psout.Normal = float4(0.5, 0.5, 0, 0);

@@ -90,7 +90,7 @@ float worleyNoise(float3 uv, float freq)
 
 float gradientFbm(float3 uvw, uint octaves, float persistence, float lacunarity)
 {
-	float mix = 1, freq = 10, val = 0, mix_sum = 0;
+	float mix = 1, freq = 5, val = 0, mix_sum = 0;
 	for (uint i = 0; i < octaves; ++i) {
 		mix_sum += mix;
 		val += mix * (gradientNoise(uvw * freq, freq) * .5 + .5);
@@ -103,7 +103,7 @@ float gradientFbm(float3 uvw, uint octaves, float persistence, float lacunarity)
 
 float worleyFbm(float3 uvw, uint octaves, float persistence, float lacunarity)
 {
-	float mix = 1, freq = 10, val = 0, mix_sum = 0;
+	float mix = 1, freq = 5, val = 0, mix_sum = 0;
 	for (uint i = 0; i < octaves; ++i) {
 		mix_sum += mix;
 		val += mix * worleyNoise(uvw * freq, freq);

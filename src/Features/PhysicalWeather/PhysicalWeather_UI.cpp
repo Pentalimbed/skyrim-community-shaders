@@ -59,6 +59,8 @@ void CloudLayerEdit(CloudLayer& clouds)
 	ImGui::SliderFloat3("Frequency", &clouds.freq.x, 0, 10.0);
 	ImGui::ColorEdit3("Scatter", &clouds.scatter.x, hdr_color_edit_flags);
 	ImGui::ColorEdit3("Absorption", &clouds.absorption.x, hdr_color_edit_flags);
+
+	ImGui::SliderFloat("Altocumulus-Altostratus Blend", &clouds.altocumulus_blend, 0, 1);
 }
 
 void PhysicalWeather::DrawSettings()
@@ -127,6 +129,7 @@ void PhysicalWeather::DrawSettingsQuality()
 	ImGui::SliderFloat("Aerial Perspective Max Dist", &settings.aerial_perspective_max_dist, 0, settings.atmos_thickness, "%.3f km");
 
 	ImGui::DragScalar("Cloud March Steps", ImGuiDataType_U32, &settings.cloud_march_step);
+	ImGui::DragScalar("Cloud Shadow Steps", ImGuiDataType_U32, &settings.cloud_self_shadow_step);
 
 	ImGui::TreePop();
 }
@@ -305,6 +308,8 @@ void PhysicalWeather::DrawSettingsAtmosphere()
 void PhysicalWeather::DrawSettingsClouds()
 {
 	PhaseFuncEdit(settings.cloud_phase_func);
+	uint32_t oct_min = 0, oct_max = 3;
+	ImGui::SliderScalar("Multiscatter Octaves", ImGuiDataType_U32, &settings.multiscatter_octaves, &oct_min, &oct_max);
 	CloudLayerEdit(settings.cloud_layer);
 }
 

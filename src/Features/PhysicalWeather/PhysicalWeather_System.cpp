@@ -161,6 +161,7 @@ void PhysicalWeather::Update()
 		.light_transmittance_mix = settings.light_transmittance_mix,
 
 		.cloud_phase_func = settings.cloud_phase_func,
+		.multiscatter_octaves = settings.multiscatter_octaves,
 		.cloud_layer = settings.cloud_layer
 	};
 

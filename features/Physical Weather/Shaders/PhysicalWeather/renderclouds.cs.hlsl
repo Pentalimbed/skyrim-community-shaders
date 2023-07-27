@@ -7,13 +7,7 @@
 */
 #include "common.hlsli"
 
-SamplerState SampNoise
-{
-	Filter = MIN_MAG_MIP_LINEAR;
-	AddressU = Wrap;
-	AddressV = Wrap;
-	AddressW = Wrap;
-};
+SamplerState SampNoise : register(s0);
 
 StructuredBuffer<PhysWeatherSB> phys_weather : register(t0);
 Texture2D<float4> tex_transmittance : register(t1);
@@ -45,15 +39,16 @@ cbuffer PerFrame : register(b0)
 float getCloudLayerDensity(float3 pos, CloudLayer cloud)
 {
 	static const float rcp_1080 = 1 / 1080.0;
-	static const float k = 0.2;
 
 	float altitude = length(pos) - phys_weather[0].ground_radius;
-	float3 scaled_pos = pos * 1.428e-3;
+	float3 scaled_pos = pos * 1.428e-2;
 	float density = 0;
 	if ((altitude > cloud.height_range.x) && (altitude < cloud.height_range.y)) {
-		float n1 = tex_noise.SampleLevel(SampNoise, frac(scaled_pos * float3(0.35, 1, 1) * cloud.freq * 3.6), 0).r;
-		float n2 = tex_noise.SampleLevel(SampNoise, frac(scaled_pos * rcp_1080 * cloud.freq * 9.6), 0).r;
-		float n3 = tex_noise.SampleLevel(SampNoise, frac(scaled_pos * rcp_1080 * cloud.freq * 40), 0).g;
+		float n1 = tex_noise.SampleLevel(SampNoise, scaled_pos * float3(0.35, 1, 1) * cloud.freq * 3.6, 0).r;
+		float n2 = tex_noise.SampleLevel(SampNoise, scaled_pos * rcp_1080 * cloud.freq * 9.6, 0).r;
+		float n3 = tex_noise.SampleLevel(SampNoise, scaled_pos * rcp_1080 * cloud.freq * 40, 0).g;
+
+		float k = cloud.altocumulus_blend;
 
 		float phi = lerp(smoothstep(0.43, 1, n1), 1, k);
 		float delta = lerp(lerp(n2, 1 - n3, 0.25), 0, k);
@@ -89,43 +84,70 @@ float3 hash33(float3 p)
 	float height = (CurrentPosAdjust.z - phys_weather[0].bottom_z) * phys_weather[0].unit_scale * 1.428e-5 + phys_weather[0].ground_radius;
 	float3 pos = float3(0, 0, height);
 	float ground_dist = rayIntersectSphere(pos, view_dir, phys_weather[0].ground_radius);
-	float atmos_dist = rayIntersectSphere(pos, view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_layer.height_range.y);
-	float t_max = ground_dist > 0.0 ? ground_dist : atmos_dist;
+	float lower_dist = rayIntersectSphere(pos, view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_layer.height_range.x);
+	float higher_dist = rayIntersectSphere(pos, view_dir, phys_weather[0].ground_radius + phys_weather[0].cloud_layer.height_range.y);
+	float t_begin = 0, t_end = ground_dist;
+	if (ground_dist < 0) {
+		t_begin = lower_dist;
+		t_end = higher_dist;
+	}
 
 	float cos_theta = dot(view_dir, phys_weather[0].dirlight_dir);
-	float cloud_phase = miePhase(cos_theta, phys_weather[0].cloud_phase_func);
+	float4 cloud_phase;
+	cloud_phase = miePhase(cos_theta, phys_weather[0].cloud_phase_func);
+	if (phys_weather[0].multiscatter_octaves > 0)
+		cloud_phase.y = miePhase(cos_theta * .5, phys_weather[0].cloud_phase_func);
+	if (phys_weather[0].multiscatter_octaves > 1)
+		cloud_phase.z = miePhase(cos_theta * .25, phys_weather[0].cloud_phase_func);
+	if (phys_weather[0].multiscatter_octaves > 2)
+		cloud_phase.w = miePhase(cos_theta * .125, phys_weather[0].cloud_phase_func);
 
-	// float3 jitter = hash33(float3(uv, phys_weather[0].timer) * 1e6);
-	float3 jitter = 0;
+	float3 jitter = hash33(float3(uv, phys_weather[0].timer) * 1e6);
+	// float3 jitter = 0;
+	float stride = (t_end - t_begin) / phys_weather[0].cloud_march_step;
 
 	float3 lum = 0, transmittance = 1;
-	float t = 0;
 	for (uint i = 0; i < phys_weather[0].cloud_march_step; ++i) {
-		float new_t = float(i) / phys_weather[0].cloud_march_step * t_max;
-		float dt = new_t - t;
-		t = new_t;
-		float3 new_pos = pos + (t - jitter.x) * view_dir;
+		float3 new_pos = pos + (t_begin + (i - jitter.x) * stride) * view_dir;
 
 		float density = getCloudLayerDensity(new_pos, phys_weather[0].cloud_layer);
 		float3 cloud_scatter = phys_weather[0].cloud_layer.scatter * density;
 		float3 extinction = cloud_scatter + phys_weather[0].cloud_layer.absorption * density;
 
-		float3 sample_transmittance = exp(-dt * extinction);
+		float3 sample_transmittance = exp(-stride * extinction);
 
-		float2 samp_coord = getLutUv(new_pos, phys_weather[0].dirlight_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
-		float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
+		if (density > 1e-6) {
+			float2 samp_coord = getLutUv(new_pos, phys_weather[0].dirlight_dir, phys_weather[0].ground_radius, phys_weather[0].atmos_thickness);
+			float3 sun_transmittance = tex_transmittance.SampleLevel(MirrorLinearSampler, samp_coord, 0).rgb;
 
-		float3 in_scatter = cloud_scatter * (cloud_phase * sun_transmittance);
+			float3 sun_optical_depth = 0;
+			float3 sun_pos = new_pos;
+			for (uint j = 0; j < phys_weather[0].cloud_self_shadow_step; ++j) {
+				float3 sun_pos = new_pos + (j - jitter.y) * stride * phys_weather[0].dirlight_dir;
+				float3 sun_extinction = (phys_weather[0].cloud_layer.scatter + phys_weather[0].cloud_layer.absorption) * getCloudLayerDensity(sun_pos, phys_weather[0].cloud_layer);
+				sun_optical_depth += stride * sun_extinction;
+			}
 
-		float3 scatter_integeral = in_scatter * (1 - sample_transmittance) / max(extinction, 1e-8);
+			float falloff = 1;
+			for (uint oct = 0; oct <= phys_weather[0].multiscatter_octaves; ++oct) {
+				float octave_cloud_phase = oct < 1 ? cloud_phase.x : (oct < 2 ? cloud_phase.y : (oct < 3 ? cloud_phase.z : cloud_phase.w));
 
-		lum += scatter_integeral * transmittance;
+				// beer-powder
+				sun_transmittance *= exp(-sun_optical_depth * falloff) * (1 - exp(-sun_optical_depth * sun_optical_depth * falloff * falloff));
+				float3 in_scatter = cloud_scatter * falloff * (octave_cloud_phase.x * sun_transmittance);
+				float3 scatter_integeral = in_scatter * (1 - pow(sample_transmittance, falloff)) / max(extinction * falloff, 1e-10);
+				lum += scatter_integeral * pow(transmittance, falloff);
+
+				falloff *= 0.5;
+			}
+		}
+
 		transmittance *= sample_transmittance;
 
-		if (all(transmittance < 1e-5))
+		if (all(transmittance < 1e-3))
 			break;
 	}
 
-	tex_cloud_scatter[tid.xy] = float4(lum, 1);
+	tex_cloud_scatter[tid.xy] = float4(lum * phys_weather[0].dirlight_color, 1);
 	tex_cloud_transmittance[tid.xy] = float4(transmittance, 1);
 }
