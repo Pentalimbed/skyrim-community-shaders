@@ -1,8 +1,10 @@
 #include "Menu.h"
+#include "TODSystem.h"
 #include "Util.h"
 
 #include <dinput.h>
 #include <imgui_stdlib.h>
+#include <implot.h>
 #include <magic_enum.hpp>
 
 #include "ShaderCache.h"
@@ -70,6 +72,7 @@ Menu::~Menu()
 {
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 }
 
@@ -107,6 +110,7 @@ void Menu::Init(IDXGISwapChain* swapchain, ID3D11Device* device, ID3D11DeviceCon
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImPlot::CreateContext();
 	auto& imgui_io = ImGui::GetIO();
 
 	imgui_io.ConfigFlags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
@@ -204,7 +208,7 @@ void Menu::DrawSettings()
 
 		if (ImGui::CollapsingHeader("General", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick)) {
 			bool useCustomShaders = shaderCache.IsEnabled();
-			if (ImGui::BeginTable("##GeneralToggles", 3, ImGuiTableFlags_SizingStretchSame)) {
+			if (ImGui::BeginTable("##GeneralToggles", 4, ImGuiTableFlags_SizingStretchSame)) {
 				ImGui::TableNextColumn();
 				if (ImGui::Checkbox("Enable Shaders", &useCustomShaders)) {
 					shaderCache.SetEnabled(useCustomShaders);
@@ -229,6 +233,12 @@ void Menu::DrawSettings()
 				}
 				if (auto _tt = Util::HoverTooltipWrapper()) {
 					ImGui::Text("Skips a shader being replaced if it hasn't been compiled yet. Also makes compilation blazingly fast!");
+				}
+
+				ImGui::TableNextColumn();
+				ImGui::Checkbox("TOD/Weather Edit", &inTodEditMode);
+				if (auto _tt = Util::HoverTooltipWrapper()) {
+					ImGui::Text("Toggles TOD/Weather editing interface.");
 				}
 
 				ImGui::EndTable();
@@ -403,49 +413,57 @@ void Menu::DrawSettings()
 		}
 
 		ImGui::Separator();
+		if (inTodEditMode) {
+			if (ImGui::BeginChild("##TODInterface", { 0, 0 }, true)) {
+				auto calendar = RE::Calendar::GetSingleton();
+				float current_tod = calendar->GetHour() / calendar->GetHoursPerDay();
 
-		if (ImGui::BeginTable("Feature Table", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_Resizable)) {
-			ImGui::TableSetupColumn("##ListOfFeatures", 0, 3);
-			ImGui::TableSetupColumn("##FeatureConfig", 0, 7);
-
-			static size_t selectedFeature = SIZE_T_MAX;
-			auto& featureList = Feature::GetFeatureList();
-
-			ImGui::TableNextColumn();
-			if (ImGui::BeginListBox("##FeatureList", { -FLT_MIN, -FLT_MIN })) {
-				for (size_t i = 0; i < featureList.size(); i++)
-					if (featureList[i]->loaded) {
-						if (ImGui::Selectable(fmt::format("{} ", featureList[i]->GetName()).c_str(), selectedFeature == i, ImGuiSelectableFlags_SpanAllColumns))
-							selectedFeature = i;
-						ImGui::SameLine();
-						ImGui::TextDisabled(fmt::format("({})", featureList[i]->version).c_str());
-					}
-				ImGui::EndListBox();
-			}
-
-			ImGui::TableNextColumn();
-
-			bool shownFeature = selectedFeature < featureList.size();
-			if (shownFeature) {
-				if (ImGui::Button("Restore Defaults", { -1, 0 })) {
-					featureList[selectedFeature]->RestoreDefaultSettings();
-				}
-				if (auto _tt = Util::HoverTooltipWrapper()) {
-					ImGui::Text(
-						"Restores the feature's settings back to their default values. "
-						"You will still need to Save Settings to make these changes permanent. ");
-				}
-			}
-
-			if (ImGui::BeginChild("##FeatureConfigFrame", { 0, 0 }, true)) {
-				if (shownFeature)
-					featureList[selectedFeature]->DrawSettings();
-				else
-					ImGui::TextDisabled("Please select a feature on the left.");
+				static TODProfile profile;
+				profile.drawEditor(current_tod);
 			}
 			ImGui::EndChild();
 
-			ImGui::EndTable();
+		} else {
+			if (ImGui::BeginTable("Feature Table", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_Resizable)) {
+				ImGui::TableSetupColumn("##ListOfFeatures", 0, 3);
+				ImGui::TableSetupColumn("##FeatureConfig", 0, 7);
+
+				static size_t selectedFeature = SIZE_T_MAX;
+				auto& featureList = Feature::GetFeatureList();
+
+				ImGui::TableNextColumn();
+				if (ImGui::BeginListBox("##FeatureList", { -FLT_MIN, -FLT_MIN })) {
+					for (size_t i = 0; i < featureList.size(); i++)
+						if (featureList[i]->loaded) {
+							if (ImGui::Selectable(fmt::format("{} ", featureList[i]->GetName()).c_str(), selectedFeature == i, ImGuiSelectableFlags_SpanAllColumns))
+								selectedFeature = i;
+							ImGui::SameLine();
+							ImGui::TextDisabled(fmt::format("({})", featureList[i]->version).c_str());
+						}
+					ImGui::EndListBox();
+				}
+
+				ImGui::TableNextColumn();
+
+				bool shownFeature = selectedFeature < featureList.size();
+				if (ImGui::BeginChild("##FeatureConfigFrame", { 0, 0 }, true)) {
+					if (shownFeature) {
+						if (ImGui::Button("Restore Defaults", { -1, 0 })) {
+							featureList[selectedFeature]->RestoreDefaultSettings();
+						}
+						if (auto _tt = Util::HoverTooltipWrapper()) {
+							ImGui::Text(
+								"Restores the feature's settings back to their default values. "
+								"You will still need to Save Settings to make these changes permanent. ");
+						}
+						featureList[selectedFeature]->DrawSettings();
+					} else
+						ImGui::TextDisabled("Please select a feature on the left.");
+				}
+				ImGui::EndChild();
+
+				ImGui::EndTable();
+			}
 		}
 		ImGui::PopStyleColor(1);
 	}

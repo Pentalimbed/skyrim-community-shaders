@@ -13,15 +13,19 @@
     "magic-enum",
     "xbyak",
     "catch2",
-    "magic-enum",
     "nlohmann-json",
     "pystring",
     "directxtex",
     {
       "name": "imgui",
-      "features": ["dx11-binding", "win32-binding", "docking-experimental"],
+      "features": [
+        "dx11-binding",
+        "win32-binding",
+        "docking-experimental"
+      ],
       "version>=": "1.88"
     },
+    "implot",
     "eastl",
     "clib-util"
   ],

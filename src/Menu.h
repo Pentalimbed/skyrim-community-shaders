@@ -44,10 +44,12 @@ private:
 	uint32_t testInterval = 0;     // Seconds to wait before toggling user/test settings
 	bool inTestMode = false;       // Whether we're in test mode
 	bool usingTestConfig = false;  // Whether we're using the test config
+	bool inTodEditMode = false;    // Whether we're editing TOD/Weather profiles
 
 	std::chrono::steady_clock::time_point lastTestSwitch = high_resolution_clock::now();  // Time of last test switch
 
 	Menu() {}
+
 	const char* KeyIdToString(uint32_t key);
 	const ImGuiKey VirtualKeyToImGuiKey(WPARAM vkKey);
 
