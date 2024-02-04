@@ -920,11 +920,16 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		endif
 #	endif
 
+#	if defined(PHYS_SKY)
+#		include "PhysicalSky/PhysicalSky.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
 	PS_OUTPUT psout;
 	uint eyeIndex = GetEyeIndexPS(input.Position, VPOSOffset);
+
 #	if defined(SKINNED) || !defined(MODELSPACENORMALS)
 	float3x3 tbn = float3x3(input.TBN0.xyz, input.TBN1.xyz, input.TBN2.xyz);
 	float3x3 tbnTr = transpose(tbn);
@@ -1375,6 +1380,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	if !defined(DRAW_IN_WORLDSPACE)
 	[flatten] if (!input.WorldSpace)
 		normalizedDirLightDirectionWS = normalize(mul(input.World[eyeIndex], float4(DirLightDirection.xyz, 0)));
+#	endif
+
+#	if defined(PHYS_SKY)
+	float4 ap_sample = getLightingApSample(input.WorldPosition.xyz, SampColorSampler);
+
+	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
+		dirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
+
+	float3 transmit_sample = getLightingTransmitSample(input.WorldPosition.z, SampShadowMaskSampler);
+	dirLightColor *= transmit_sample;
 #	endif
 
 #	if defined(CLOUD_SHADOWS)
@@ -1927,6 +1942,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(ENVMAP) && defined(TESTCUBEMAP)
 	color.xyz = specularTexture.SampleLevel(SampEnvSampler, envSamplingPoint, 1).xyz;
+#	endif
+
+#	if defined(PHYS_SKY)
+	color.xyz = color.xyz * ap_sample.a + ap_sample.rgb;
 #	endif
 
 #	if defined(LANDSCAPE) && !defined(LOD_LAND_BLEND)

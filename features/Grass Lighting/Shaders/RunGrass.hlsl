@@ -317,6 +317,10 @@ float3x3 CalculateTBN(float3 N, float3 p, float2 uv)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
+#	if defined(PHYS_SKY)
+#		include "PhysicalSky/PhysicalSky.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -388,6 +392,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	if (EnableDirLightFix) {
 		dirLightColor *= SunlightScale;
 	}
+
+#		if defined(PHYS_SKY)
+	float4 ap_sample = getLightingApSample(input.WorldPosition.xyz, SampColorSampler);
+
+	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
+		dirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
+
+	float3 transmit_sample = getLightingTransmitSample(input.WorldPosition.z, SampShadowMaskSampler);
+	dirLightColor *= transmit_sample;
+#		endif
 
 #		if defined(CLOUD_SHADOWS)
 	float3 cloudShadowMult = 1.0;
@@ -495,6 +509,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		specularColor *= specColor.w * SpecularStrength;
 		color.xyz += specularColor;
 	}
+
+#		if defined(PHYS_SKY)
+	color.xyz = color.xyz * ap_sample.a + ap_sample.rgb;
+#		endif
 
 #		if defined(LIGHT_LIMIT_FIX)
 	if (perPassLLF[0].EnableLightsVisualisation) {

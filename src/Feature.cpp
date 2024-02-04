@@ -8,6 +8,7 @@
 #include "Features/GrassCollision.h"
 #include "Features/GrassLighting.h"
 #include "Features/LightLimitFix.h"
+#include "Features/PhysicalSky.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/SubsurfaceScattering.h"
 #include "Features/TerrainBlending.h"
@@ -113,6 +114,7 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		LightLimitFix::GetSingleton(),
 		DynamicCubemaps::GetSingleton(),
 		CloudShadows::GetSingleton(),
+		PhysicalSky::GetSingleton(),
 		TerrainBlending::GetSingleton(),
 		WaterParallax::GetSingleton(),
 		WaterCaustics::GetSingleton(),
