@@ -1,6 +1,6 @@
 #pragma once
 
-struct TODProfile
+struct TODCurve
 {
 	struct Node
 	{
@@ -15,20 +15,22 @@ struct TODProfile
 	size_t cached_query = 0;
 
 	float query(float t, bool cache = true);  // non-cached query used only by imgui
-	void drawEditor(std::optional<float> t = std::nullopt);
 
 	void rerank();
 };
 
-struct TODParameter
+struct TODProfile
 {
-	std::string feature_name;
-	std::string parameter_name;
-};
-
-struct TODCollection
-{
-	std::unordered_map<TODParameter, TODProfile> parameterConfigs;
+	std::unordered_map<std::string, std::unordered_map<std::string, TODCurve>> curves;
 
 	json query(float t);
+};
+
+struct TODSystem
+{
+	std::unordered_map<std::string, std::string> valid_params;
+	TODProfile default_profile;
+
+	TODSystem(json& param_list);
+	void drawCurveEditor(TODCurve& curve, std::optional<float> t);
 };

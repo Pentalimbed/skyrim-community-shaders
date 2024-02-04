@@ -2,8 +2,12 @@
 
 #include <implot.h>
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TODCurve::Node, time, value)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TODCurve, nodes)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(TODProfile, curves)
+
 // NOTE (2024-02-03, Cat): reranking can be optimised by abstracting insertion and deletion, but I am lazy.
-VOID TODProfile::rerank()
+VOID TODCurve::rerank()
 {
 	sorted_indices.clear();
 	for (size_t i = 0; i < nodes.size(); ++i)
@@ -11,7 +15,7 @@ VOID TODProfile::rerank()
 	std::ranges::sort(sorted_indices, [&](size_t a, size_t b) { return nodes[a] < nodes[b]; });
 }
 
-float TODProfile::query(float t, bool cache)
+float TODCurve::query(float t, bool cache)
 {
 	assert(t >= 0 && t <= 1);
 
@@ -59,7 +63,24 @@ float TODProfile::query(float t, bool cache)
 	return std::lerp(node_l.value, node_r.value, dist_to_l / interval_len);
 }
 
-void TODProfile::drawEditor(std::optional<float> t)
+json TODProfile::query(float t)
+{
+	json query_result = {};
+	for (auto& [feature, parameters] : curves) {
+		if (!query_result.contains(feature))
+			query_result[feature] = {};
+
+		for (auto& [parameter, curve] : parameters)
+			query_result[feature][parameter] = curve.query(t);
+	}
+	return query_result;
+}
+
+TODSystem::TODSystem(json& param_list)
+{
+}
+
+void TODSystem::drawCurveEditor(TODCurve& curve, std::optional<float> t)
 {
 	if (t.has_value())
 		10;
@@ -74,25 +95,25 @@ void TODProfile::drawEditor(std::optional<float> t)
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::Button("Sunrise")) {
 			need_rerank = true;
-			nodes.push_back({ .25, query(.25, false) });
+			curve.nodes.push_back({ .25, curve.query(.25, false) });
 		}
 		ImGui::SameLine();
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::Button("Midday")) {
 			need_rerank = true;
-			nodes.push_back({ .5, query(.5, false) });
+			curve.nodes.push_back({ .5, curve.query(.5, false) });
 		}
 		ImGui::SameLine();
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::Button("Sunset")) {
 			need_rerank = true;
-			nodes.push_back({ .75, query(.75, false) });
+			curve.nodes.push_back({ .75, curve.query(.75, false) });
 		}
 		ImGui::SameLine();
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::Button("Midnight")) {
 			need_rerank = true;
-			nodes.push_back({ 1, query(1, false) });
+			curve.nodes.push_back({ 1, curve.query(1, false) });
 		}
 		ImGui::SameLine();
 		ImGui::AlignTextToFramePadding();
@@ -101,15 +122,15 @@ void TODProfile::drawEditor(std::optional<float> t)
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::Button("Clear")) {
 			need_rerank = true;
-			nodes.clear();
+			curve.nodes.clear();
 		}
 
 		if (need_rerank) {
-			selected_node_idx = nodes.size() - 1;
-			rerank();
+			selected_node_idx = curve.nodes.size() - 1;
+			curve.rerank();
 		}
 	}
-	selected_node_idx = std::min(selected_node_idx, nodes.size() - 1);
+	selected_node_idx = std::min(selected_node_idx, curve.nodes.size() - 1);
 
 	ImGui::Separator();
 
@@ -120,13 +141,13 @@ void TODProfile::drawEditor(std::optional<float> t)
 
 		std::vector<float> pts_time, pts_value;
 
-		float edge_value = query(1.0, false);
+		float edge_value = curve.query(1.0, false);
 		pts_time.push_back(0);
 		pts_value.push_back(edge_value);
 
-		for (const auto& idx : sorted_indices) {
-			pts_time.push_back(nodes[idx].time);
-			pts_value.push_back(nodes[idx].value);
+		for (const auto& idx : curve.sorted_indices) {
+			pts_time.push_back(curve.nodes[idx].time);
+			pts_value.push_back(curve.nodes[idx].value);
 		}
 
 		pts_time.push_back(1);
@@ -138,11 +159,11 @@ void TODProfile::drawEditor(std::optional<float> t)
 		}
 
 		ImPlot::PlotLine("##line", pts_time.data(), pts_value.data(), (int)pts_time.size());
-		if (!nodes.empty()) {
-			ImPlot::PlotScatter("##Points", pts_time.data() + 1, pts_value.data() + 1, (int)nodes.size());
+		if (!curve.nodes.empty()) {
+			ImPlot::PlotScatter("##Points", pts_time.data() + 1, pts_value.data() + 1, (int)curve.nodes.size());
 
 			ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 8);
-			ImPlot::PlotScatter("Selected", &nodes[selected_node_idx].time, &nodes[selected_node_idx].value, 1);
+			ImPlot::PlotScatter("Selected", &curve.nodes[selected_node_idx].time, &curve.nodes[selected_node_idx].value, 1);
 			ImPlot::PopStyleVar();
 		}
 
@@ -152,7 +173,7 @@ void TODProfile::drawEditor(std::optional<float> t)
 
 	ImGui::Separator();
 
-	if (nodes.empty())
+	if (curve.nodes.empty())
 		ImGui::TextDisabled("No node present.");
 	else {
 		need_rerank = false;
@@ -162,40 +183,32 @@ void TODProfile::drawEditor(std::optional<float> t)
 		ImGui::SameLine();
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::ArrowButton("prevnode", ImGuiDir_Left)) {
-			size_t selected_node_rank = std::ranges::find(sorted_indices, selected_node_idx) - sorted_indices.begin();
-			auto prev_rank = (selected_node_rank == 0 ? nodes.size() : selected_node_rank) - 1;
-			selected_node_idx = sorted_indices[prev_rank];
+			size_t selected_node_rank = std::ranges::find(curve.sorted_indices, selected_node_idx) - curve.sorted_indices.begin();
+			auto prev_rank = (selected_node_rank == 0 ? curve.nodes.size() : selected_node_rank) - 1;
+			selected_node_idx = curve.sorted_indices[prev_rank];
 		}
 		ImGui::SameLine();
 		ImGui::AlignTextToFramePadding();
 		if (ImGui::ArrowButton("nextnode", ImGuiDir_Right)) {
-			size_t selected_node_rank = std::ranges::find(sorted_indices, selected_node_idx) - sorted_indices.begin();
-			auto next_rank = (selected_node_rank == nodes.size() - 1 ? 0 : selected_node_rank) + 1;
-			selected_node_idx = sorted_indices[next_rank];
+			size_t selected_node_rank = std::ranges::find(curve.sorted_indices, selected_node_idx) - curve.sorted_indices.begin();
+			auto next_rank = (selected_node_rank == curve.nodes.size() - 1 ? 0 : selected_node_rank) + 1;
+			selected_node_idx = curve.sorted_indices[next_rank];
 		}
 
-		auto& node = nodes[selected_node_idx];
+		auto& node = curve.nodes[selected_node_idx];
 		if (ImGui::BeginTable("Feature Table", 2, ImGuiTableFlags_SizingStretchSame)) {
 			ImGui::TableNextColumn();
 			if (ImGui::SliderFloat("Time", &node.time, 0, 1, "%.2f"))
 				need_rerank = true;
 			ImGui::TableNextColumn();
+
+			ImGui::TableNextColumn();
 			ImGui::InputFloat("Value", &node.value, 0.f, 0.f, "%.4f");
+
 			ImGui::EndTable();
 		}
 
 		if (need_rerank)
-			rerank();
+			curve.rerank();
 	}
-}
-
-json TODCollection::query(float t)
-{
-	json query_result = {};
-	for (auto& [parameter, interpolator] : parameterConfigs) {
-		if (!query_result.contains(parameter.feature_name))
-			query_result[parameter.feature_name] = {};
-		query_result[parameter.feature_name][parameter.parameter_name] = interpolator.query(t);
-	}
-	return query_result;
 }

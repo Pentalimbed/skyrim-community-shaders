@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TODSystem.h"
+
 #include <Buffer.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -12,6 +14,8 @@ public:
 		static State singleton;
 		return &singleton;
 	}
+
+	TODSystem todSystem;
 
 	bool enabledClasses[RE::BSShader::Type::Total - 1];
 

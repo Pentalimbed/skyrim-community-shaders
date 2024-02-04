@@ -418,8 +418,9 @@ void Menu::DrawSettings()
 				auto calendar = RE::Calendar::GetSingleton();
 				float current_tod = calendar->GetHour() / calendar->GetHoursPerDay();
 
-				static TODProfile profile;
-				profile.drawEditor(current_tod);
+				static TODCurve profile;
+				auto state = State::GetSingleton();
+				state->todSystem.drawCurveEditor(profile, current_tod);
 			}
 			ImGui::EndChild();
 
