@@ -556,12 +556,12 @@ float LightingFuncGGX_OPT3_Sparkles(float3 N, float3 V, float3 L, float roughnes
 float3 GetLightSpecularInputGGX(PS_INPUT input, float3 L, float3 V, float3 N, float3 lightColor, float shininess, float2 uv)
 {
 	// http://simonstechblog.blogspot.com/2011/12/microfacet-brdf.html
-	float convertedRoughness = pow(2 / (shininess + 2), 0.25);
+	float convertedRoughness = sqrt(2 / (shininess + 2));
 	float lightColorMultiplier = LightingFuncGGX_OPT3(N, V, L, convertedRoughness, 1 - convertedRoughness);
 
 #if defined(ANISO_LIGHTING)
 	lightColorMultiplier *= 0.7 * max(0, L.z);
 #endif
 
-	return Lin2sRGB(lightColor * lightColorMultiplier.xxx);
+	return Lin2sRGB(lightColor * lightColorMultiplier.xxx * .3);
 }

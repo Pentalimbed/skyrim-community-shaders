@@ -1003,7 +1003,7 @@ float2 ComputeTriplanarUV(float3 InputPosition)
 #	endif
 
 #	if defined(SNOW_SPARKLES)
-// #		define GetLightSpecularInput GetLightSpecularInputGGX
+#		define GetLightSpecularInput GetLightSpecularInputGGX
 #		include "SnowSparkles/Glints2023.hlsli"
 #	endif
 
@@ -1135,7 +1135,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	float4 baseColor = 0;
 	float4 normal = 0;
-	float4 glossiness = 0;
+	float glossiness = 0;
 
 #	if defined(LANDSCAPE)
 	if (input.LandBlendWeights1.x > 0.0) {
