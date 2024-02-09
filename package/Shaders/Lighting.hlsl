@@ -1002,6 +1002,11 @@ float2 ComputeTriplanarUV(float3 InputPosition)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
+#	if defined(SNOW_SPARKLES)
+// #		define GetLightSpecularInput GetLightSpecularInputGGX
+#		include "SnowSparkles/Glints2023.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -1514,7 +1519,15 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	if (useSnowSpecular && useSnowDecalSpecular) {
 #	if defined(SNOW)
+#		if defined(SNOW_SPARKLES)
+		float3 normalTS = mul(modelNormal.xyz, tbn);
+		float3 viewTS = mul(viewDirection, tbn);
+		float3 lightDirTS = mul(DirLightDirection.xyz, tbn);
+		float3 sparklesSpecular = LightingFuncGGX_OPT3_Sparkles(normalTS, viewTS, lightDirTS, .1, .9, uv, ddx(uv), ddy(uv));
+		lightsSpecularColor = Lin2sRGB(dirLightColor * sparklesSpecular);
+#		else
 		lightsSpecularColor = GetSnowSpecularColor(input, modelNormal.xyz, viewDirection);
+#		endif
 #	endif
 	} else {
 #	if defined(SPECULAR) || defined(SPARKLE)

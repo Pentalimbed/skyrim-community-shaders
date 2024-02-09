@@ -8,6 +8,7 @@
 #include "Features/GrassLighting.h"
 #include "Features/LightLimitFix.h"
 #include "Features/ScreenSpaceShadows.h"
+#include "Features/SnowSparkles.h"
 #include "Features/WaterBlending.h"
 #include "Features/WetnessEffects.h"
 
@@ -83,7 +84,8 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		WetnessEffects::GetSingleton(),
 		LightLimitFix::GetSingleton(),
 		DynamicCubemaps::GetSingleton(),
-		CloudShadows::GetSingleton()
+		CloudShadows::GetSingleton(),
+		SnowSparkles::GetSingleton()
 	};
 
 	static std::vector<Feature*> featuresVR = {
