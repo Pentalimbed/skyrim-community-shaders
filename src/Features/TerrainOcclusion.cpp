@@ -26,20 +26,31 @@ void TerrainOcclusion::Load(json& o_json)
 
 void TerrainOcclusion::DrawSettings()
 {
-	ImGui::SliderFloat("AO Distance", &settings.aoGen.aoDistance, 1000, 100000, "%.1f");
-	ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.sliceCount);
-	ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.sampleCount);
-	if (ImGui::Button("Regenerate AO"))
-		needAoGen = true;
+	ImGui::Checkbox("Enable Terrain Occlusion", (bool*)&settings.effect.EnableTerrainOcclusion);
 
-	ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 10.f, texHeightMap->desc.Height / 10.f });
-	ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 10.f, texOcclusion->desc.Height / 10.f });
+	if (ImGui::TreeNodeEx("Generation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("AO Distance", &settings.aoGen.AoDistance, 4096 / 32, 4096 * 16, "%.0f");
+		ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
+		ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
+		if (ImGui::Button("Regenerate AO", { -1, 0 }))
+			needAoGen = true;
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Debug")) {
+		ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 10.f, texHeightMap->desc.Height / 10.f });
+		ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 10.f, texOcclusion->desc.Height / 10.f });
+		ImGui::TreePop();
+	}
 }
 
 void TerrainOcclusion::ClearShaderCache()
 {
-	if (occlusionProgram)
+	if (occlusionProgram) {
 		occlusionProgram->Release();
+		occlusionProgram = nullptr;
+	}
 
 	CompileComputeShaders();
 }
@@ -74,8 +85,8 @@ void TerrainOcclusion::SetupResources()
 		texHeightMap->resource->GetDesc(&texDesc);
 
 		heightMapMetadata.worldspace = "Tamriel";
-		heightMapMetadata.posLU = { 61 * 4096, 50 * 4096, -4629 * 8 };
-		heightMapMetadata.posRB = { -57 * 4096, -43 * 4096, 4924 * 8 };
+		heightMapMetadata.pos0 = { -57 * 4096, (50 + 1) * 4096, -32768 * 8 };
+		heightMapMetadata.pos1 = { (61 + 1) * 4096, -43 * 4096, 32768 * 8 };
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
 			.Format = texHeightMap->desc.Format,
@@ -94,7 +105,7 @@ void TerrainOcclusion::SetupResources()
 			.Height = texHeightMap->desc.Height,
 			.MipLevels = 1,
 			.ArraySize = 1,
-			.Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+			.Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
 			.SampleDesc = { .Count = 1 },
 			.Usage = D3D11_USAGE_DEFAULT,
 			.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS
@@ -128,14 +139,21 @@ void TerrainOcclusion::SetupResources()
 		sbDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
 		sbDesc.StructureByteStride = sizeof(AOGenBuffer);
 		sbDesc.ByteWidth = sizeof(AOGenBuffer);
-		aoGenBuffer = std::make_unique<Buffer>(sbDesc);
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
 		srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
 		srvDesc.Buffer.NumElements = 1;
+
+		aoGenBuffer = std::make_unique<Buffer>(sbDesc);
 		aoGenBuffer->CreateSRV(srvDesc);
+
+		sbDesc.StructureByteStride = sizeof(PerPass);
+		sbDesc.ByteWidth = sizeof(PerPass);
+
+		perPass = std::make_unique<Buffer>(sbDesc);
+		perPass->CreateSRV(srvDesc);
 	}
 
 	// logger::debug("Creating samplers...");
@@ -166,10 +184,13 @@ void TerrainOcclusion::CompileComputeShaders()
 	needAoGen = true;
 }
 
-void TerrainOcclusion::Draw(const RE::BSShader*, const uint32_t)
+void TerrainOcclusion::Draw(const RE::BSShader* shader, const uint32_t)
 {
 	if (needAoGen)
 		GenerateAO();
+
+	if (shader->shaderType == RE::BSShader::Type::Lighting)
+		ModifyLighting();
 }
 
 void TerrainOcclusion::GenerateAO()
@@ -179,8 +200,8 @@ void TerrainOcclusion::GenerateAO()
 	{
 		AOGenBuffer data = {
 			.settings = settings.aoGen,
-			.posLU = heightMapMetadata.posLU,
-			.posRB = heightMapMetadata.posRB
+			.pos0 = heightMapMetadata.pos0,
+			.pos1 = heightMapMetadata.pos1
 		};
 
 		D3D11_MAPPED_SUBRESOURCE mapped;
@@ -206,6 +227,7 @@ void TerrainOcclusion::GenerateAO()
 	context->CSGetSamplers(0, ARRAYSIZE(old.samplers), old.samplers);
 
 	/* ---- DISPATCH ---- */
+	logger::debug("Generating AO...");
 	newer.srvs[0] = aoGenBuffer->srv.get();
 	newer.srvs[1] = texHeightMap->srv.get();
 	newer.uavs[0] = texOcclusion->uav.get();
@@ -224,4 +246,28 @@ void TerrainOcclusion::GenerateAO()
 	context->CSSetSamplers(0, ARRAYSIZE(old.samplers), old.samplers);
 
 	needAoGen = false;
+}
+
+void TerrainOcclusion::ModifyLighting()
+{
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+
+	{
+		PerPass data = {
+			.effect = settings.effect,
+		};
+		data.scale = float3(1.f, 1.f, 1.f) / (heightMapMetadata.pos1 - heightMapMetadata.pos0);
+		data.offset = -heightMapMetadata.pos0 * data.scale;
+
+		D3D11_MAPPED_SUBRESOURCE mapped;
+		DX::ThrowIfFailed(context->Map(perPass->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+		size_t bytes = sizeof(PerPass);
+		memcpy_s(mapped.pData, bytes, &data, bytes);
+		context->Unmap(perPass->resource.get(), 0);
+	}
+
+	ID3D11ShaderResourceView* srvs[2] = { nullptr };
+	srvs[0] = perPass->srv.get();
+	srvs[1] = texOcclusion->srv.get();
+	context->PSSetShaderResources(25, ARRAYSIZE(srvs), srvs);
 }

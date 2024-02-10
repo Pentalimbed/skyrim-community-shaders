@@ -1,4 +1,15 @@
-float2 R2Sequence(uint seed)
+struct PerPassTerraOcc
 {
-	return frac(0.5 + seed * float2(0.75487766624669276005, 0.5698402909980532659114));
+	uint EnableTerrainOcclusion;
+
+	float3 scale;
+	float3 offset;
+};
+
+StructuredBuffer<PerPassTerraOcc> perPassTerraOcc : register(t25);
+Texture2D<float4> TexTerraOcc : register(t26);
+
+float2 GetTerrainOcclusionUv(float2 xy)
+{
+	return xy * perPassTerraOcc[0].scale.xy + perPassTerraOcc[0].offset.xy;
 }

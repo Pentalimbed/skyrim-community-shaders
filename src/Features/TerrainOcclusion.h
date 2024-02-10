@@ -18,13 +18,18 @@ struct TerrainOcclusion : public Feature
 
 	struct AOGenSettings
 	{
-		float aoDistance = 10000;
-		uint sliceCount = 30;
-		uint sampleCount = 30;
+		float AoDistance = 4096 * 8;
+		uint SliceCount = 30;
+		uint SampleCount = 30;
+	};
+	struct EffectSettings
+	{
+		uint EnableTerrainOcclusion = true;
 	};
 	struct Settings
 	{
 		AOGenSettings aoGen;
+		EffectSettings effect;
 	} settings;
 
 	bool needAoGen = false;
@@ -32,22 +37,24 @@ struct TerrainOcclusion : public Feature
 	struct HeightMapMetaData
 	{
 		std::string worldspace;
-		float3 posLU, posRB;
+		float3 pos0, pos1;  // left-top-z=0 vs right-bottom-z=1
 	} heightMapMetadata;
 
 	struct AOGenBuffer
 	{
 		AOGenSettings settings;
 
-		float3 posLU;
-		float3 posRB;
+		float3 pos0;
+		float3 pos1;
 	};
 	std::unique_ptr<Buffer> aoGenBuffer = nullptr;
 
 	struct PerPass
 	{
-		Settings settings;
-		float3 playerPos;
+		EffectSettings effect;
+
+		float3 scale;
+		float3 offset;
 	};
 	std::unique_ptr<Buffer> perPass = nullptr;
 
@@ -66,6 +73,7 @@ struct TerrainOcclusion : public Feature
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
 	void GenerateAO();
+	void ModifyLighting();
 
 	virtual void Load(json& o_json);
 	virtual inline void Save(json&) {}

@@ -1016,6 +1016,10 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		include "TerrainBlending/TerrainBlending.hlsli"
 #	endif
 
+#	if defined(TERRA_OCC)
+#		include "TerrainOcclusion/TerrainOcclusion.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -1841,7 +1845,17 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	if (perPassCloudShadow[0].EnableCloudShadows)
 		directionalAmbientColor *= lerp(1.0, cloudShadowMult, perPassCloudShadow[0].AbsorptionAmbient);
 #	endif
-
+#	if defined(TERRA_OCC)
+	if (perPassTerraOcc[0].EnableTerrainOcclusion) {
+		float2 occUv = GetTerrainOcclusionUv(input.WorldPosition.xy + CameraPosAdjust[0].xy);
+		float4 occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
+		float aoAmount = occInfo.x;
+		aoAmount = pow(aoAmount, 2);
+		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - occInfo.z) / 1000);
+		aoAmount = lerp(aoAmount, 1, fadeOut);
+		directionalAmbientColor *= aoAmount;
+	}
+#	endif
 	diffuseColor = directionalAmbientColor + emitColor.xyz + diffuseColor;
 
 #	if defined(ENVMAP) || defined(MULTI_LAYER_PARALLAX) || defined(EYE)

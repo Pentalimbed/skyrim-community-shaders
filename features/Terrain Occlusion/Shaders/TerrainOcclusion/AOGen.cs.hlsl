@@ -9,8 +9,8 @@ struct AOGenBuffer
 	uint sliceCount;
 	uint sampleCount;
 
-	float3 posLU;
-	float3 posRB;
+	float3 pos0;
+	float3 pos1;
 };
 
 RWTexture2D<float4> RWTexOcclusion : register(u0);
@@ -28,7 +28,7 @@ SamplerState HeightmapSampler
 float3 getPos(float2 uv)
 {
 	float3 pos = float3(uv, TexHeightmap.SampleLevel(HeightmapSampler, uv, 0).x);
-	pos = lerp(aoGen[0].posLU.xyz, aoGen[0].posRB.xyz, pos);
+	pos = lerp(aoGen[0].pos0.xyz, aoGen[0].pos1.xyz, pos);
 	return pos;
 }
 
@@ -68,13 +68,13 @@ float3 ReconstructNormal(float2 uv, float2 texelSize)
 	uint2 px_coord = tid.xy;
 	float2 uv = (px_coord + 0.5) * texelSize;
 
-	float3 normal = ReconstructNormal(uv, texelSize);
+	float3 normal = -ReconstructNormal(uv, texelSize);
 	float3 pos = getPos(uv);
 	float3 view = float3(0, 0, 1);
 
 	// helpful constants
 	float rcp_sample_count = rcp(aoGen[0].sampleCount);
-	float2 world_uv_scale = rcp(aoGen[0].posRB.xy - aoGen[0].posLU.xy);  // delta world pos * world_uv_scale = delta uv;
+	float2 world_uv_scale = rcp(aoGen[0].pos1.xy - aoGen[0].pos0.xy);  // delta world pos * world_uv_scale = delta uv;
 
 	float visibility = 0;
 	for (uint slice = 0; slice < aoGen[0].sliceCount; slice++) {
@@ -100,10 +100,10 @@ float3 ReconstructNormal(float2 uv, float2 texelSize)
 				horizon_cos = max(horizon_cos, dot(horizon_dir, view));
 			}
 			float h = n + clamp((-1 + 2 * side) * acos(horizon_cos) - n, -HALF_PI, HALF_PI);
-			visibility += proj_normal_len * (cos_n + 2 * h * sin(n) - cos(2 * h - n)) * .25;
+			visibility += saturate(proj_normal_len * (cos_n + 2 * h * sin(n) - cos(2 * h - n)) * .25);
 		}
 	}
 	visibility /= aoGen[0].sliceCount;
 
-	RWTexOcclusion[tid] = float4(visibility.xxx, 1);
+	RWTexOcclusion[tid] = float4(visibility, 0, pos.z, 1);
 }
