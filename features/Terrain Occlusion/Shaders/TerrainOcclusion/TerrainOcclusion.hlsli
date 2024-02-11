@@ -2,6 +2,11 @@ struct PerPassTerraOcc
 {
 	uint EnableTerrainOcclusion;
 
+	float AOAmbientMix;
+	float AODirectMix;
+	float AOPower;
+	float AOFadeOutHeightRcp;
+
 	float3 scale;
 	float3 offset;
 };

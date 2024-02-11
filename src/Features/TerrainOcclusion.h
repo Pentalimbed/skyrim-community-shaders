@@ -25,6 +25,11 @@ struct TerrainOcclusion : public Feature
 	struct EffectSettings
 	{
 		uint EnableTerrainOcclusion = true;
+
+		float AOAmbientMix = 1.f;
+		float AODirectMix = 0.f;
+		float AOPower = 2.f;
+		float AOFadeOutHeight = 2000;
 	};
 	struct Settings
 	{
@@ -59,7 +64,6 @@ struct TerrainOcclusion : public Feature
 	std::unique_ptr<Buffer> perPass = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> occlusionProgram = nullptr;
-	// winrt::com_ptr<ID3D11SamplerState> heightmapSampler = nullptr;
 
 	std::unique_ptr<Texture2D> texHeightMap = nullptr;
 	std::unique_ptr<Texture2D> texOcclusion = nullptr;

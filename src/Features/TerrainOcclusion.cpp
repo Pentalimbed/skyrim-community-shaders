@@ -28,7 +28,16 @@ void TerrainOcclusion::DrawSettings()
 {
 	ImGui::Checkbox("Enable Terrain Occlusion", (bool*)&settings.effect.EnableTerrainOcclusion);
 
-	if (ImGui::TreeNodeEx("Generation", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (ImGui::TreeNodeEx("AO Visual", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("Ambient Mix", &settings.effect.AOAmbientMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Direct Mix", &settings.effect.AODirectMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Power", &settings.effect.AOPower, 0.2f, 5, "%.2f");
+		ImGui::SliderFloat("Fadeout Height", &settings.effect.AOFadeOutHeight, 500, 5000, "%.0f");
+
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SliderFloat("AO Distance", &settings.aoGen.AoDistance, 4096 / 32, 4096 * 16, "%.0f");
 		ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
 		ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
@@ -39,8 +48,8 @@ void TerrainOcclusion::DrawSettings()
 	}
 
 	if (ImGui::TreeNodeEx("Debug")) {
-		ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 10.f, texHeightMap->desc.Height / 10.f });
-		ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 10.f, texOcclusion->desc.Height / 10.f });
+		ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 5.f, texHeightMap->desc.Height / 5.f });
+		ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 5.f, texOcclusion->desc.Height / 5.f });
 		ImGui::TreePop();
 	}
 }
@@ -256,6 +265,8 @@ void TerrainOcclusion::ModifyLighting()
 		PerPass data = {
 			.effect = settings.effect,
 		};
+		data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
+
 		data.scale = float3(1.f, 1.f, 1.f) / (heightMapMetadata.pos1 - heightMapMetadata.pos0);
 		data.offset = -heightMapMetadata.pos0 * data.scale;
 

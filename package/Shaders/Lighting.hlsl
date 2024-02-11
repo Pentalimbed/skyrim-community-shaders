@@ -1845,15 +1845,21 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	if (perPassCloudShadow[0].EnableCloudShadows)
 		directionalAmbientColor *= lerp(1.0, cloudShadowMult, perPassCloudShadow[0].AbsorptionAmbient);
 #	endif
+
 #	if defined(TERRA_OCC)
 	if (perPassTerraOcc[0].EnableTerrainOcclusion) {
 		float2 occUv = GetTerrainOcclusionUv(input.WorldPosition.xy + CameraPosAdjust[0].xy);
 		float4 occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
 		float aoAmount = occInfo.x;
-		aoAmount = pow(aoAmount, 2);
-		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - occInfo.z) / 1000);
+		// power
+		aoAmount = pow(aoAmount, perPassTerraOcc[0].AOPower);
+		// height fadeout
+		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - occInfo.z) * perPassTerraOcc[0].AOFadeOutHeightRcp);
 		aoAmount = lerp(aoAmount, 1, fadeOut);
-		directionalAmbientColor *= aoAmount;
+		// mix
+
+		directionalAmbientColor *= lerp(1, aoAmount, perPassTerraOcc[0].AOAmbientMix);
+		diffuseColor *= lerp(1, aoAmount, perPassTerraOcc[0].AODirectMix);
 	}
 #	endif
 	diffuseColor = directionalAmbientColor + emitColor.xyz + diffuseColor;
