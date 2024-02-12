@@ -39,11 +39,14 @@ struct TerrainOcclusion : public Feature
 
 	bool needAoGen = false;
 
-	struct HeightMapMetaData
+	struct HeightMapMetadata
 	{
+		std::wstring path;
 		std::string worldspace;
 		float3 pos0, pos1;  // left-top-z=0 vs right-bottom-z=1
-	} heightMapMetadata;
+	};
+	std::unordered_map<std::string, HeightMapMetadata> heightmaps;
+	HeightMapMetadata* cachedHeightmap;
 
 	struct AOGenBuffer
 	{
@@ -76,6 +79,7 @@ struct TerrainOcclusion : public Feature
 	virtual void DrawSettings();
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
+	void LoadHeightmap();
 	void GenerateAO();
 	void ModifyLighting();
 

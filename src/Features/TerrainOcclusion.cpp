@@ -3,6 +3,7 @@
 #include "Util.h"
 
 #include <DirectXTex.h>
+#include <filesystem>
 
 class FrameChecker
 {
@@ -48,8 +49,21 @@ void TerrainOcclusion::DrawSettings()
 	}
 
 	if (ImGui::TreeNodeEx("Debug")) {
-		ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 5.f, texHeightMap->desc.Height / 5.f });
-		ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 5.f, texOcclusion->desc.Height / 5.f });
+		std::string curr_worldspace = "N/A";
+		std::string curr_worldspace_fullname = "N/A";
+		auto tes = RE::TES::GetSingleton();
+		if (tes) {
+			auto worldspace = tes->GetRuntimeData2().worldSpace;
+			if (worldspace)
+				curr_worldspace = worldspace->GetName();
+		}
+		ImGui::Text(fmt::format("Current Worldspace: {}", curr_worldspace).c_str());
+		ImGui::Text(fmt::format("Has Heightmap: {}", heightmaps.contains(curr_worldspace)).c_str());
+
+		if (texHeightMap)
+			ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 5.f, texHeightMap->desc.Height / 5.f });
+		if (texOcclusion)
+			ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 5.f, texOcclusion->desc.Height / 5.f });
 		ImGui::TreePop();
 	}
 }
@@ -66,77 +80,62 @@ void TerrainOcclusion::ClearShaderCache()
 
 void TerrainOcclusion::SetupResources()
 {
-	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
-	auto device = renderer->GetRuntimeData().forwarder;
-
-	logger::debug("Loading heightmap...");
+	logger::debug("Listing height maps...");
 	{
-		DirectX::ScratchImage image;
-		try {
-			DX::ThrowIfFailed(LoadFromDDSFile(L"Data\\textures\\heightmaps\\Tamriel.HeightMap.-57.-43.61.50.-4629.4924.dds", DirectX::DDS_FLAGS_NONE, nullptr, image));
-		} catch (const DX::com_exception& e) {
-			logger::error("{}", e.what());
-			return;
+		std::filesystem::path texture_dir{ L"Data\\textures\\heightmaps\\" };
+		for (auto const& dir_entry : std::filesystem::directory_iterator{ texture_dir }) {
+			auto filename = dir_entry.path().filename();
+			if (filename.extension() != ".dds")
+				continue;
+
+			logger::debug("Found dds: {}", filename.string());
+
+			std::stringstream ss(filename.stem().string());
+			std::string item;
+
+			uint pos = 0;
+			HeightMapMetadata metadata;
+			try {
+				while (getline(ss, item, '.')) {
+					switch (pos) {
+					case 0:
+						metadata.worldspace = item;
+						break;
+					case 1:
+						metadata.pos0.x = std::stoi(item) * 4096.f;
+						break;
+					case 2:
+						metadata.pos1.y = std::stoi(item) * 4096.f;
+						break;
+					case 3:
+						metadata.pos1.x = (std::stoi(item) + 1) * 4096.f;
+						break;
+					case 4:
+						metadata.pos0.y = (std::stoi(item) + 1) * 4096.f;
+						break;
+					case 5:
+						metadata.pos0.z = std::stoi(item) * 8.f;
+						break;
+					case 6:
+						metadata.pos1.z = std::stoi(item) * 8.f;
+						break;
+					default:
+						break;
+					}
+					pos++;
+				}
+			} catch (std::exception& e) {
+				logger::warn("Failed to parse {}. Error: {}", filename.string(), e.what());
+				continue;
+			}
+			metadata.path = dir_entry.path().wstring();
+
+			if (heightmaps.contains(metadata.worldspace)) {
+				logger::warn("{} has more than one height maps!", metadata.worldspace);
+			} else {
+				heightmaps[metadata.worldspace] = metadata;
+			}
 		}
-
-		ID3D11Resource* pResource = nullptr;
-		try {
-			DX::ThrowIfFailed(CreateTexture(device,
-				image.GetImages(), image.GetImageCount(),
-				image.GetMetadata(), &pResource));
-		} catch (const DX::com_exception& e) {
-			logger::error("{}", e.what());
-			return;
-		}
-		texHeightMap = std::make_unique<Texture2D>(reinterpret_cast<ID3D11Texture2D*>(pResource));
-
-		D3D11_TEXTURE2D_DESC texDesc{};
-		texHeightMap->resource->GetDesc(&texDesc);
-
-		heightMapMetadata.worldspace = "Tamriel";
-		heightMapMetadata.pos0 = { -57 * 4096, (50 + 1) * 4096, -32768 * 8 };
-		heightMapMetadata.pos1 = { (61 + 1) * 4096, -43 * 4096, 32768 * 8 };
-
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
-			.Format = texHeightMap->desc.Format,
-			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-			.Texture2D = {
-				.MostDetailedMip = 0,
-				.MipLevels = 1 }
-		};
-		texHeightMap->CreateSRV(srvDesc);
-	}
-
-	logger::debug("Creating occlusion texture...");
-	{
-		D3D11_TEXTURE2D_DESC texDesc = {
-			.Width = texHeightMap->desc.Width,
-			.Height = texHeightMap->desc.Height,
-			.MipLevels = 1,
-			.ArraySize = 1,
-			.Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
-			.SampleDesc = { .Count = 1 },
-			.Usage = D3D11_USAGE_DEFAULT,
-			.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS
-		};
-
-		texOcclusion = std::make_unique<Texture2D>(texDesc);
-
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
-			.Format = texDesc.Format,
-			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-			.Texture2D = {
-				.MostDetailedMip = 0,
-				.MipLevels = 1 }
-		};
-		texOcclusion->CreateSRV(srvDesc);
-
-		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
-			.Format = texDesc.Format,
-			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
-			.Texture2D = { .MipSlice = 0 }
-		};
-		texOcclusion->CreateUAV(uavDesc);
 	}
 
 	logger::debug("Creating structured buffers...");
@@ -195,6 +194,8 @@ void TerrainOcclusion::CompileComputeShaders()
 
 void TerrainOcclusion::Draw(const RE::BSShader* shader, const uint32_t)
 {
+	LoadHeightmap();
+
 	if (needAoGen)
 		GenerateAO();
 
@@ -202,15 +203,116 @@ void TerrainOcclusion::Draw(const RE::BSShader* shader, const uint32_t)
 		ModifyLighting();
 }
 
+void TerrainOcclusion::LoadHeightmap()
+{
+	static FrameChecker frame_checker;
+	if (!frame_checker.isNewFrame())
+		return;
+
+	auto tes = RE::TES::GetSingleton();
+	if (!tes)
+		return;
+	auto worldspace = tes->GetRuntimeData2().worldSpace;
+	if (!worldspace)
+		return;
+	std::string worldspace_name = worldspace->GetName();
+	if (!heightmaps.contains(worldspace_name))
+		return;
+	if (cachedHeightmap && cachedHeightmap->worldspace == worldspace_name)
+		return;
+
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
+	auto device = renderer->GetRuntimeData().forwarder;
+
+	logger::debug("Loading height map...");
+	{
+		auto& target_heightmap = heightmaps[worldspace_name];
+
+		DirectX::ScratchImage image;
+		try {
+			DX::ThrowIfFailed(LoadFromDDSFile(target_heightmap.path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+		} catch (const DX::com_exception& e) {
+			logger::error("{}", e.what());
+			return;
+		}
+
+		ID3D11Resource* pResource = nullptr;
+		try {
+			DX::ThrowIfFailed(CreateTexture(device,
+				image.GetImages(), image.GetImageCount(),
+				image.GetMetadata(), &pResource));
+		} catch (const DX::com_exception& e) {
+			logger::error("{}", e.what());
+			return;
+		}
+
+		texHeightMap.release();
+		texHeightMap = std::make_unique<Texture2D>(reinterpret_cast<ID3D11Texture2D*>(pResource));
+
+		D3D11_TEXTURE2D_DESC texDesc{};
+		texHeightMap->resource->GetDesc(&texDesc);
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = texHeightMap->desc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = 1 }
+		};
+		texHeightMap->CreateSRV(srvDesc);
+
+		cachedHeightmap = &heightmaps[worldspace_name];
+	}
+
+	logger::debug("Creating occlusion texture...");
+	{
+		texOcclusion.release();
+
+		D3D11_TEXTURE2D_DESC texDesc = {
+			.Width = texHeightMap->desc.Width,
+			.Height = texHeightMap->desc.Height,
+			.MipLevels = 1,
+			.ArraySize = 1,
+			.Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+			.SampleDesc = { .Count = 1 },
+			.Usage = D3D11_USAGE_DEFAULT,
+			.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS
+		};
+
+		texOcclusion = std::make_unique<Texture2D>(texDesc);
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = texDesc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = 1 }
+		};
+		texOcclusion->CreateSRV(srvDesc);
+
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
+			.Format = texDesc.Format,
+			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
+			.Texture2D = { .MipSlice = 0 }
+		};
+		texOcclusion->CreateUAV(uavDesc);
+	}
+
+	needAoGen = true;
+}
+
 void TerrainOcclusion::GenerateAO()
 {
+	if (!cachedHeightmap)
+		return;
+
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
 	{
 		AOGenBuffer data = {
 			.settings = settings.aoGen,
-			.pos0 = heightMapMetadata.pos0,
-			.pos1 = heightMapMetadata.pos1
+			.pos0 = cachedHeightmap->pos0,
+			.pos1 = cachedHeightmap->pos1
 		};
 
 		D3D11_MAPPED_SUBRESOURCE mapped;
@@ -259,16 +361,27 @@ void TerrainOcclusion::GenerateAO()
 
 void TerrainOcclusion::ModifyLighting()
 {
+	bool isHeightmapReady = false;
+	auto tes = RE::TES::GetSingleton();
+	if (tes) {
+		auto worldspace = tes->GetRuntimeData2().worldSpace;
+		if (worldspace)
+			isHeightmapReady = cachedHeightmap && cachedHeightmap->worldspace == worldspace->GetName();
+	}
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
 	{
 		PerPass data = {
 			.effect = settings.effect,
 		};
-		data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
+		data.effect.EnableTerrainOcclusion = data.effect.EnableTerrainOcclusion && isHeightmapReady;
 
-		data.scale = float3(1.f, 1.f, 1.f) / (heightMapMetadata.pos1 - heightMapMetadata.pos0);
-		data.offset = -heightMapMetadata.pos0 * data.scale;
+		if (isHeightmapReady) {
+			data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
+
+			data.scale = float3(1.f, 1.f, 1.f) / (cachedHeightmap->pos1 - cachedHeightmap->pos0);
+			data.offset = -cachedHeightmap->pos0 * data.scale;
+		}
 
 		D3D11_MAPPED_SUBRESOURCE mapped;
 		DX::ThrowIfFailed(context->Map(perPass->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
@@ -279,6 +392,7 @@ void TerrainOcclusion::ModifyLighting()
 
 	ID3D11ShaderResourceView* srvs[2] = { nullptr };
 	srvs[0] = perPass->srv.get();
-	srvs[1] = texOcclusion->srv.get();
+	if (isHeightmapReady)
+		srvs[1] = texOcclusion->srv.get();
 	context->PSSetShaderResources(25, ARRAYSIZE(srvs), srvs);
 }
