@@ -8,8 +8,5 @@ The min/max cell coordinates are the actual cells that contain terrain height da
 
 For actual z min (pure black), z max (pure white) from file name multiply by 8
 
-Tamriel.HeightMap.-57.-43.61.50.-4629.4924.dds
+Skyrim.HeightMap.-57.-43.61.50.-32768.32768.dds
 native Skyrim.esm data
-
-Tamriel.HeightMap.-96.-96.95.96.-4863.4924.dds
-with SSE Terrain Tamriel Full Extend from https://www.nexusmods.com/skyrimspecialedition/mods/54680

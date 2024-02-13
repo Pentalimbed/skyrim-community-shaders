@@ -27,19 +27,26 @@ void TerrainOcclusion::Load(json& o_json)
 
 void TerrainOcclusion::DrawSettings()
 {
-	ImGui::Checkbox("Enable Terrain Occlusion", (bool*)&settings.effect.EnableTerrainOcclusion);
+	ImGui::Checkbox("Enable Terrain Shadow", (bool*)&settings.effect.EnableTerrainShadow);
+	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.effect.EnableTerrainAO);
+
+	if (ImGui::TreeNodeEx("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("Softening", &settings.effect.ShadowSoftening, 2.5, 4.5, "%.2f");
+
+		ImGui::TreePop();
+	}
 
 	if (ImGui::TreeNodeEx("AO Visual", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SliderFloat("Ambient Mix", &settings.effect.AOAmbientMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-		ImGui::SliderFloat("Direct Mix", &settings.effect.AODirectMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Diffuse Mix", &settings.effect.AODiffuseMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 		ImGui::SliderFloat("Power", &settings.effect.AOPower, 0.2f, 5, "%.2f");
 		ImGui::SliderFloat("Fadeout Height", &settings.effect.AOFadeOutHeight, 500, 5000, "%.0f");
 
 		ImGui::TreePop();
 	}
 
-	if (ImGui::TreeNodeEx("Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("AO Distance", &settings.aoGen.AoDistance, 4096 / 32, 4096 * 16, "%.0f");
+	if (ImGui::TreeNodeEx("AO Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("Distance", &settings.aoGen.AoDistance, 4096 / 32, 4096 * 16, "%.0f");
 		ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
 		ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
 		if (ImGui::Button("Regenerate AO", { -1, 0 }))
@@ -57,8 +64,8 @@ void TerrainOcclusion::DrawSettings()
 			if (worldspace)
 				curr_worldspace = worldspace->GetName();
 		}
-		ImGui::Text(fmt::format("Current Worldspace: {}", curr_worldspace).c_str());
-		ImGui::Text(fmt::format("Has Heightmap: {}", heightmaps.contains(curr_worldspace)).c_str());
+		ImGui::Text(fmt::format("Current worldspace: {}", curr_worldspace).c_str());
+		ImGui::Text(fmt::format("Has height map: {}", heightmaps.contains(curr_worldspace)).c_str());
 
 		if (texHeightMap)
 			ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 5.f, texHeightMap->desc.Height / 5.f });
@@ -374,9 +381,11 @@ void TerrainOcclusion::ModifyLighting()
 		PerPass data = {
 			.effect = settings.effect,
 		};
-		data.effect.EnableTerrainOcclusion = data.effect.EnableTerrainOcclusion && isHeightmapReady;
+		data.effect.EnableTerrainAO = data.effect.EnableTerrainAO && isHeightmapReady;
+		data.effect.EnableTerrainShadow = data.effect.EnableTerrainShadow && isHeightmapReady;
 
 		if (isHeightmapReady) {
+			data.effect.ShadowSoftening = pow(10.f, -data.effect.ShadowSoftening);
 			data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
 
 			data.scale = float3(1.f, 1.f, 1.f) / (cachedHeightmap->pos1 - cachedHeightmap->pos0);

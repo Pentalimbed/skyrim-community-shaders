@@ -24,10 +24,13 @@ struct TerrainOcclusion : public Feature
 	};
 	struct EffectSettings
 	{
-		uint EnableTerrainOcclusion = true;
+		uint EnableTerrainShadow = true;
+		uint EnableTerrainAO = true;
+
+		float ShadowSoftening = 3.8f;
 
 		float AOAmbientMix = 1.f;
-		float AODirectMix = 0.f;
+		float AODiffuseMix = 0.f;
 		float AOPower = 2.f;
 		float AOFadeOutHeight = 2000;
 	};

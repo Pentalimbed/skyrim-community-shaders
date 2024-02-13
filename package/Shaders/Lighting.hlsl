@@ -1486,6 +1486,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		normalizedDirLightDirectionWS = normalize(mul(input.World[eyeIndex], float4(DirLightDirection.xyz, 0)));
 #	endif
 
+	float terrainShadow = 0;
+
 #	if defined(CLOUD_SHADOWS)
 	float3 cloudShadowMult = 1.0;
 	if (perPassCloudShadow[0].EnableCloudShadows) {
@@ -1498,6 +1500,19 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	if ((shaderDescriptors[0].PixelShaderDescriptor & _DefShadow) && (shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir))
 		dirLightColor *= shadowColor.xxx;
+
+#	if defined(TERRA_OCC)
+	float2 occUv;
+	float4 occInfo;
+	if (perPassTerraOcc[0].EnableTerrainShadow || perPassTerraOcc[0].EnableTerrainAO) {
+		occUv = GetTerrainOcclusionUv(input.WorldPosition.xy + CameraPosAdjust[0].xy);
+		occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
+	}
+	if (perPassTerraOcc[0].EnableTerrainShadow) {
+		terrainShadow = saturate(GetSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, SampColorSampler));
+		dirLightColor *= terrainShadow;
+	}
+#	endif
 
 #	if defined(SCREEN_SPACE_SHADOWS)
 	float dirLightSShadow = PrepassScreenSpaceShadows(input.WorldPosition.xyz);
@@ -1847,19 +1862,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif
 
 #	if defined(TERRA_OCC)
-	if (perPassTerraOcc[0].EnableTerrainOcclusion) {
-		float2 occUv = GetTerrainOcclusionUv(input.WorldPosition.xy + CameraPosAdjust[0].xy);
-		float4 occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
-		float aoAmount = occInfo.x;
+	if (perPassTerraOcc[0].EnableTerrainAO) {
+		float terrainAoMult = occInfo.x;
 		// power
-		aoAmount = pow(aoAmount, perPassTerraOcc[0].AOPower);
+		terrainAoMult = pow(terrainAoMult, perPassTerraOcc[0].AOPower);
 		// height fadeout
 		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - occInfo.z) * perPassTerraOcc[0].AOFadeOutHeightRcp);
-		aoAmount = lerp(aoAmount, 1, fadeOut);
+		terrainAoMult = lerp(terrainAoMult, 1, fadeOut);
 		// mix
-
-		directionalAmbientColor *= lerp(1, aoAmount, perPassTerraOcc[0].AOAmbientMix);
-		diffuseColor *= lerp(1, aoAmount, perPassTerraOcc[0].AODirectMix);
+		directionalAmbientColor *= lerp(1, terrainAoMult, perPassTerraOcc[0].AOAmbientMix);
+		diffuseColor *= lerp(1, terrainAoMult, perPassTerraOcc[0].AODiffuseMix);
 	}
 #	endif
 	diffuseColor = directionalAmbientColor + emitColor.xyz + diffuseColor;
