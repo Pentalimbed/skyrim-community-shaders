@@ -81,9 +81,9 @@ struct TerrainOcclusion : public Feature
 	virtual void SetupResources();
 	void CompileComputeShaders();
 
-	virtual inline void Reset() {}
-
 	virtual void DrawSettings();
+
+	virtual void Reset();
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
 	void LoadHeightmap();

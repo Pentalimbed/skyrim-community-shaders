@@ -31,7 +31,7 @@ void TerrainOcclusion::DrawSettings()
 	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.effect.EnableTerrainAO);
 
 	if (ImGui::TreeNodeEx("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Softening", &settings.effect.ShadowSoftening, 0.f, 15.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderAngle("Softening", &settings.effect.ShadowSoftening, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Controls the solid angle of sunlight, making terrain shadows softer.");
 		// ImGui::SliderFloat("Min Distance", &settings.effect.ShadowMinDistance, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
@@ -219,8 +219,16 @@ void TerrainOcclusion::Draw(const RE::BSShader* shader, const uint32_t)
 	if (needAoGen)
 		GenerateAO();
 
-	if (shader->shaderType == RE::BSShader::Type::Lighting)
+	switch (shader->shaderType.get()) {
+	case RE::BSShader::Type::Lighting:
+	case RE::BSShader::Type::Grass:
+	case RE::BSShader::Type::DistantTree:
 		ModifyLighting();
+		break;
+
+	default:
+		break;
+	}
 }
 
 void TerrainOcclusion::LoadHeightmap()
@@ -381,8 +389,10 @@ void TerrainOcclusion::GenerateAO()
 	needAoGen = false;
 }
 
-void TerrainOcclusion::ModifyLighting()
+void TerrainOcclusion::Reset()
 {
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+
 	bool isHeightmapReady = false;
 	auto tes = RE::TES::GetSingleton();
 	if (tes) {
@@ -390,36 +400,38 @@ void TerrainOcclusion::ModifyLighting()
 		if (worldspace)
 			isHeightmapReady = cachedHeightmap && cachedHeightmap->worldspace == worldspace->GetName();
 	}
-	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
-	{
-		PerPass data = {
-			.effect = settings.effect,
-		};
-		data.effect.EnableTerrainAO = data.effect.EnableTerrainAO && isHeightmapReady;
-		data.effect.EnableTerrainShadow = data.effect.EnableTerrainShadow && isHeightmapReady;
+	PerPass data = {
+		.effect = settings.effect,
+	};
+	data.effect.EnableTerrainAO = data.effect.EnableTerrainAO && isHeightmapReady;
+	data.effect.EnableTerrainShadow = data.effect.EnableTerrainShadow && isHeightmapReady;
 
-		if (isHeightmapReady) {
-			data.effect.ShadowSoftening = .5f / data.effect.ShadowSoftening;
-			data.effect.ShadowMaxDistance *= 4096.f;
+	if (isHeightmapReady) {
+		data.effect.ShadowSoftening = .5f / data.effect.ShadowSoftening;
+		data.effect.ShadowMaxDistance *= 4096.f;
 
-			data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
+		data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
 
-			data.invScale = cachedHeightmap->pos1 - cachedHeightmap->pos0;
-			data.scale = float3(1.f, 1.f, 1.f) / data.invScale;
-			data.offset = -cachedHeightmap->pos0 * data.scale;
-		}
-
-		D3D11_MAPPED_SUBRESOURCE mapped;
-		DX::ThrowIfFailed(context->Map(perPass->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
-		size_t bytes = sizeof(PerPass);
-		memcpy_s(mapped.pData, bytes, &data, bytes);
-		context->Unmap(perPass->resource.get(), 0);
+		data.invScale = cachedHeightmap->pos1 - cachedHeightmap->pos0;
+		data.scale = float3(1.f, 1.f, 1.f) / data.invScale;
+		data.offset = -cachedHeightmap->pos0 * data.scale;
 	}
+
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	DX::ThrowIfFailed(context->Map(perPass->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+	size_t bytes = sizeof(PerPass);
+	memcpy_s(mapped.pData, bytes, &data, bytes);
+	context->Unmap(perPass->resource.get(), 0);
+}
+
+void TerrainOcclusion::ModifyLighting()
+{
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
 	ID3D11ShaderResourceView* srvs[2] = { nullptr };
 	srvs[0] = perPass->srv.get();
-	if (isHeightmapReady)
+	if (texOcclusion)
 		srvs[1] = texOcclusion->srv.get();
 	context->PSSetShaderResources(25, ARRAYSIZE(srvs), srvs);
 }

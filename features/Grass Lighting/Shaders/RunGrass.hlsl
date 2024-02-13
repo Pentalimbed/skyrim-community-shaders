@@ -360,6 +360,10 @@ float3x3 CalculateTBN(float3 N, float3 p, float2 uv)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
+#	if defined(TERRA_OCC)
+#		include "TerrainOcclusion/TerrainOcclusion.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -448,6 +452,19 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #		endif
 
+#		if defined(TERRA_OCC)
+	float2 occUv;
+	float4 occInfo;
+	if (perPassTerraOcc[0].EnableTerrainShadow || perPassTerraOcc[0].EnableTerrainAO) {
+		occUv = GetTerrainOcclusionUV(input.WorldPosition.xy + CameraPosAdjust[0].xy);
+		occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
+	}
+	if (perPassTerraOcc[0].EnableTerrainShadow) {
+		float terrainShadow = GetSoftShadow(occUv, DirLightDirection.xyz, input.WorldPosition.z + CameraPosAdjust[0].z, CameraPosAdjust[0].xy, SampColorSampler);
+		dirLightColor *= terrainShadow;
+	}
+#		endif
+
 	dirLightColor *= shadowColor.x;
 
 #		if defined(SCREEN_SPACE_SHADOWS)
@@ -531,10 +548,26 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 	float3 directionalAmbientColor = mul(DirectionalAmbient, float4(worldNormal.xyz, 1));
+
 #		if defined(CLOUD_SHADOWS)
 	if (perPassCloudShadow[0].EnableCloudShadows && !lightingData[0].Reflections)
 		directionalAmbientColor *= lerp(1.0, cloudShadowMult, perPassCloudShadow[0].AbsorptionAmbient);
 #		endif
+
+#		if defined(TERRA_OCC)
+	if (perPassTerraOcc[0].EnableTerrainAO) {
+		float terrainAoMult = occInfo.x;
+		// power
+		terrainAoMult = pow(terrainAoMult, perPassTerraOcc[0].AOPower);
+		// height fadeout
+		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - occInfo.z) * perPassTerraOcc[0].AOFadeOutHeightRcp);
+		terrainAoMult = lerp(terrainAoMult, 1, fadeOut);
+		// mix
+		directionalAmbientColor *= lerp(1, terrainAoMult, perPassTerraOcc[0].AOAmbientMix);
+		lightsDiffuseColor *= lerp(1, terrainAoMult, perPassTerraOcc[0].AODiffuseMix);
+	}
+#		endif
+
 	lightsDiffuseColor += directionalAmbientColor;
 
 	diffuseColor += lightsDiffuseColor;

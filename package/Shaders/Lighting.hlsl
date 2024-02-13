@@ -1486,8 +1486,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		normalizedDirLightDirectionWS = normalize(mul(input.World[eyeIndex], float4(DirLightDirection.xyz, 0)));
 #	endif
 
-	float terrainShadow = 0;
-
 #	if defined(CLOUD_SHADOWS)
 	float3 cloudShadowMult = 1.0;
 	if (perPassCloudShadow[0].EnableCloudShadows) {
@@ -1509,7 +1507,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
 	}
 	if (perPassTerraOcc[0].EnableTerrainShadow) {
-		terrainShadow = GetSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, CameraPosAdjust[0].xy, SampColorSampler);
+		float terrainShadow = GetSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, CameraPosAdjust[0].xy, SampColorSampler);
 		dirLightColor *= terrainShadow;
 	}
 #	endif
