@@ -4,6 +4,9 @@ struct PerPassTerraOcc
 	uint EnableTerrainAO;
 
 	float ShadowSoftening;
+	float ShadowMaxDistance;
+	float ShadowAnglePower;
+	uint ShadowSamples;
 
 	float AOAmbientMix;
 	float AODiffuseMix;
@@ -11,36 +14,48 @@ struct PerPassTerraOcc
 	float AOFadeOutHeightRcp;
 
 	float3 scale;
+	float3 invScale;
 	float3 offset;
 };
 
 StructuredBuffer<PerPassTerraOcc> perPassTerraOcc : register(t25);
 Texture2D<float4> TexTerraOcc : register(t26);
 
-float2 GetTerrainOcclusionUv(float2 xy)
+float2 GetTerrainOcclusionUV(float2 xy)
 {
 	return xy * perPassTerraOcc[0].scale.xy + perPassTerraOcc[0].offset.xy;
 }
 
-float GetSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, SamplerState samp)
+float2 GetTerrainOcclusionXY(float2 uv)
 {
-	float2 vLightRayTS = dirLightDirectionWS.xy * 0.01;
+	return (uv - perPassTerraOcc[0].offset.xy) * perPassTerraOcc[0].invScale.xy;
+}
 
-	float shadowSoftening = perPassTerraOcc[0].ShadowSoftening;
+float GetSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, float2 cameraXY, SamplerState samp)
+{
+	if (dirLightDirectionWS.z < 1e-3)
+		return 1;
 
-	// Compute the soft blurry shadows taking into account self-occlusion for
-	// features of the height field:
+	float3 dirLightDir = normalize(float3(dirLightDirectionWS.xy, pow(dirLightDirectionWS.z, perPassTerraOcc[0].ShadowAnglePower)));
+	float3 tangent = cross(dirLightDir, float3(0, 0, 1));
+	float3 bitangent = cross(dirLightDir, tangent);
 
-	float sh0 = startZ;
-	float shA = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.88, 0).z - sh0 - 0.88) * 1 * shadowSoftening;
-	float sh9 = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.77, 0).z - sh0 - 0.77) * 2 * shadowSoftening;
-	float sh8 = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.66, 0).z - sh0 - 0.66) * 4 * shadowSoftening;
-	float sh7 = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.55, 0).z - sh0 - 0.55) * 6 * shadowSoftening;
-	float sh6 = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.44, 0).z - sh0 - 0.44) * 8 * shadowSoftening;
-	float sh5 = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.33, 0).z - sh0 - 0.33) * 10 * shadowSoftening;
-	float sh4 = (TexTerraOcc.SampleLevel(samp, uv + vLightRayTS * 0.22, 0).z - sh0 - 0.22) * 12 * shadowSoftening;
+	float3 dRayEndWS = dirLightDir * perPassTerraOcc[0].ShadowMaxDistance;
+	float2 dRayEndUV = dRayEndWS.xy * perPassTerraOcc[0].scale.xy;
 
-	// Compute the actual shadow strength:
-	float fOcclusionShadow = 1 - max(max(max(max(max(max(shA, sh9), sh8), sh7), sh6), sh5), sh4);
-	return fOcclusionShadow;
+	const float rcpN = rcp(perPassTerraOcc[0].ShadowSamples);
+	float minFraction = 1e5f;
+	for (uint i = perPassTerraOcc[0].ShadowSamples; i > 0; i--) {
+		float t = i * rcpN;
+		float2 currUV = uv + dRayEndUV * t;
+		float rayZ = startZ + dRayEndWS.z * t;
+		float dz = rayZ - TexTerraOcc.SampleLevel(samp, currUV, 0).z;
+		float fraction = dz / t;
+		minFraction = min(fraction, minFraction);
+	}
+
+	float shadowFraction = atan2(minFraction * abs(bitangent.z), perPassTerraOcc[0].ShadowMaxDistance);
+	shadowFraction = 0.5 + shadowFraction * perPassTerraOcc[0].ShadowSoftening;
+
+	return saturate(shadowFraction);
 }

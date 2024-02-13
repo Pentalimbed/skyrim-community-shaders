@@ -18,7 +18,7 @@ struct TerrainOcclusion : public Feature
 
 	struct AOGenSettings
 	{
-		float AoDistance = 4096 * 8;
+		float AoDistance = 8;
 		uint SliceCount = 30;
 		uint SampleCount = 30;
 	};
@@ -27,7 +27,10 @@ struct TerrainOcclusion : public Feature
 		uint EnableTerrainShadow = true;
 		uint EnableTerrainAO = true;
 
-		float ShadowSoftening = 3.8f;
+		float ShadowSoftening = 0.0872665f;  // 5 deg
+		float ShadowMaxDistance = 15;
+		float ShadowAnglePower = 4.f;
+		uint ShadowSamples = 9;
 
 		float AOAmbientMix = 1.f;
 		float AODiffuseMix = 0.f;
@@ -65,6 +68,7 @@ struct TerrainOcclusion : public Feature
 		EffectSettings effect;
 
 		float3 scale;
+		float3 invScale;
 		float3 offset;
 	};
 	std::unique_ptr<Buffer> perPass = nullptr;

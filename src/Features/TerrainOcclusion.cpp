@@ -31,7 +31,22 @@ void TerrainOcclusion::DrawSettings()
 	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.effect.EnableTerrainAO);
 
 	if (ImGui::TreeNodeEx("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Softening", &settings.effect.ShadowSoftening, 2.5, 4.5, "%.2f");
+		ImGui::SliderAngle("Softening", &settings.effect.ShadowSoftening, 0.f, 15.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::Text("Controls the solid angle of sunlight, making terrain shadows softer.");
+		// ImGui::SliderFloat("Min Distance", &settings.effect.ShadowMinDistance, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		// if (auto _tt = Util::HoverTooltipWrapper())
+		// 	ImGui::Text("As a proportion of the fShadowDistance setting in SkyrimPrefs.ini");
+		ImGui::SliderFloat("Max Distance", &settings.effect.ShadowMaxDistance, 1, 30, "%.2f cells");
+		ImGui::SliderFloat("Angle Exaggeration", &settings.effect.ShadowAnglePower, 1, 8, "%.1f");
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::Text("Arbitarily lowers the vanilla sunlight angle that is rather high even at sunrise/sunset, making terrain shadows longer.");
+
+		const uint sampleMin = 1u;
+		const uint sampleMax = 30u;
+		ImGui::SliderScalar("Samples", ImGuiDataType_U32, &settings.effect.ShadowSamples, &sampleMin, &sampleMax);
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::Text("Longer shadows generally require more samples, but softening helps cover the inaccuracy.");
 
 		ImGui::TreePop();
 	}
@@ -46,7 +61,7 @@ void TerrainOcclusion::DrawSettings()
 	}
 
 	if (ImGui::TreeNodeEx("AO Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Distance", &settings.aoGen.AoDistance, 4096 / 32, 4096 * 16, "%.0f");
+		ImGui::SliderFloat("Distance", &settings.aoGen.AoDistance, 1.f / 32, 16, "%.2f cells");
 		ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
 		ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
 		if (ImGui::Button("Regenerate AO", { -1, 0 }))
@@ -67,8 +82,6 @@ void TerrainOcclusion::DrawSettings()
 		ImGui::Text(fmt::format("Current worldspace: {}", curr_worldspace).c_str());
 		ImGui::Text(fmt::format("Has height map: {}", heightmaps.contains(curr_worldspace)).c_str());
 
-		if (texHeightMap)
-			ImGui::Image(texHeightMap->srv.get(), { texHeightMap->desc.Width / 5.f, texHeightMap->desc.Height / 5.f });
 		if (texOcclusion)
 			ImGui::Image(texOcclusion->srv.get(), { texOcclusion->desc.Width / 5.f, texOcclusion->desc.Height / 5.f });
 		ImGui::TreePop();
@@ -322,6 +335,8 @@ void TerrainOcclusion::GenerateAO()
 			.pos1 = cachedHeightmap->pos1
 		};
 
+		data.settings.AoDistance *= 4096.f;
+
 		D3D11_MAPPED_SUBRESOURCE mapped;
 		DX::ThrowIfFailed(context->Map(aoGenBuffer->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
 		size_t bytes = sizeof(AOGenBuffer);
@@ -385,10 +400,13 @@ void TerrainOcclusion::ModifyLighting()
 		data.effect.EnableTerrainShadow = data.effect.EnableTerrainShadow && isHeightmapReady;
 
 		if (isHeightmapReady) {
-			data.effect.ShadowSoftening = pow(10.f, -data.effect.ShadowSoftening);
+			data.effect.ShadowSoftening = .5f / data.effect.ShadowSoftening;
+			data.effect.ShadowMaxDistance *= 4096.f;
+
 			data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
 
-			data.scale = float3(1.f, 1.f, 1.f) / (cachedHeightmap->pos1 - cachedHeightmap->pos0);
+			data.invScale = cachedHeightmap->pos1 - cachedHeightmap->pos0;
+			data.scale = float3(1.f, 1.f, 1.f) / data.invScale;
 			data.offset = -cachedHeightmap->pos0 * data.scale;
 		}
 

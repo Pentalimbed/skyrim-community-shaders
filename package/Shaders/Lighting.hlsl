@@ -1505,11 +1505,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float2 occUv;
 	float4 occInfo;
 	if (perPassTerraOcc[0].EnableTerrainShadow || perPassTerraOcc[0].EnableTerrainAO) {
-		occUv = GetTerrainOcclusionUv(input.WorldPosition.xy + CameraPosAdjust[0].xy);
+		occUv = GetTerrainOcclusionUV(input.WorldPosition.xy + CameraPosAdjust[0].xy);
 		occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
 	}
 	if (perPassTerraOcc[0].EnableTerrainShadow) {
-		terrainShadow = saturate(GetSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, SampColorSampler));
+		terrainShadow = GetSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, CameraPosAdjust[0].xy, SampColorSampler);
 		dirLightColor *= terrainShadow;
 	}
 #	endif
