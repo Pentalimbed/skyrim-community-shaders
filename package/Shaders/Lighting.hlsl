@@ -1007,35 +1007,25 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 {
 	PS_OUTPUT psout;
 
-#	if !defined(VR)
 	uint eyeIndex = 0;
-#	else
-	float4 r0, r1, r3, stereoUV;
-	stereoUV.xy = input.Position.xy * VPOSOffset.xy + VPOSOffset.zw;
-	stereoUV.x = DynamicResolutionParams2.x * stereoUV.x;
-	stereoUV.x = (stereoUV.x >= 0.5);
-	uint eyeIndex = (uint)(((int)((uint)cb13)) * (int)stereoUV.x);
+#	if defined(VR)
+	{
+		float4 r0, r1, r3, stereoUV;
+		stereoUV.xy = input.Position.xy * VPOSOffset.xy + VPOSOffset.zw;
+		stereoUV.x = DynamicResolutionParams2.x * stereoUV.x;
+		stereoUV.x = (stereoUV.x >= 0.5);
+		eyeIndex = (uint)(((int)((uint)cb13)) * (int)stereoUV.x);
+	}
 #	endif
 
 #	if defined(SKINNED) || !defined(MODELSPACENORMALS)
 	float3x3 tbn = float3x3(input.TBN0.xyz, input.TBN1.xyz, input.TBN2.xyz);
 	float3x3 tbnTr = transpose(tbn);
-
 #	endif  // defined (SKINNED) || !defined (MODELSPACENORMALS)
 
-#	if defined(LANDSCAPE)
-	float shininess = dot(input.LandBlendWeights1, LandscapeTexture1to4IsSpecPower) + input.LandBlendWeights2.x * LandscapeTexture5to6IsSpecPower.x + input.LandBlendWeights2.y * LandscapeTexture5to6IsSpecPower.y;
-#	else
-	float shininess = SpecularColor.w;
-#	endif  // defined (LANDSCAPE)
-
 	float3 viewPosition = mul(CameraView[eyeIndex], float4(input.WorldPosition.xyz, 1)).xyz;
-#	if defined(CPM_AVAILABLE)
-	float parallaxShadowQuality = 1 - smoothstep(perPassParallax[0].ShadowsStartFade, perPassParallax[0].ShadowsEndFade, viewPosition.z);
-#	endif
-
 	float3 viewDirection = normalize(input.ViewVector.xyz);
-	float3 worldSpaceViewDirection = -normalize(input.WorldPosition.xyz);
+	float3 viewDirectionWS = -normalize(input.WorldPosition.xyz);
 
 	float2 uv = input.TexCoord0.xy;
 	float2 uvOriginal = uv;
@@ -1049,6 +1039,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // LANDSCAPE
 
 #	if defined(CPM_AVAILABLE)
+	float parallaxShadowQuality = 1 - smoothstep(perPassParallax[0].ShadowsStartFade, perPassParallax[0].ShadowsEndFade, viewPosition.z);
 #		if defined(PARALLAX)
 	if (perPassParallax[0].EnableParallax) {
 		mipLevel = GetMipLevel(uv, TexParallaxSampler);
@@ -1180,8 +1171,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		normal *= input.LandBlendWeights1.x;
 		glossiness *= input.LandBlendWeights1.x;
 	}
-
 #	endif  // LANDSCAPE
+
+#	if defined(LANDSCAPE)
+	float shininess = dot(input.LandBlendWeights1, LandscapeTexture1to4IsSpecPower) + input.LandBlendWeights2.x * LandscapeTexture5to6IsSpecPower.x + input.LandBlendWeights2.y * LandscapeTexture5to6IsSpecPower.y;
+#	else
+	float shininess = SpecularColor.w;
+#	endif  // defined (LANDSCAPE)
 
 #	if defined(CPM_AVAILABLE) && defined(ENVMAP)
 	complexMaterial = complexMaterial && complexMaterialColor.y > (4.0 / 255.0) && (complexMaterialColor.y < (1.0 - (4.0 / 255.0)));
@@ -1630,7 +1626,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(WETNESS_EFFECTS)
 	if (waterRoughnessSpecular < 1.0)
-		wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, worldSpaceViewDirection, sRGB2Lin(dirLightColor) * 0.1, waterRoughnessSpecular);
+		wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedDirLightDirectionWS, viewDirectionWS, sRGB2Lin(dirLightColor) * 0.1, waterRoughnessSpecular);
 #		endif
 
 #	endif
@@ -1733,7 +1729,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(WETNESS_EFFECTS)
 			if (waterRoughnessSpecular < 1.0)
-				wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedLightDirectionWS, worldSpaceViewDirection, sRGB2Lin(lightColor), waterRoughnessSpecular) * 0.4;
+				wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedLightDirectionWS, viewDirectionWS, sRGB2Lin(lightColor), waterRoughnessSpecular) * 0.4;
 #		endif
 		}
 	}
@@ -1827,7 +1823,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #			if defined(WETNESS_EFFECTS)
 			if (waterRoughnessSpecular < 1.0)
-				wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedLightDirection, worldSpaceViewDirection, sRGB2Lin(lightColor), waterRoughnessSpecular) * 0.4;
+				wetnessSpecular += GetWetnessSpecular(wetnessNormal, normalizedLightDirection, viewDirectionWS, sRGB2Lin(lightColor), waterRoughnessSpecular) * 0.4;
 #			endif
 		}
 	}
@@ -1881,10 +1877,10 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		float envFade = saturate(viewPosition.z / 512.0);
 #			if defined(CPM_AVAILABLE) && defined(ENVMAP)
 		float3 F0 = lerp(envColorBase, 1.0, envColorBase.x == 0.0 && envColorBase.y == 0.0 && envColorBase.z == 0.0);
-		envColor = GetDynamicCubemap(worldSpaceNormal, worldSpaceViewDirection, lerp(1.0 / 9.0, 1.0 - complexMaterialColor.y, complexMaterial), complexSpecular, complexMaterial) * envMask;
+		envColor = GetDynamicCubemap(worldSpaceNormal, viewDirectionWS, lerp(1.0 / 9.0, 1.0 - complexMaterialColor.y, complexMaterial), complexSpecular, complexMaterial) * envMask;
 #			else
 		float3 F0 = lerp(envColorBase, 1.0, envColorBase.x == 0.0 && envColorBase.y == 0.0 && envColorBase.z == 0.0);
-		envColor = GetDynamicCubemap(worldSpaceNormal, worldSpaceViewDirection, 1.0 / 9.0, F0, 0.0) * envMask;
+		envColor = GetDynamicCubemap(worldSpaceNormal, viewDirectionWS, 1.0 / 9.0, F0, 0.0) * envMask;
 #			endif
 		if (shaderDescriptors[0].PixelShaderDescriptor & _DefShadow && shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir) {
 			float upAngle = saturate(dot(float3(0, 0, 1), normalizedDirLightDirectionWS.xyz));
@@ -1903,7 +1899,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	baseColor.xyz = lerp(baseColor.xyz, pow(baseColor.xyz, 1.0 + wetnessDarkeningAmount), 0.8);
 #		endif
 	if (waterRoughnessSpecular < 1.0)
-		wetnessSpecular += GetWetnessAmbientSpecular(wetnessNormal, worldSpaceViewDirection, 1.0 - wetnessGlossinessSpecular);
+		wetnessSpecular += GetWetnessAmbientSpecular(wetnessNormal, viewDirectionWS, 1.0 - wetnessGlossinessSpecular);
 #	endif
 
 	float4 color;
