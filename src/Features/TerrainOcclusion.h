@@ -34,7 +34,7 @@ struct TerrainOcclusion : public Feature
 
 		float AOAmbientMix = 1.f;
 		float AODiffuseMix = 0.f;
-		float AOPower = 2.f;
+		float AOPower = 1.f;
 		float AOFadeOutHeight = 2000;
 	};
 	struct Settings

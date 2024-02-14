@@ -51,28 +51,34 @@ void TerrainOcclusion::DrawSettings()
 		ImGui::TreePop();
 	}
 
-	if (ImGui::TreeNodeEx("AO Visual", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (ImGui::TreeNodeEx("AO ", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SliderFloat("Ambient Mix", &settings.effect.AOAmbientMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 		ImGui::SliderFloat("Diffuse Mix", &settings.effect.AODiffuseMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::Text(
+				"Values greater than 0 are not exactly what AMBIENT occlusion is intended to be.\n"
+				"This is for people who really what that grey halo look.");
+
 		ImGui::SliderFloat("Power", &settings.effect.AOPower, 0.2f, 5, "%.2f");
 		ImGui::SliderFloat("Fadeout Height", &settings.effect.AOFadeOutHeight, 500, 5000, "%.0f");
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::Text(
+				"On the ground AO is the most prominent. Up to a certain height it will gradually fade out.");
 
-		ImGui::TreePop();
-	}
+		if (ImGui::TreeNodeEx("Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::SliderFloat("Distance", &settings.aoGen.AoDistance, 1.f / 32, 16, "%.2f cells");
+			ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
+			ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
+			if (ImGui::Button("Force Regenerate AO", { -1, 0 }))
+				needAoGen = true;
 
-	if (ImGui::TreeNodeEx("AO Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Distance", &settings.aoGen.AoDistance, 1.f / 32, 16, "%.2f cells");
-		ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
-		ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
-		if (ImGui::Button("Regenerate AO", { -1, 0 }))
-			needAoGen = true;
-
+			ImGui::TreePop();
+		}
 		ImGui::TreePop();
 	}
 
 	if (ImGui::TreeNodeEx("Debug")) {
 		std::string curr_worldspace = "N/A";
-		std::string curr_worldspace_fullname = "N/A";
 		auto tes = RE::TES::GetSingleton();
 		if (tes) {
 			auto worldspace = tes->GetRuntimeData2().worldSpace;
