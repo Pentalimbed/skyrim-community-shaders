@@ -1991,72 +1991,85 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	color.xyz = specularTexture.SampleLevel(SampEnvSampler, envSamplingPoint, 0).xyz;
 #	endif
 
+	// OUTPUT psout.Albedo.w
+	{
 #	if defined(LANDSCAPE) && !defined(LOD_LAND_BLEND)
-	psout.Albedo.w = 0;
+		float alpha = 0;
 #	else
-	float alpha = baseColor.w;
+		float alpha = baseColor.w;
 #		if !defined(ADDITIONAL_ALPHA_MASK)
-	alpha *= MaterialData.z;
+		alpha *= MaterialData.z;
 #		else
-	uint2 alphaMask = input.Position.xy;
-	alphaMask.x = ((alphaMask.x << 2) & 12);
-	alphaMask.x = (alphaMask.y & 3) | (alphaMask.x & ~3);
-	const float maskValues[16] = {
-		0.003922,
-		0.533333,
-		0.133333,
-		0.666667,
-		0.800000,
-		0.266667,
-		0.933333,
-		0.400000,
-		0.200000,
-		0.733333,
-		0.066667,
-		0.600000,
-		0.996078,
-		0.466667,
-		0.866667,
-		0.333333,
-	};
+		{
+			uint2 alphaMask = input.Position.xy;
+			alphaMask.x = ((alphaMask.x << 2) & 12);
+			alphaMask.x = (alphaMask.y & 3) | (alphaMask.x & ~3);
+			const float maskValues[16] = {
+				0.003922,
+				0.533333,
+				0.133333,
+				0.666667,
+				0.800000,
+				0.266667,
+				0.933333,
+				0.400000,
+				0.200000,
+				0.733333,
+				0.066667,
+				0.600000,
+				0.996078,
+				0.466667,
+				0.866667,
+				0.333333,
+			};
 
-	float testTmp = 0;
-	if (MaterialData.z - maskValues[alphaMask.x] < 0) {
-		discard;
-	}
+			float testTmp = 0;
+			if (MaterialData.z - maskValues[alphaMask.x] < 0) {
+				discard;
+			}
+		}
 #		endif  // !defined(ADDITIONAL_ALPHA_MASK)
 #		if !(defined(TREE_ANIM) || defined(LODOBJECTSHD) || defined(LODOBJECTS))
-	alpha *= input.Color.w;
+		alpha *= input.Color.w;
 #		endif  // !(defined(TREE_ANIM) || defined(LODOBJECTSHD) || defined(LODOBJECTS))
 #		if defined(DO_ALPHA_TEST)
 #			if defined(DEPTH_WRITE_DECALS)
-	if (alpha - 0.0156862754 < 0) {
-		discard;
-	}
-	alpha = saturate(1.05 * alpha);
-#			endif  // DEPTH_WRITE_DECALS
-	if (alpha - AlphaThreshold < 0) {
-		discard;
-	}
-#		endif      // DO_ALPHA_TEST
-	psout.Albedo.w = alpha;
-
-#	endif
-#	if defined(LIGHT_LIMIT_FIX) && defined(LLFDEBUG)
-	if (perPassLLF[0].EnableLightsVisualisation) {
-		if (perPassLLF[0].LightsVisualisationMode == 0) {
-			psout.Albedo.xyz = TurboColormap(strictLightData[0].NumLights >= 7.0);
-		} else if (perPassLLF[0].LightsVisualisationMode == 1) {
-			psout.Albedo.xyz = TurboColormap((float)strictLightData[0].NumLights / 15.0);
-		} else {
-			psout.Albedo.xyz = TurboColormap((float)lightCount / 128.0);
+		if (alpha - 0.0156862754 < 0) {
+			discard;
 		}
-	} else {
-		psout.Albedo.xyz = color.xyz - tmpColor.xyz * FrameParams.zzz;
+		alpha = saturate(1.05 * alpha);
+#			endif  // DEPTH_WRITE_DECALS
+		if (alpha - AlphaThreshold < 0) {
+			discard;
+		}
+#		endif      // DO_ALPHA_TEST
+#	endif
+		psout.Albedo.w = alpha;
 	}
+
+	// OUTPUT psout.Albedo.xyz
+	{
+#	if defined(LIGHT_LIMIT_FIX) && defined(LLFDEBUG)
+		if (perPassLLF[0].EnableLightsVisualisation) {
+			if (perPassLLF[0].LightsVisualisationMode == 0) {
+				psout.Albedo.xyz = TurboColormap(strictLightData[0].NumLights >= 7.0);
+			} else if (perPassLLF[0].LightsVisualisationMode == 1) {
+				psout.Albedo.xyz = TurboColormap((float)strictLightData[0].NumLights / 15.0);
+			} else {
+				psout.Albedo.xyz = TurboColormap((float)lightCount / 128.0);
+			}
+		} else {
+			psout.Albedo.xyz = color.xyz - tmpColor.xyz * FrameParams.zzz;
+		}
 #	else
-	psout.Albedo.xyz = color.xyz - tmpColor.xyz * FrameParams.zzz;
+		psout.Albedo.xyz = color.xyz - tmpColor.xyz * FrameParams.zzz;
 #	endif  // defined(LIGHT_LIMIT_FIX)
+	}
+
+	// OUTPUT psout.Albedo
+#	if defined(OUTLINE)
+	psout.Albedo = float4(1, 0, 0, 1);
+#	endif  // OUTLINE
 
 #	if defined(SNOW)
 	psout.SnowParameters.x = dot(lightsSpecularColor, float3(0.3, 0.59, 0.11));
@@ -2065,40 +2078,42 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	psout.MotionVectors.xy = SSRParams.z > 1e-5 ? float2(1, 0) : screenMotionVector.xy;
 	psout.MotionVectors.zw = float2(0, 1);
 
-	float tmp = -1e-5 + SSRParams.x;
-	float tmp3 = (SSRParams.y - tmp);
-	float tmp2 = (glossiness - tmp);
-	float tmp1 = 1 / tmp3;
-	tmp = saturate(tmp1 * tmp2);
-	tmp *= tmp * (3 + -2 * tmp);
-	psout.ScreenSpaceNormals.w = tmp * SSRParams.w;
+	// OUTPUT psout.ScreenSpaceNormals.w
+	{
+		float tmp = -1e-5 + SSRParams.x;
+		float tmp3 = (SSRParams.y - tmp);
+		float tmp2 = (glossiness - tmp);
+		float tmp1 = 1 / tmp3;
+		tmp = saturate(tmp1 * tmp2);
+		tmp *= tmp * (3 + -2 * tmp);
+		psout.ScreenSpaceNormals.w = tmp * SSRParams.w;
 
 #	if defined(WETNESS_EFFECTS)
-	psout.ScreenSpaceNormals.w = max(psout.ScreenSpaceNormals.w, wetnessGlossinessSpecular);
+		psout.ScreenSpaceNormals.w = max(psout.ScreenSpaceNormals.w, wetnessGlossinessSpecular);
 #	endif
 
 #	if defined(WATER_BLENDING)
-	if (perPassWaterBlending[0].EnableWaterBlendingSSR) {
-		// Compute distance to water surface
-		float distToWater = max(0, input.WorldPosition.z - waterHeight);
-		float blendFactor = smoothstep(viewPosition.z * 0.001 * 4, viewPosition.z * 0.001 * 16 * perPassWaterBlending[0].SSRBlendRange, distToWater);
-		// Reduce SSR amount
-		psout.ScreenSpaceNormals.w *= blendFactor;
-	}
+		if (perPassWaterBlending[0].EnableWaterBlendingSSR) {
+			// Compute distance to water surface
+			float distToWater = max(0, input.WorldPosition.z - waterHeight);
+			float blendFactor = smoothstep(viewPosition.z * 0.001 * 4, viewPosition.z * 0.001 * 16 * perPassWaterBlending[0].SSRBlendRange, distToWater);
+			// Reduce SSR amount
+			psout.ScreenSpaceNormals.w *= blendFactor;
+		}
 #	endif  // WATER_BLENDING
 
-	// Green reflections fix
-	if (FrameParams.z)
-		psout.ScreenSpaceNormals.w = 0;
+		// Green reflections fix
+		if (FrameParams.z)
+			psout.ScreenSpaceNormals.w = 0;
+	}
 
-	screenSpaceNormal.z = max(0.001, sqrt(8 + -8 * screenSpaceNormal.z));
-	screenSpaceNormal.xy /= screenSpaceNormal.zz;
-	psout.ScreenSpaceNormals.xy = screenSpaceNormal.xy + 0.5.xx;
-	psout.ScreenSpaceNormals.z = 0;
-
-#	if defined(OUTLINE)
-	psout.Albedo = float4(1, 0, 0, 1);
-#	endif  // OUTLINE
+	// OUTPUT psout.ScreenSpaceNormals.xyz
+	{
+		screenSpaceNormal.z = max(0.001, sqrt(8 + -8 * screenSpaceNormal.z));
+		screenSpaceNormal.xy /= screenSpaceNormal.zz;
+		psout.ScreenSpaceNormals.xy = screenSpaceNormal.xy + 0.5.xx;
+		psout.ScreenSpaceNormals.z = 0;
+	}
 
 	return psout;
 }
