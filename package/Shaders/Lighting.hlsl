@@ -1347,7 +1347,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 	float2 baseShadowUV = 1.0.xx;
 	float4 shadowColor = 1.0;
-	if (shaderDescriptors[0].PixelShaderDescriptor & _DefShadow && (shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir) || numShadowLights > 0) {
+
+	bool dirLightHasShadow = (shaderDescriptors[0].PixelShaderDescriptor & _DefShadow) && (shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir);
+	if (dirLightHasShadow || (numShadowLights > 0)) {
 		baseShadowUV = input.Position.xy * DynamicResolutionParams2.xy;
 		float2 shadowUV = min(float2(DynamicResolutionParams2.z, DynamicResolutionParams1.y), max(0.0.xx, DynamicResolutionParams1.xy * (baseShadowUV * VPOSOffset.xy + VPOSOffset.zw)));
 		shadowColor = TexShadowMaskSampler.Sample(SampShadowMaskSampler, shadowUV);
@@ -1432,7 +1434,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // WORLD_MAP
 
 	float3 dirLightColor = DirLightColor.xyz;
-	float selfShadowFactor = 1.0f;
 
 	float3 normalizedDirLightDirectionWS = DirLightDirection;
 #	if ((defined(SKINNED) || !defined(MODELSPACENORMALS)) && !defined(DRAW_IN_WORLDSPACE))
@@ -1440,6 +1441,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	// temp fix for tree barks
 	normalizedDirLightDirectionWS = any(isnan(normalizedDirLightDirectionWS)) ? DirLightDirection : normalizedDirLightDirectionWS;
 #	endif
+
+	float3 nsDirLightColor = dirLightColor;
 
 #	if defined(CLOUD_SHADOWS)
 	float3 cloudShadowMult = 1.0;
@@ -1449,9 +1452,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 #	endif
 
-	float3 nsDirLightColor = dirLightColor;
-
-	if ((shaderDescriptors[0].PixelShaderDescriptor & _DefShadow) && (shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir))
+	if (dirLightHasShadow)
 		dirLightColor *= shadowColor.xxx;
 
 #	if defined(SCREEN_SPACE_SHADOWS)
@@ -1462,16 +1463,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(CPM_AVAILABLE) && (defined(SKINNED) || !defined(MODELSPACENORMALS))
 	float3 dirLightDirectionTS = mul(DirLightDirection, tbn).xyz;
-	bool dirLightIsLit = true;
-
-	if ((shaderDescriptors[0].PixelShaderDescriptor & _DefShadow) && (shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir)) {
-		if (shadowColor.x == 0)
-			dirLightIsLit = false;
-	}
-
+	bool dirLightIsLit = !dirLightHasShadow || (shadowColor.x > 0);
 #		if defined(SCREEN_SPACE_SHADOWS)
-	if (dirLightSShadow == 0)
-		dirLightIsLit = false;
+	dirLightIsLit = dirLightIsLit && (dirLightSShadow > 0);
 #		endif  // SCREEN_SPACE_SHADOWS
 
 #		if defined(LANDSCAPE)
@@ -1602,7 +1596,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 		wetness = lerp(wetness, puddleWetness, saturate(puddle - 0.25));
 		puddle *= wetness;
-		if (shaderDescriptors[0].PixelShaderDescriptor & _DefShadow && shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir) {
+		if (dirLightHasShadow) {
 			float upAngle = saturate(dot(float3(0, 0, 1), normalizedDirLightDirectionWS.xyz));
 			puddle *= max(1 - maxOcclusion, lerp(1.0, shadowColor.x, upAngle * 0.2));
 		}
@@ -1882,7 +1876,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		float3 F0 = lerp(envColorBase, 1.0, envColorBase.x == 0.0 && envColorBase.y == 0.0 && envColorBase.z == 0.0);
 		envColor = GetDynamicCubemap(worldSpaceNormal, viewDirectionWS, 1.0 / 9.0, F0, 0.0) * envMask;
 #			endif
-		if (shaderDescriptors[0].PixelShaderDescriptor & _DefShadow && shaderDescriptors[0].PixelShaderDescriptor & _ShadowDir) {
+		if (dirLightHasShadow) {
 			float upAngle = saturate(dot(float3(0, 0, 1), normalizedDirLightDirectionWS.xyz));
 			envColor *= lerp(1.0, shadowColor.x, saturate(upAngle) * 0.2);
 		}
