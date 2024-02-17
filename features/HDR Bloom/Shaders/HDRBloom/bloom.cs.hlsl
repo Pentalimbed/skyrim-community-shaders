@@ -2,6 +2,8 @@
 // ref:
 // http://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare
 
+#include "common.hlsli"
+
 RWTexture2D<float4> RWTexOut : register(u0);
 
 Texture2D<float4> TexColor : register(t0);  // mip level is passed directly by SRV
@@ -16,16 +18,12 @@ SamplerState SampColor
 
 cbuffer BloomCB : register(b0)
 {
-	uint isFirstDownsamplePass;
-	float upsampleMult;
+	uint IsFirstMip;
+	float UpsampleMult;
+	float NormalisationFactor;
 
-	float upsampleRadius;
+	float UpsampleRadius;
 };
-
-float Luma(float3 color)
-{
-	return dot(color, float3(0.2126, 0.7152, 0.0722));
-}
 
 float4 KarisAverage(float4 a, float4 b, float4 c, float4 d)
 {
@@ -43,7 +41,7 @@ float4 Downsample(float2 uv, float2 out_px_size)
 	int x, y;
 
 	float4 retval = 0;
-	if (isFirstDownsamplePass) {
+	if (IsFirstMip) {
 		float4 fetches2x2[4];
 		float4 fetches3x3[9];
 
@@ -84,7 +82,7 @@ float4 Upsample(float2 uv, float2 radius)
 }
 
 [numthreads(32, 32, 1)] void main(
-	uint2 tid : SV_DispatchThreadID, uint2 gid : SV_GroupThreadID) {
+	uint2 tid : SV_DispatchThreadID) {
 	uint2 dims;
 	RWTexOut.GetDimensions(dims.x, dims.y);
 
@@ -94,6 +92,9 @@ float4 Upsample(float2 uv, float2 radius)
 #if defined(DOWNSAMPLE)
 	RWTexOut[tid] = Downsample(uv, px_size);
 #else  // upsample
-	RWTexOut[tid] = RWTexOut[tid] + Upsample(uv, px_size * upsampleRadius) * upsampleMult;
+	float3 color = RWTexOut[tid] + Upsample(uv, px_size * UpsampleRadius) * UpsampleMult;
+	if (IsFirstMip)
+		color *= NormalisationFactor;
+	RWTexOut[tid] = float4(color, 1);
 #endif
 }
