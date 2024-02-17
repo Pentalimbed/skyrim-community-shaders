@@ -7,6 +7,7 @@
 #include "Features/ExtendedMaterials.h"
 #include "Features/GrassCollision.h"
 #include "Features/GrassLighting.h"
+#include "Features/HDRBloom.h"
 #include "Features/LightLimitFix.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/SubsurfaceScattering.h"
@@ -115,7 +116,8 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		TerrainBlending::GetSingleton(),
 		WaterParallax::GetSingleton(),
 		WaterCaustics::GetSingleton(),
-		SubsurfaceScattering::GetSingleton()
+		SubsurfaceScattering::GetSingleton(),
+		HDRBloom::GetSingleton()
 	};
 
 	static std::vector<Feature*> featuresVR = {
