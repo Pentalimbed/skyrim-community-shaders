@@ -19,9 +19,11 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings,
+	EnableAutoExposure,
 	EnableBloom,
 	EnableTonemapper,
 	LightTweaks,
+	AdaptAfterBloom,
 	MinLogLum,
 	MaxLogLum,
 	AdaptSpeed,
@@ -34,8 +36,13 @@ void HDRBloom::DrawSettings()
 {
 	ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
 	ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
+	ImGui::Indent();
+	ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
+	ImGui::Unindent();
 
 	if (ImGui::TreeNodeEx("Light Tweaks", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (ImGui::Button("Reset"))
+			settings.LightTweaks = { 1, 1, 1, 1 };
 		ImGui::SliderFloat("Direction Light Power", &settings.LightTweaks.DirLightPower, 0.f, 5.f, "%.2f");
 		ImGui::SliderFloat("Light Power", &settings.LightTweaks.LightPower, 0.f, 5.f, "%.2f");
 		ImGui::SliderFloat("Ambient Power", &settings.LightTweaks.AmbientPower, 0.f, 5.f, "%.2f");
@@ -47,6 +54,10 @@ void HDRBloom::DrawSettings()
 
 	if (ImGui::TreeNodeEx("Bloom", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::Text(
+				"Prevent bloom from beightening up the image.\n"
+				"Can turn off if Adapt After Bloom is on.");
 
 		ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
 		if (ImGui::TreeNodeEx("Blend Factors", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -60,6 +71,8 @@ void HDRBloom::DrawSettings()
 	ImGui::Separator();
 
 	if (ImGui::TreeNodeEx("Tonemapper", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
+
 		ImGui::SliderFloat("Min Log Luma", &settings.MinLogLum, -8.f, 3.f, "%.2f EV");
 		ImGui::SliderFloat("Max Log Luma", &settings.MaxLogLum, -8.f, 3.f, "%.2f EV");
 		ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
@@ -282,44 +295,15 @@ void HDRBloom::DrawPreProcess()
 	ResourceInfo lastTexColor = { gameTexMain.texture, gameTexMain.SRV };
 
 	// Adaptation histogram
-	{
-		AutoExposureCB cbData = {
-			.AdaptLerp = 1.f - exp(-RE::BSTimer::GetSingleton()->realTimeDelta * settings.AdaptSpeed),
-			.MinLogLum = settings.MinLogLum,
-			.LogLumRange = settings.MaxLogLum - settings.MinLogLum
-		};
-		cbData.AdaptLerp = std::clamp(cbData.AdaptLerp, 0.f, 1.f);
-		cbData.RcpLogLumRange = 1.f / cbData.LogLumRange;
-		autoExposureCB->Update(cbData);
-
-		// Calculate histogram
-		ID3D11ShaderResourceView* srv = lastTexColor.srv;
-		std::array<ID3D11UnorderedAccessView*, 2> uavs = { texHistogram->uav.get(), texAdaptation->uav.get() };
-		ID3D11Buffer* cb = autoExposureCB->CB();
-		context->CSSetConstantBuffers(0, 1, &cb);
-		context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
-		context->CSSetShaderResources(0, 1, &srv);
-		context->CSSetShader(histogramProgram.get(), nullptr, 0);
-
-		context->Dispatch(((texTonemap->desc.Width - 1) >> 4) + 1, ((texTonemap->desc.Height - 1) >> 4) + 1, 1);
-
-		// Calculate average
-		context->CSSetShader(histogramAvgProgram.get(), nullptr, 0);
-		context->Dispatch(1, 1, 1);
-
-		// clean up
-		srv = nullptr;
-		uavs.fill(nullptr);
-		cb = nullptr;
-		context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
-		context->CSSetShaderResources(0, 1, &srv);
-		context->CSSetConstantBuffers(0, 1, &cb);
-		context->CSSetShader(nullptr, nullptr, 0);
-	}
+	if (settings.EnableAutoExposure && !settings.AdaptAfterBloom)
+		DrawAdaptation(lastTexColor);
 
 	// COD Bloom
 	if (settings.EnableBloom)
 		lastTexColor = DrawCODBloom(lastTexColor);
+
+	if (settings.EnableAutoExposure && settings.AdaptAfterBloom)
+		DrawAdaptation(lastTexColor);
 
 	// AgX tonemap
 	if (settings.EnableTonemapper)
@@ -331,6 +315,44 @@ void HDRBloom::DrawPreProcess()
 	context->CopySubresourceRegion(
 		renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN_COPY].texture,
 		0, 0, 0, 0, lastTexColor.tex, 0, nullptr);
+}
+
+void HDRBloom::DrawAdaptation(ResourceInfo tex_input)
+{
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+
+	AutoExposureCB cbData = {
+		.AdaptLerp = 1.f - exp(-RE::BSTimer::GetSingleton()->realTimeDelta * settings.AdaptSpeed),
+		.MinLogLum = settings.MinLogLum,
+		.LogLumRange = settings.MaxLogLum - settings.MinLogLum
+	};
+	cbData.AdaptLerp = std::clamp(cbData.AdaptLerp, 0.f, 1.f);
+	cbData.RcpLogLumRange = 1.f / cbData.LogLumRange;
+	autoExposureCB->Update(cbData);
+
+	// Calculate histogram
+	ID3D11ShaderResourceView* srv = tex_input.srv;
+	std::array<ID3D11UnorderedAccessView*, 2> uavs = { texHistogram->uav.get(), texAdaptation->uav.get() };
+	ID3D11Buffer* cb = autoExposureCB->CB();
+	context->CSSetConstantBuffers(0, 1, &cb);
+	context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
+	context->CSSetShaderResources(0, 1, &srv);
+	context->CSSetShader(histogramProgram.get(), nullptr, 0);
+
+	context->Dispatch(((texTonemap->desc.Width - 1) >> 4) + 1, ((texTonemap->desc.Height - 1) >> 4) + 1, 1);
+
+	// Calculate average
+	context->CSSetShader(histogramAvgProgram.get(), nullptr, 0);
+	context->Dispatch(1, 1, 1);
+
+	// clean up
+	srv = nullptr;
+	uavs.fill(nullptr);
+	cb = nullptr;
+	context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
+	context->CSSetShaderResources(0, 1, &srv);
+	context->CSSetConstantBuffers(0, 1, &cb);
+	context->CSSetShader(nullptr, nullptr, 0);
 }
 
 HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
@@ -431,6 +453,7 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 
 	// update cb
 	TonemapCB cbData = { .settings = settings.Tonemapper };
+	cbData.EnableAutoExposure = settings.EnableAutoExposure;
 	cbData.settings.Exposure = exp2(cbData.settings.Exposure);
 	tonemapCB->Update(cbData);
 

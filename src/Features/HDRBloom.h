@@ -20,6 +20,7 @@ struct HDRBloom : public Feature
 
 	struct Settings
 	{
+		bool EnableAutoExposure = true;
 		bool EnableBloom = true;
 		bool EnableTonemapper = true;
 
@@ -33,6 +34,7 @@ struct HDRBloom : public Feature
 		} LightTweaks;
 
 		// auto exposure
+		bool AdaptAfterBloom = false;
 		float MinLogLum = -5.f;
 		float MaxLogLum = 1.f;
 		float AdaptSpeed = 1.5f;
@@ -89,9 +91,11 @@ struct HDRBloom : public Feature
 
 	struct alignas(16) TonemapCB
 	{
+		uint EnableAutoExposure;
+
 		Settings::TonemapperSettings settings;
 
-		float pad[4 - (sizeof(settings) / 4) % 4];
+		float pad[4 - (sizeof(settings) / 4 + 1) % 4];
 	};
 	std::unique_ptr<ConstantBuffer> tonemapCB = nullptr;
 
@@ -126,6 +130,7 @@ struct HDRBloom : public Feature
 		ID3D11ShaderResourceView* srv;
 	};
 	virtual void DrawPreProcess() override;
+	void DrawAdaptation(ResourceInfo tex_input);
 	ResourceInfo DrawCODBloom(ResourceInfo tex_input);
 	ResourceInfo DrawTonemapper(ResourceInfo tex_input);
 

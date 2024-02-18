@@ -9,6 +9,7 @@ Texture1D<float> RWTexAdaptation : register(t1);
 
 cbuffer TonemapCB : register(b0)
 {
+	uint EnableAutoExposure;
 	float Exposure;
 
 	float AgXSlope;
@@ -29,12 +30,12 @@ SamplerState SampColor
 								  : SV_DispatchThreadID) {
 	float3 color = TexColor[tid].rgb;
 
-	float avgLuma = RWTexAdaptation.Load(0);
-	// if (Luma(color) < exp2(-5)) {
-	// 	RWTexOut[tid] = float4(0, 0, 1, 1);
-	// 	return;
-	// }
-	color *= Exposure / (9.6 * avgLuma);
+	// auto exposure
+	if (EnableAutoExposure) {
+		float avgLuma = RWTexAdaptation.Load(0);
+		color *= Exposure / (9.6 * avgLuma);
+	} else
+		color *= Exposure;
 
 	color = Agx(color);
 	color = ASC_CDL(color, AgXSlope, AgXPower, AgXOffset);
@@ -42,6 +43,6 @@ SamplerState SampColor
 	color = AgxEotf(color);
 
 	color = saturate(color);
-	// color = avgLuma;
+
 	RWTexOut[tid] = float4(color, 1);
 }
