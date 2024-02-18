@@ -3,11 +3,20 @@
 #include "Util.h"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+	HDRBloom::Settings::TonemapperSettings,
+	Exposure,
+	Slope,
+	Power,
+	Offset,
+	Saturation)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings,
 	EnableBloom,
 	EnableTonemapper,
 	UpsampleRadius,
-	MipBlendFactor)
+	MipBlendFactor,
+	Tonemapper)
 
 void HDRBloom::DrawSettings()
 {
@@ -27,7 +36,11 @@ void HDRBloom::DrawSettings()
 	}
 
 	if (ImGui::TreeNodeEx("Tonemapper", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Exposure", &settings.Tonemapper.Exposure, -3.f, 3.f, "%.2f EV");
+		ImGui::SliderFloat("Min Log Luma", &settings.MinLogLum, -8.f, 3.f, "%.2f EV");
+		ImGui::SliderFloat("Max Log Luma", &settings.MaxLogLum, -8.f, 3.f, "%.2f EV");
+		ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
+
+		ImGui::SliderFloat("Exposure", &settings.Tonemapper.Exposure, -15.f, 15.f, "%.2f EV");
 		if (ImGui::TreeNodeEx("AgX", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::SliderFloat("Slope", &settings.Tonemapper.Slope, 0.f, 2.f, "%.2f");
 			ImGui::SliderFloat("Power", &settings.Tonemapper.Power, 0.f, 2.f, "%.2f");
@@ -38,10 +51,7 @@ void HDRBloom::DrawSettings()
 		ImGui::TreePop();
 	}
 
-	if (ImGui::TreeNodeEx("Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::BulletText("texAdapt");
-		ImGui::Image(texAdapt->srv.get(), { texAdapt->desc.Width * .2f, texAdapt->desc.Height * .2f });
-
+	if (ImGui::TreeNodeEx("Debug")) {
 		ImGui::BulletText("texBloom");
 		static int mip = 0;
 		ImGui::SliderInt("Mip Level", &mip, 0, 8, "%d", ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp);
@@ -59,10 +69,7 @@ void HDRBloom::Load(json& o_json)
 	Feature::Load(o_json);
 }
 
-void HDRBloom::Save(json& o_json)
-{
-	o_json[GetName()] = settings;
-}
+void HDRBloom::Save(json& o_json) { o_json[GetName()] = settings; }
 
 void HDRBloom::SetupResources()
 {
@@ -71,11 +78,49 @@ void HDRBloom::SetupResources()
 
 	logger::debug("Creating constant buffers...");
 	{
+		autoExposureCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<AutoExposureCB>());
 		bloomCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<BloomCB>());
 		tonemapCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<TonemapCB>());
 	}
 
-	logger::debug("Creating textures...");
+	logger::debug("Creating 1D textures...");
+	{
+		D3D11_TEXTURE1D_DESC texDesc = {
+			.Width = 257,
+			.MipLevels = 1,
+			.ArraySize = 1,
+			.Format = DXGI_FORMAT_R32_UINT,
+			.Usage = D3D11_USAGE_DEFAULT,
+			.BindFlags = D3D11_BIND_UNORDERED_ACCESS,
+			.CPUAccessFlags = 0,
+			.MiscFlags = 0
+		};
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = texDesc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE1D,
+			.Texture1D = { .MostDetailedMip = 0, .MipLevels = 1 }
+		};
+
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
+			.Format = texDesc.Format,
+			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE1D,
+			.Texture1D = { .MipSlice = 0 }
+		};
+
+		texHistogram = std::make_unique<Texture1D>(texDesc);
+		texHistogram->CreateUAV(uavDesc);
+
+		texDesc.Format = srvDesc.Format = uavDesc.Format = DXGI_FORMAT_R16_FLOAT;
+		texDesc.Width = 1;
+		texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+
+		texAdaptation = std::make_unique<Texture1D>(texDesc);
+		texAdaptation->CreateSRV(srvDesc);
+		texAdaptation->CreateUAV(uavDesc);
+	}
+
+	logger::debug("Creating 2D textures...");
 	{
 		// texAdapt for adaptation
 		auto gameTexMainCopy = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN_COPY];
@@ -86,9 +131,7 @@ void HDRBloom::SetupResources()
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
 			.Format = texDesc.Format,
 			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-			.Texture2D = {
-				.MostDetailedMip = 0,
-				.MipLevels = (UINT)-1 }
+			.Texture2D = { .MostDetailedMip = 0, .MipLevels = (UINT)-1 }
 		};
 
 		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
@@ -96,15 +139,6 @@ void HDRBloom::SetupResources()
 			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
 			.Texture2D = { .MipSlice = 0 }
 		};
-
-		{
-			texDesc.MipLevels = 0;
-			texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-			texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
-
-			texAdapt = std::make_unique<Texture2D>(texDesc);
-			texAdapt->CreateSRV(srvDesc);
-		}
 
 		// texTonemap
 		{
@@ -130,9 +164,7 @@ void HDRBloom::SetupResources()
 				D3D11_SHADER_RESOURCE_VIEW_DESC mipSrvDesc = {
 					.Format = texDesc.Format,
 					.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-					.Texture2D = {
-						.MostDetailedMip = i,
-						.MipLevels = 1 }
+					.Texture2D = { .MostDetailedMip = i, .MipLevels = 1 }
 				};
 				DX::ThrowIfFailed(device->CreateShaderResourceView(texBloom->resource.get(), &mipSrvDesc, texBloomMipSRVs[i].put()));
 			}
@@ -154,7 +186,15 @@ void HDRBloom::SetupResources()
 
 void HDRBloom::CompileComputeShaders()
 {
-	auto programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", { { "DOWNSAMPLE", "" } }, "cs_5_0"));
+	auto programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\histogram.cs.hlsl", {}, "cs_5_0"));
+	if (programPtr)
+		histogramProgram.attach(programPtr);
+
+	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\histogram.cs.hlsl", { { "AVG", "" } }, "cs_5_0"));
+	if (programPtr)
+		histogramAvgProgram.attach(programPtr);
+
+	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", { { "DOWNSAMPLE", "" } }, "cs_5_0"));
 	if (programPtr)
 		bloomDownsampleProgram.attach(programPtr);
 
@@ -169,18 +209,17 @@ void HDRBloom::CompileComputeShaders()
 
 void HDRBloom::ClearShaderCache()
 {
-	if (bloomDownsampleProgram) {
-		bloomDownsampleProgram->Release();
-		bloomDownsampleProgram.detach();
-	}
-	if (bloomUpsampleProgram) {
-		bloomUpsampleProgram->Release();
-		bloomUpsampleProgram.detach();
-	}
-	if (tonemapProgram) {
-		tonemapProgram->Release();
-		tonemapProgram.detach();
-	}
+	auto checkClear = [](winrt::com_ptr<ID3D11ComputeShader>& shader) {
+		if (shader) {
+			shader->Release();
+			shader.detach();
+		}
+	};
+	checkClear(histogramProgram);
+	checkClear(histogramAvgProgram);
+	checkClear(bloomDownsampleProgram);
+	checkClear(bloomUpsampleProgram);
+	checkClear(tonemapProgram);
 	CompileComputeShaders();
 }
 
@@ -192,12 +231,40 @@ void HDRBloom::DrawPreProcess()
 	auto gameTexMain = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
 	ResourceInfo lastTexColor = { gameTexMain.texture, gameTexMain.SRV };
 
-	// Adaptation mip gen
+	// Adaptation histogram
 	{
-		context->CopySubresourceRegion(texAdapt->resource.get(), 0, 0, 0, 0, lastTexColor.tex, 0, nullptr);
-		context->GenerateMips(texAdapt->srv.get());
+		AutoExposureCB cbData = {
+			.AdaptLerp = 1.f - exp(-RE::BSTimer::GetSingleton()->realTimeDelta * settings.AdaptSpeed),
+			.MinLogLum = settings.MinLogLum,
+			.LogLumRange = settings.MaxLogLum - settings.MinLogLum
+		};
+		cbData.AdaptLerp = std::clamp(cbData.AdaptLerp, 0.f, 1.f);
+		cbData.RcpLogLumRange = 1.f / cbData.LogLumRange;
+		autoExposureCB->Update(cbData);
 
-		lastTexColor = { texAdapt->resource.get(), texAdapt->srv.get() };
+		// Calculate histogram
+		ID3D11ShaderResourceView* srv = lastTexColor.srv;
+		std::array<ID3D11UnorderedAccessView*, 2> uavs = { texHistogram->uav.get(), texAdaptation->uav.get() };
+		ID3D11Buffer* cb = autoExposureCB->CB();
+		context->CSSetConstantBuffers(0, 1, &cb);
+		context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
+		context->CSSetShaderResources(0, 1, &srv);
+		context->CSSetShader(histogramProgram.get(), nullptr, 0);
+
+		context->Dispatch(((texTonemap->desc.Width - 1) >> 4) + 1, ((texTonemap->desc.Height - 1) >> 4) + 1, 1);
+
+		// Calculate average
+		context->CSSetShader(histogramAvgProgram.get(), nullptr, 0);
+		context->Dispatch(1, 1, 1);
+
+		// clean up
+		srv = nullptr;
+		uavs.fill(nullptr);
+		cb = nullptr;
+		context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
+		context->CSSetShaderResources(0, 1, &srv);
+		context->CSSetConstantBuffers(0, 1, &cb);
+		context->CSSetShader(nullptr, nullptr, 0);
 	}
 
 	// COD Bloom
@@ -205,40 +272,15 @@ void HDRBloom::DrawPreProcess()
 		lastTexColor = DrawCODBloom(lastTexColor);
 
 	// AgX tonemap
-	if (settings.EnableTonemapper) {
-		// update cb
-		TonemapCB cbData = {
-			.settings = settings.Tonemapper
-		};
-		cbData.settings.Exposure = exp2(cbData.settings.Exposure);
-		tonemapCB->Update(cbData);
-
-		ID3D11ShaderResourceView* srv = lastTexColor.srv;
-		ID3D11UnorderedAccessView* uav = texTonemap->uav.get();
-		ID3D11Buffer* cb = tonemapCB->CB();
-		context->CSSetConstantBuffers(0, 1, &cb);
-		context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
-		context->CSSetShaderResources(0, 1, &srv);
-		context->CSSetShader(tonemapProgram.get(), nullptr, 0);
-
-		context->Dispatch(((texTonemap->desc.Width - 1) >> 5) + 1, ((texTonemap->desc.Height - 1) >> 5) + 1, 1);
-
-		// clean up
-		srv = nullptr;
-		uav = nullptr;
-		cb = nullptr;
-		context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
-		context->CSSetShaderResources(0, 1, &srv);
-		context->CSSetConstantBuffers(0, 1, &cb);
-		context->CSSetShader(nullptr, nullptr, 0);
-
-		lastTexColor = { texTonemap->resource.get(), texTonemap->srv.get() };
-	}
+	if (settings.EnableTonemapper)
+		lastTexColor = DrawTonemapper(lastTexColor);
 
 	// either MAIN_COPY or MAIN is used as input for HDR pass
 	// so we copy to both so whatever the game wants we're not failing it
 	context->CopySubresourceRegion(gameTexMain.texture, 0, 0, 0, 0, lastTexColor.tex, 0, nullptr);
-	context->CopySubresourceRegion(renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN_COPY].texture, 0, 0, 0, 0, lastTexColor.tex, 0, nullptr);
+	context->CopySubresourceRegion(
+		renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN_COPY].texture,
+		0, 0, 0, 0, lastTexColor.tex, 0, nullptr);
 }
 
 HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
@@ -331,4 +373,35 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 	context->CSSetShader(nullptr, nullptr, 0);
 
 	return { texBloom->resource.get(), texBloomMipSRVs[0].get() };
+}
+
+HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input)
+{
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+
+	// update cb
+	TonemapCB cbData = { .settings = settings.Tonemapper };
+	cbData.settings.Exposure = exp2(cbData.settings.Exposure);
+	tonemapCB->Update(cbData);
+
+	std::array<ID3D11ShaderResourceView*, 2> srvs = { tex_input.srv, texAdaptation->srv.get() };
+	ID3D11UnorderedAccessView* uav = texTonemap->uav.get();
+	ID3D11Buffer* cb = tonemapCB->CB();
+	context->CSSetConstantBuffers(0, 1, &cb);
+	context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
+	context->CSSetShaderResources(0, (UINT)srvs.size(), srvs.data());
+	context->CSSetShader(tonemapProgram.get(), nullptr, 0);
+
+	context->Dispatch(((texTonemap->desc.Width - 1) >> 5) + 1, ((texTonemap->desc.Height - 1) >> 5) + 1, 1);
+
+	// clean up
+	srvs.fill(nullptr);
+	uav = nullptr;
+	cb = nullptr;
+	context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
+	context->CSSetShaderResources(0, (UINT)srvs.size(), srvs.data());
+	context->CSSetConstantBuffers(0, 1, &cb);
+	context->CSSetShader(nullptr, nullptr, 0);
+
+	return { texTonemap->resource.get(), texTonemap->srv.get() };
 }
