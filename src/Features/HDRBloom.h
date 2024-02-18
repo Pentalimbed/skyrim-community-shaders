@@ -13,6 +13,8 @@ struct HDRBloom : public Feature
 
 	virtual inline std::string GetName() { return "HDR Bloom"; }
 	virtual inline std::string GetShortName() { return "HDRBloom"; }
+	virtual inline std::string_view GetShaderDefineName() override { return "HDR_BLOOM"; }
+	virtual inline bool HasShaderDefine(RE::BSShader::Type) override { return true; };
 
 	float avgLum = .1f;
 
@@ -20,6 +22,15 @@ struct HDRBloom : public Feature
 	{
 		bool EnableBloom = true;
 		bool EnableTonemapper = true;
+
+		// light power
+		struct ManualLightTweaks
+		{
+			float DirLightPower = 2.f;
+			float LightPower = 1.5f;
+			float AmbientPower = 1.25f;
+			float EmitPower = 2.f;
+		} LightTweaks;
 
 		// auto exposure
 		float MinLogLum = -5.f;
@@ -37,7 +48,7 @@ struct HDRBloom : public Feature
 		{
 			float Exposure = 0.38f;
 
-			float Slope = 1.3f;
+			float Slope = 1.2f;
 			float Power = 1.3f;
 			float Offset = -0.1f;
 			float Saturation = 1.2f;
@@ -45,7 +56,13 @@ struct HDRBloom : public Feature
 
 	} settings;
 
-	// constant buffers
+	// buffers
+	struct LightTweaksSB
+	{
+		Settings::ManualLightTweaks settings;
+	};
+	std::unique_ptr<StructuredBuffer> lightTweaksSB = nullptr;
+
 	struct alignas(16) AutoExposureCB
 	{
 		float AdaptLerp;
@@ -97,11 +114,11 @@ struct HDRBloom : public Feature
 	void CompileComputeShaders();
 	virtual void ClearShaderCache() override;
 
-	virtual inline void Reset() override {}
+	virtual void Reset() override;
 
 	virtual void DrawSettings() override;
 
-	virtual inline void Draw(const RE::BSShader*, const uint32_t) override{};
+	virtual void Draw(const RE::BSShader*, const uint32_t) override;
 
 	struct ResourceInfo
 	{

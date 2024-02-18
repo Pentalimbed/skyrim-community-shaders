@@ -3,6 +3,13 @@
 #include "Util.h"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+	HDRBloom::Settings::ManualLightTweaks,
+	DirLightPower,
+	LightPower,
+	AmbientPower,
+	EmitPower)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings::TonemapperSettings,
 	Exposure,
 	Slope,
@@ -14,6 +21,11 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings,
 	EnableBloom,
 	EnableTonemapper,
+	LightTweaks,
+	MinLogLum,
+	MaxLogLum,
+	AdaptSpeed,
+	EnableNormalisation,
 	UpsampleRadius,
 	MipBlendFactor,
 	Tonemapper)
@@ -22,6 +34,16 @@ void HDRBloom::DrawSettings()
 {
 	ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
 	ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
+
+	if (ImGui::TreeNodeEx("Light Tweaks", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("Direction Light Power", &settings.LightTweaks.DirLightPower, 0.f, 5.f, "%.2f");
+		ImGui::SliderFloat("Light Power", &settings.LightTweaks.LightPower, 0.f, 5.f, "%.2f");
+		ImGui::SliderFloat("Ambient Power", &settings.LightTweaks.AmbientPower, 0.f, 5.f, "%.2f");
+		ImGui::SliderFloat("Emission Power", &settings.LightTweaks.EmitPower, 0.f, 5.f, "%.2f");
+		ImGui::TreePop();
+	}
+
+	ImGui::Separator();
 
 	if (ImGui::TreeNodeEx("Bloom", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
@@ -34,6 +56,8 @@ void HDRBloom::DrawSettings()
 		}
 		ImGui::TreePop();
 	}
+
+	ImGui::Separator();
 
 	if (ImGui::TreeNodeEx("Tonemapper", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SliderFloat("Min Log Luma", &settings.MinLogLum, -8.f, 3.f, "%.2f EV");
@@ -50,6 +74,8 @@ void HDRBloom::DrawSettings()
 		}
 		ImGui::TreePop();
 	}
+
+	ImGui::Separator();
 
 	if (ImGui::TreeNodeEx("Debug")) {
 		ImGui::BulletText("texBloom");
@@ -76,8 +102,11 @@ void HDRBloom::SetupResources()
 	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 	ID3D11Device* device = renderer->GetRuntimeData().forwarder;
 
-	logger::debug("Creating constant buffers...");
+	logger::debug("Creating buffers...");
 	{
+		lightTweaksSB = std::make_unique<StructuredBuffer>(StructuredBufferDesc<LightTweaksSB>(), 1);
+		lightTweaksSB->CreateSRV();
+
 		autoExposureCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<AutoExposureCB>());
 		bloomCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<BloomCB>());
 		tonemapCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<TonemapCB>());
@@ -221,6 +250,27 @@ void HDRBloom::ClearShaderCache()
 	checkClear(bloomUpsampleProgram);
 	checkClear(tonemapProgram);
 	CompileComputeShaders();
+}
+
+void HDRBloom::Reset()
+{
+	// update sb
+	LightTweaksSB sbData = {
+		.settings = settings.LightTweaks
+	};
+	lightTweaksSB->Update(&sbData, sizeof(sbData));
+}
+
+void HDRBloom::Draw(const RE::BSShader* shader, const uint32_t)
+{
+	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+
+	if (shader->shaderType == RE::BSShader::Type::Lighting ||
+		shader->shaderType == RE::BSShader::Type::Grass ||
+		shader->shaderType == RE::BSShader::Type::DistantTree) {
+		auto srv = lightTweaksSB->SRV(0);
+		context->PSSetShaderResources(41, 1, &srv);
+	}
 }
 
 void HDRBloom::DrawPreProcess()

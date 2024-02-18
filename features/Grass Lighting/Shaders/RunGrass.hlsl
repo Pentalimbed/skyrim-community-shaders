@@ -360,6 +360,10 @@ float3x3 CalculateTBN(float3 N, float3 p, float2 uv)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
+#	if defined(HDR_BLOOM)
+#		include "HDRBloom/ManualLightTweaks.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -436,6 +440,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		baseColor.xyz *= BasicGrassBrightness;
 
 	float3 dirLightColor = DirLightColor.xyz;
+#		if defined(HDR_BLOOM)
+	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
+#		endif
 	if (EnableDirLightFix) {
 		dirLightColor *= SunlightScale;
 	}
@@ -507,6 +514,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 				float intensityMultiplier = 1 - intensityFactor * intensityFactor;
 				float3 lightColor = light.color.xyz;
+#			if defined(HDR_BLOOM)
+				lightColor = LightPower(lightColor, manualLightTweaks[0].LightPower);
+#			endif
 				float3 normalizedLightDirection = normalize(lightDirection);
 
 				float lightAngle = dot(worldNormal.xyz, normalizedLightDirection.xyz);
@@ -531,6 +541,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #		endif
 
 	float3 directionalAmbientColor = mul(DirectionalAmbient, float4(worldNormal.xyz, 1));
+#		if defined(HDR_BLOOM)
+	directionalAmbientColor = LightPower(directionalAmbientColor, manualLightTweaks[0].AmbientPower);
+#		endif
 #		if defined(CLOUD_SHADOWS)
 	if (perPassCloudShadow[0].EnableCloudShadows && !lightingData[0].Reflections)
 		directionalAmbientColor *= lerp(1.0, cloudShadowMult, perPassCloudShadow[0].AbsorptionAmbient);
