@@ -5,6 +5,30 @@
 #include <DirectXTex.h>
 #include <filesystem>
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+	TerrainOcclusion::Settings::AOGenSettings,
+	AoDistance,
+	SliceCount,
+	SampleCount)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+	TerrainOcclusion::Settings::EffectSettings,
+	EnableTerrainShadow,
+	EnableTerrainAO,
+	ShadowSoftening,
+	ShadowMaxDistance,
+	ShadowAnglePower,
+	ShadowSamples,
+	AOAmbientMix,
+	AODiffuseMix,
+	AOPower,
+	AOFadeOutHeight)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+	TerrainOcclusion::Settings,
+	AoGen,
+	Effect)
+
 class FrameChecker
 {
 private:
@@ -22,29 +46,34 @@ public:
 
 void TerrainOcclusion::Load(json& o_json)
 {
+	if (o_json[GetName()].is_object())
+		settings = o_json[GetName()];
+
 	Feature::Load(o_json);
+}
+
+void TerrainOcclusion::Save(json& o_json)
+{
+	o_json[GetName()] = settings;
 }
 
 void TerrainOcclusion::DrawSettings()
 {
-	ImGui::Checkbox("Enable Terrain Shadow", (bool*)&settings.effect.EnableTerrainShadow);
-	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.effect.EnableTerrainAO);
+	ImGui::Checkbox("Enable Terrain Shadow", (bool*)&settings.Effect.EnableTerrainShadow);
+	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.Effect.EnableTerrainAO);
 
 	if (ImGui::TreeNodeEx("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderAngle("Softening", &settings.effect.ShadowSoftening, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderAngle("Softening", &settings.Effect.ShadowSoftening, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Controls the solid angle of sunlight, making terrain shadows softer.");
-		// ImGui::SliderFloat("Min Distance", &settings.effect.ShadowMinDistance, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-		// if (auto _tt = Util::HoverTooltipWrapper())
-		// 	ImGui::Text("As a proportion of the fShadowDistance setting in SkyrimPrefs.ini");
-		ImGui::SliderFloat("Max Distance", &settings.effect.ShadowMaxDistance, 1, 30, "%.2f cells");
-		ImGui::SliderFloat("Angle Exaggeration", &settings.effect.ShadowAnglePower, 1, 8, "%.1f");
+		ImGui::SliderFloat("Max Distance", &settings.Effect.ShadowMaxDistance, 1, 30, "%.2f cells");
+		ImGui::SliderFloat("Angle Exaggeration", &settings.Effect.ShadowAnglePower, 1, 8, "%.1f");
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Arbitarily lowers the vanilla sunlight angle that is rather high even at sunrise/sunset, making terrain shadows longer.");
 
 		const uint sampleMin = 1u;
 		const uint sampleMax = 30u;
-		ImGui::SliderScalar("Samples", ImGuiDataType_U32, &settings.effect.ShadowSamples, &sampleMin, &sampleMax);
+		ImGui::SliderScalar("Samples", ImGuiDataType_U32, &settings.Effect.ShadowSamples, &sampleMin, &sampleMax);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Longer shadows generally require more samples, but softening helps cover the inaccuracy.");
 
@@ -52,23 +81,23 @@ void TerrainOcclusion::DrawSettings()
 	}
 
 	if (ImGui::TreeNodeEx("AO ", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Ambient Mix", &settings.effect.AOAmbientMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-		ImGui::SliderFloat("Diffuse Mix", &settings.effect.AODiffuseMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Ambient Mix", &settings.Effect.AOAmbientMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Diffuse Mix", &settings.Effect.AODiffuseMix, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text(
 				"Values greater than 0 are not exactly what AMBIENT occlusion is intended to be.\n"
 				"This is for people who really what that grey halo look.");
 
-		ImGui::SliderFloat("Power", &settings.effect.AOPower, 0.2f, 5, "%.2f");
-		ImGui::SliderFloat("Fadeout Height", &settings.effect.AOFadeOutHeight, 500, 5000, "%.0f");
+		ImGui::SliderFloat("Power", &settings.Effect.AOPower, 0.2f, 5, "%.2f");
+		ImGui::SliderFloat("Fadeout Height", &settings.Effect.AOFadeOutHeight, 500, 5000, "%.0f");
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text(
 				"On the ground AO is the most prominent. Up to a certain height it will gradually fade out.");
 
 		if (ImGui::TreeNodeEx("Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
-			ImGui::SliderFloat("Distance", &settings.aoGen.AoDistance, 1.f / 32, 16, "%.2f cells");
-			ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.aoGen.SliceCount);
-			ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.aoGen.SampleCount);
+			ImGui::SliderFloat("Distance", &settings.AoGen.AoDistance, 1.f / 32, 16, "%.2f cells");
+			ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.AoGen.SliceCount);
+			ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.AoGen.SampleCount);
 			if (ImGui::Button("Force Regenerate AO", { -1, 0 }))
 				needAoGen = true;
 
@@ -344,7 +373,7 @@ void TerrainOcclusion::GenerateAO()
 
 	{
 		AOGenBuffer data = {
-			.settings = settings.aoGen,
+			.settings = settings.AoGen,
 			.pos0 = cachedHeightmap->pos0,
 			.pos1 = cachedHeightmap->pos1
 		};
@@ -408,7 +437,7 @@ void TerrainOcclusion::Reset()
 	}
 
 	PerPass data = {
-		.effect = settings.effect,
+		.effect = settings.Effect,
 	};
 	data.effect.EnableTerrainAO = data.effect.EnableTerrainAO && isHeightmapReady;
 	data.effect.EnableTerrainShadow = data.effect.EnableTerrainShadow && isHeightmapReady;

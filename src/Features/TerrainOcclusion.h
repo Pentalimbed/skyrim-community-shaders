@@ -16,31 +16,30 @@ struct TerrainOcclusion : public Feature
 	inline std::string_view GetShaderDefineName() override { return "TERRA_OCC"; }
 	inline bool HasShaderDefine(RE::BSShader::Type) override { return true; };
 
-	struct AOGenSettings
-	{
-		float AoDistance = 8;
-		uint SliceCount = 30;
-		uint SampleCount = 30;
-	};
-	struct EffectSettings
-	{
-		uint EnableTerrainShadow = true;
-		uint EnableTerrainAO = true;
-
-		float ShadowSoftening = 0.0872665f;  // 5 deg
-		float ShadowMaxDistance = 15;
-		float ShadowAnglePower = 4.f;
-		uint ShadowSamples = 9;
-
-		float AOAmbientMix = 1.f;
-		float AODiffuseMix = 0.f;
-		float AOPower = 1.f;
-		float AOFadeOutHeight = 2000;
-	};
 	struct Settings
 	{
-		AOGenSettings aoGen;
-		EffectSettings effect;
+		struct AOGenSettings
+		{
+			float AoDistance = 8;
+			uint SliceCount = 30;
+			uint SampleCount = 30;
+		} AoGen;
+
+		struct EffectSettings
+		{
+			uint EnableTerrainShadow = true;
+			uint EnableTerrainAO = true;
+
+			float ShadowSoftening = 0.0872665f;  // 5 deg
+			float ShadowMaxDistance = 15;
+			float ShadowAnglePower = 4.f;
+			uint ShadowSamples = 9;
+
+			float AOAmbientMix = 1.f;
+			float AODiffuseMix = 0.f;
+			float AOPower = 1.f;
+			float AOFadeOutHeight = 2000;
+		} Effect;
 	} settings;
 
 	bool needAoGen = false;
@@ -56,7 +55,7 @@ struct TerrainOcclusion : public Feature
 
 	struct AOGenBuffer
 	{
-		AOGenSettings settings;
+		Settings::AOGenSettings settings;
 
 		float3 pos0;
 		float3 pos1;
@@ -65,7 +64,7 @@ struct TerrainOcclusion : public Feature
 
 	struct PerPass
 	{
-		EffectSettings effect;
+		Settings::EffectSettings effect;
 
 		float3 scale;
 		float3 invScale;
@@ -78,21 +77,21 @@ struct TerrainOcclusion : public Feature
 	std::unique_ptr<Texture2D> texHeightMap = nullptr;
 	std::unique_ptr<Texture2D> texOcclusion = nullptr;
 
-	virtual void SetupResources();
+	virtual void SetupResources() override;
 	void CompileComputeShaders();
 
-	virtual void DrawSettings();
+	virtual void DrawSettings() override;
 
-	virtual void Reset();
+	virtual void Reset() override;
 
-	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
+	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor) override;
 	void LoadHeightmap();
 	void GenerateAO();
 	void ModifyLighting();
 
-	virtual void Load(json& o_json);
-	virtual inline void Save(json&) {}
+	virtual void Load(json& o_json) override;
+	virtual void Save(json&) override;
 
-	virtual inline void RestoreDefaultSettings() { settings = {}; }
+	virtual inline void RestoreDefaultSettings() override { settings = {}; }
 	virtual void ClearShaderCache() override;
 };
