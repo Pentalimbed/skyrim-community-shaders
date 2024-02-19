@@ -440,12 +440,12 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		baseColor.xyz *= BasicGrassBrightness;
 
 	float3 dirLightColor = DirLightColor.xyz;
-#		if defined(HDR_BLOOM)
-	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
-#		endif
 	if (EnableDirLightFix) {
 		dirLightColor *= SunlightScale;
 	}
+#		if defined(HDR_BLOOM)
+	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
+#		endif
 
 #		if defined(CLOUD_SHADOWS)
 	float3 cloudShadowMult = 1.0;

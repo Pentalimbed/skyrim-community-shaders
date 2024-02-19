@@ -247,12 +247,14 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	}
 
 	float3 dirLightColor = lerp(RGBToLuminance(DirLightColor.xyz), DirLightColor.xyz, 0.5) * 0.5;
-#		if defined(HDR_BLOOM)
-	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
-#		endif
+
 	if (EnableDirLightFix) {
 		dirLightColor *= DirLightScale;
 	}
+
+#		if defined(HDR_BLOOM)
+	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
+#		endif
 
 #		if defined(CLOUD_SHADOWS)
 	float3 normalizedDirLightDirectionWS = -normalize(mul(input.World, float4(DirLightDirection.xyz, 0))).xyz;
