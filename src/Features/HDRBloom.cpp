@@ -15,78 +15,98 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings,
-	EnableAutoExposure,
 	EnableBloom,
-	EnableTonemapper,
-	AdaptAfterBloom,
-	MinLogLum,
-	MaxLogLum,
-	AdaptSpeed,
 	EnableNormalisation,
 	UpsampleRadius,
 	MipBlendFactor,
+	EnableAutoExposure,
+	AdaptAfterBloom,
+	EnableTonemapper,
+	HistogramRange,
+	AdaptArea,
+	AdaptSpeed,
 	Tonemapper)
 
 void HDRBloom::DrawSettings()
 {
-	if (ImGui::TreeNodeEx("Bloom", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
+	if (ImGui::BeginTabBar("##HDRBLOOM")) {
+		if (ImGui::BeginTabItem("Bloom")) {
+			ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
 
-		ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
-		if (auto _tt = Util::HoverTooltipWrapper())
-			ImGui::Text(
-				"Prevent bloom from beightening up the image.\n"
-				"Can turn off if Adapt After Bloom is on.");
+			ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
+			if (auto _tt = Util::HoverTooltipWrapper())
+				ImGui::Text(
+					"Prevent bloom from beightening up the image.\n"
+					"Can turn off if Adapt After Bloom is on.");
 
-		ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
-		if (ImGui::TreeNodeEx("Blend Factors", ImGuiTreeNodeFlags_DefaultOpen)) {
-			for (int i = 0; i < settings.MipBlendFactor.size(); i++)
-				ImGui::SliderFloat(fmt::format("Level {}", i).c_str(), &settings.MipBlendFactor[i], 0.f, 1.f, "%.2f");
-			ImGui::TreePop();
+			ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
+			if (ImGui::TreeNodeEx("Blend Factors", ImGuiTreeNodeFlags_DefaultOpen)) {
+				for (int i = 0; i < settings.MipBlendFactor.size(); i++)
+					ImGui::SliderFloat(fmt::format("Level {}", i).c_str(), &settings.MipBlendFactor[i], 0.f, 1.f, "%.2f");
+				ImGui::TreePop();
+			}
+
+			ImGui::EndTabItem();
 		}
-		ImGui::TreePop();
-	}
 
-	if (ImGui::TreeNodeEx("Tonemapper", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
+		if (ImGui::BeginTabItem("Tonemapper")) {
+			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
 
-		ImGui::SliderFloat("Exposure", &settings.Tonemapper.Exposure, -15.f, 15.f, "%.2f EV");
+			ImGui::SliderFloat("Exposure", &settings.Tonemapper.Exposure, -15.f, 15.f, "%.2f EV");
 
-		if (ImGui::TreeNodeEx("Auto Exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (ImGui::TreeNodeEx("AgX", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::SliderFloat("Slope", &settings.Tonemapper.Slope, 0.f, 2.f, "%.2f");
+				ImGui::SliderFloat("Power", &settings.Tonemapper.Power, 0.f, 2.f, "%.2f");
+				ImGui::SliderFloat("Offset", &settings.Tonemapper.Offset, -1.f, 1.f, "%.2f");
+				ImGui::SliderFloat("Saturation", &settings.Tonemapper.Saturation, 0.f, 2.f, "%.2f");
+				ImGui::TreePop();
+			}
+
+			ImGui::EndTabItem();
+		}
+
+		if (ImGui::BeginTabItem("Auto Exposure")) {
+			if (!settings.EnableTonemapper) {
+				ImGui::Text("Requires tonemapper.");
+				ImGui::BeginDisabled();
+			}
+
 			ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
 			ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
 
-			ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-
-			ImGui::SliderFloat("Min Log Luma", &settings.MinLogLum, -8.f, 3.f, "%.2f EV");
-			ImGui::SliderFloat("Max Log Luma", &settings.MaxLogLum, -8.f, 3.f, "%.2f EV");
 			ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
+			ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::SliderFloat2("Histogram Range", &settings.HistogramRange.x, -8.f, 3.f, "%.2f EV");
 
 			if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::TextWrapped("The Purkinje effect simulates the blue shift of human vision under low light.");
+
 				ImGui::SliderFloat("Max Strength", &settings.Tonemapper.PurkinjeStrength, 0.1f, 5.f, "%.2f");
-				ImGui::SliderFloat("Max Effect Log Luma", &settings.Tonemapper.PurkinjeMaxLogLum, -8.f, 3.f, "%.2f EV");
 				ImGui::SliderFloat("Fade In Log Luma", &settings.Tonemapper.PurkinjeStartLum, -8.f, 3.f, "%.2f EV");
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("The Purkinje effect will start to take place when the average scene luminance falls lower than this.");
+				ImGui::SliderFloat("Max Effect Log Luma", &settings.Tonemapper.PurkinjeMaxLogLum, -8.f, 3.f, "%.2f EV");
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("From this point onward, the Purkinje effect remains the greatest.");
+
+				ImGui::TreePop();
 			}
 
-			ImGui::TreePop();
+			if (!settings.EnableTonemapper)
+				ImGui::EndDisabled();
+
+			ImGui::EndTabItem();
 		}
 
-		if (ImGui::TreeNodeEx("AgX", ImGuiTreeNodeFlags_DefaultOpen)) {
-			ImGui::SliderFloat("Slope", &settings.Tonemapper.Slope, 0.f, 2.f, "%.2f");
-			ImGui::SliderFloat("Power", &settings.Tonemapper.Power, 0.f, 2.f, "%.2f");
-			ImGui::SliderFloat("Offset", &settings.Tonemapper.Offset, -1.f, 1.f, "%.2f");
-			ImGui::SliderFloat("Saturation", &settings.Tonemapper.Saturation, 0.f, 2.f, "%.2f");
-			ImGui::TreePop();
-		}
-		ImGui::TreePop();
-	}
+		if (ImGui::BeginTabItem("Debug")) {
+			ImGui::BulletText("texBloom");
+			static int mip = 0;
+			ImGui::SliderInt("Mip Level", &mip, 0, 8, "%d", ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp);
+			ImGui::Image(texBloomMipSRVs[mip].get(), { texBloom->desc.Width * .2f, texBloom->desc.Height * .2f });
 
-	if (ImGui::TreeNodeEx("Debug")) {
-		ImGui::BulletText("texBloom");
-		static int mip = 0;
-		ImGui::SliderInt("Mip Level", &mip, 0, 8, "%d", ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp);
-		ImGui::Image(texBloomMipSRVs[mip].get(), { texBloom->desc.Width * .2f, texBloom->desc.Height * .2f });
-		ImGui::TreePop();
+			ImGui::EndTabItem();
+		}
+		ImGui::EndTabBar();
 	}
 }
 
@@ -298,8 +318,8 @@ void HDRBloom::DrawAdaptation(ResourceInfo tex_input)
 	AutoExposureCB cbData = {
 		.AdaptLerp = 1.f - exp(-RE::BSTimer::GetSingleton()->realTimeDelta * settings.AdaptSpeed),
 		.AdaptArea = settings.AdaptArea,
-		.MinLogLum = settings.MinLogLum,
-		.LogLumRange = settings.MaxLogLum - settings.MinLogLum
+		.MinLogLum = settings.HistogramRange.x,
+		.LogLumRange = settings.HistogramRange.y - settings.HistogramRange.x
 	};
 	cbData.AdaptLerp = std::clamp(cbData.AdaptLerp, 0.f, 1.f);
 	cbData.RcpLogLumRange = 1.f / cbData.LogLumRange;

@@ -29,9 +29,7 @@ struct HDRBloom : public Feature
 		bool EnableAutoExposure = true;
 		bool AdaptAfterBloom = true;
 
-		float MinLogLum = -5.f;
-		float MaxLogLum = 0.f;
-
+		float2 HistogramRange = { -5.f, 0.f };
 		float2 AdaptArea = { .6f, .6f };
 
 		float AdaptSpeed = 1.5f;
