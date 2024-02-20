@@ -1016,10 +1016,6 @@ float GetSnowParameterY(float texProjTmp, float alpha)
 #		include "TerrainBlending/TerrainBlending.hlsli"
 #	endif
 
-#	if defined(HDR_BLOOM)
-#		include "HDRBloom/ManualLightTweaks.hlsli"
-#	endif
-
 #	if defined(SSS)
 #		include "SubsurfaceScattering/SubsurfaceScattering.hlsli"
 #		if defined(SKIN)
@@ -1484,9 +1480,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif  // WORLD_MAP
 
 	float3 dirLightColor = DirLightColor.xyz;
-#	if defined(HDR_BLOOM)
-	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
-#	endif
 	float selfShadowFactor = 1.0f;
 
 	float3 normalizedDirLightDirectionWS = DirLightDirection;
@@ -1872,9 +1865,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		float3 glowColor = TexGlowSampler.Sample(SampGlowSampler, uv).xyz;
 		emitColor *= glowColor;
 	}
-#	endif
-#	if defined(HDR_BLOOM)
-	emitColor = LightPower(emitColor, manualLightTweaks[0].EmitPower);
 #	endif
 
 	float3 directionalAmbientColor = mul(DirectionalAmbient, modelNormal);

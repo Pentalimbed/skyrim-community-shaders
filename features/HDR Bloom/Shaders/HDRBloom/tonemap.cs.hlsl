@@ -16,6 +16,10 @@ cbuffer TonemapCB : register(b0)
 	float AgXPower;
 	float AgXOffset;
 	float AgXSaturation;
+
+	float PurkinjeStartLum;
+	float PurkinjeMaxLogLum;
+	float PurkinjeStrength;
 };
 
 SamplerState SampColor
@@ -33,7 +37,14 @@ SamplerState SampColor
 	// auto exposure
 	if (EnableAutoExposure) {
 		float avgLuma = RWTexAdaptation.Load(0);
-		color *= Exposure / (9.6 * avgLuma);
+		color *= Exposure * 0.18 / avgLuma;
+
+		// purkinje shift
+		if (PurkinjeStrength > 1e-3) {
+			float purkinjeMix = lerp(PurkinjeStrength, 0.f, saturate((log2(avgLuma) - PurkinjeMaxLogLum) / (PurkinjeStartLum - PurkinjeMaxLogLum)));
+			if (purkinjeMix > 1e-3)
+				color = PurkinjeShift(color, purkinjeMix);
+		}
 	} else
 		color *= Exposure;
 

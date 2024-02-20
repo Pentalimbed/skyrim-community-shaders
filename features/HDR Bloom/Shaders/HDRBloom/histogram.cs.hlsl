@@ -22,6 +22,8 @@ cbuffer AutoExposureCB : register(b0)
 {
 	float AdaptLerp;
 
+	float2 AdaptArea;
+
 	float MinLogLum;
 	float LogLumRange;
 	float RcpLogLumRange;
@@ -33,7 +35,7 @@ groupshared uint histogramShared[256];
 [numthreads(256, 1, 1)] void main(uint gidx : SV_GroupIndex) {
 	uint2 dims;
 	TexColor.GetDimensions(dims.x, dims.y);
-	uint numPixels = dims.x * dims.y;
+	uint numPixels = dims.x * dims.y * AdaptArea.x * AdaptArea.y;
 
 	// init
 	uint pixelsInBin = RWTexHistogram[gidx];
@@ -53,7 +55,7 @@ groupshared uint histogramShared[256];
 	// average
 	if (gidx == 0) {
 		// pixelsInBin here is number of zero value pixels
-		float logAvgLum = (float(histogramShared[0]) / max(numPixels - pixelsInBin, 1.0)) - 1.0;
+		float logAvgLum = (float(histogramShared[0]) / max(numPixels, 1.0)) - 1.0;
 		float avgLum = exp2(((logAvgLum / 254.0) * LogLumRange) + MinLogLum);
 		float adaptedLum = lerp(max(1e-5, RWTexAdaptation.Load(0)), avgLum, AdaptLerp);
 		RWTexAdaptation[0] = adaptedLum;
@@ -70,7 +72,11 @@ groupshared uint histogramShared[256];
 	GroupMemoryBarrierWithGroupSync();
 
 	// local histo
-	if (tid.x < dims.x && tid.y < dims.y) {
+	float4 box = float4(.5 - AdaptArea * .5, .5 + AdaptArea * .5);
+	if (tid.x > dims.x * box.r &&
+		tid.x < dims.x * box.b &&
+		tid.y > dims.y * box.g &&
+		tid.y < dims.y * box.a) {
 		uint bin = 0;
 
 		float3 color = TexColor[tid].rgb;

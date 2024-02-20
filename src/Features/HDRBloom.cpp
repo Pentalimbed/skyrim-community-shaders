@@ -3,26 +3,21 @@
 #include "Util.h"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-	HDRBloom::Settings::ManualLightTweaks,
-	DirLightPower,
-	LightPower,
-	AmbientPower,
-	EmitPower)
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings::TonemapperSettings,
 	Exposure,
 	Slope,
 	Power,
 	Offset,
-	Saturation)
+	Saturation,
+	PurkinjeStartLum,
+	PurkinjeMaxLogLum,
+	PurkinjeStrength)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings,
 	EnableAutoExposure,
 	EnableBloom,
 	EnableTonemapper,
-	LightTweaks,
 	AdaptAfterBloom,
 	MinLogLum,
 	MaxLogLum,
@@ -34,25 +29,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 
 void HDRBloom::DrawSettings()
 {
-	ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
-	ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
-	ImGui::Indent();
-	ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
-	ImGui::Unindent();
-
-	if (ImGui::TreeNodeEx("Light Tweaks", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (ImGui::Button("Reset"))
-			settings.LightTweaks = { 1, 1, 1, 1 };
-		ImGui::SliderFloat("Direction Light Power", &settings.LightTweaks.DirLightPower, 0.f, 5.f, "%.2f");
-		ImGui::SliderFloat("Light Power", &settings.LightTweaks.LightPower, 0.f, 5.f, "%.2f");
-		ImGui::SliderFloat("Ambient Power", &settings.LightTweaks.AmbientPower, 0.f, 5.f, "%.2f");
-		ImGui::SliderFloat("Emission Power", &settings.LightTweaks.EmitPower, 0.f, 5.f, "%.2f");
-		ImGui::TreePop();
-	}
-
-	ImGui::Separator();
-
 	if (ImGui::TreeNodeEx("Bloom", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
+
 		ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text(
@@ -68,16 +47,30 @@ void HDRBloom::DrawSettings()
 		ImGui::TreePop();
 	}
 
-	ImGui::Separator();
-
 	if (ImGui::TreeNodeEx("Tonemapper", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
-
-		ImGui::SliderFloat("Min Log Luma", &settings.MinLogLum, -8.f, 3.f, "%.2f EV");
-		ImGui::SliderFloat("Max Log Luma", &settings.MaxLogLum, -8.f, 3.f, "%.2f EV");
-		ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
+		ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
 
 		ImGui::SliderFloat("Exposure", &settings.Tonemapper.Exposure, -15.f, 15.f, "%.2f EV");
+
+		if (ImGui::TreeNodeEx("Auto Exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
+			ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
+
+			ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+
+			ImGui::SliderFloat("Min Log Luma", &settings.MinLogLum, -8.f, 3.f, "%.2f EV");
+			ImGui::SliderFloat("Max Log Luma", &settings.MaxLogLum, -8.f, 3.f, "%.2f EV");
+			ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
+
+			if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::SliderFloat("Max Strength", &settings.Tonemapper.PurkinjeStrength, 0.1f, 5.f, "%.2f");
+				ImGui::SliderFloat("Max Effect Log Luma", &settings.Tonemapper.PurkinjeMaxLogLum, -8.f, 3.f, "%.2f EV");
+				ImGui::SliderFloat("Fade In Log Luma", &settings.Tonemapper.PurkinjeStartLum, -8.f, 3.f, "%.2f EV");
+			}
+
+			ImGui::TreePop();
+		}
+
 		if (ImGui::TreeNodeEx("AgX", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::SliderFloat("Slope", &settings.Tonemapper.Slope, 0.f, 2.f, "%.2f");
 			ImGui::SliderFloat("Power", &settings.Tonemapper.Power, 0.f, 2.f, "%.2f");
@@ -88,14 +81,11 @@ void HDRBloom::DrawSettings()
 		ImGui::TreePop();
 	}
 
-	ImGui::Separator();
-
 	if (ImGui::TreeNodeEx("Debug")) {
 		ImGui::BulletText("texBloom");
 		static int mip = 0;
 		ImGui::SliderInt("Mip Level", &mip, 0, 8, "%d", ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp);
 		ImGui::Image(texBloomMipSRVs[mip].get(), { texBloom->desc.Width * .2f, texBloom->desc.Height * .2f });
-
 		ImGui::TreePop();
 	}
 }
@@ -117,9 +107,6 @@ void HDRBloom::SetupResources()
 
 	logger::debug("Creating buffers...");
 	{
-		lightTweaksSB = std::make_unique<StructuredBuffer>(StructuredBufferDesc<LightTweaksSB>(), 1);
-		lightTweaksSB->CreateSRV();
-
 		autoExposureCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<AutoExposureCB>());
 		bloomCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<BloomCB>());
 		tonemapCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<TonemapCB>());
@@ -267,23 +254,10 @@ void HDRBloom::ClearShaderCache()
 
 void HDRBloom::Reset()
 {
-	// update sb
-	LightTweaksSB sbData = {
-		.settings = settings.LightTweaks
-	};
-	lightTweaksSB->Update(&sbData, sizeof(sbData));
 }
 
-void HDRBloom::Draw(const RE::BSShader* shader, const uint32_t)
+void HDRBloom::Draw(const RE::BSShader*, const uint32_t)
 {
-	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
-
-	if (shader->shaderType == RE::BSShader::Type::Lighting ||
-		shader->shaderType == RE::BSShader::Type::Grass ||
-		shader->shaderType == RE::BSShader::Type::DistantTree) {
-		auto srv = lightTweaksSB->SRV(0);
-		context->PSSetShaderResources(41, 1, &srv);
-	}
 }
 
 void HDRBloom::DrawPreProcess()
@@ -323,6 +297,7 @@ void HDRBloom::DrawAdaptation(ResourceInfo tex_input)
 
 	AutoExposureCB cbData = {
 		.AdaptLerp = 1.f - exp(-RE::BSTimer::GetSingleton()->realTimeDelta * settings.AdaptSpeed),
+		.AdaptArea = settings.AdaptArea,
 		.MinLogLum = settings.MinLogLum,
 		.LogLumRange = settings.MaxLogLum - settings.MinLogLum
 	};

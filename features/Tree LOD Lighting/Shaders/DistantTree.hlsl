@@ -181,10 +181,6 @@ float3x3 CalculateTBN(float3 N, float3 p, float2 uv)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
-#	if defined(HDR_BLOOM)
-#		include "HDRBloom/ManualLightTweaks.hlsli"
-#	endif
-
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -252,10 +248,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		dirLightColor *= DirLightScale;
 	}
 
-#		if defined(HDR_BLOOM)
-	dirLightColor = LightPower(dirLightColor, manualLightTweaks[0].DirLightPower);
-#		endif
-
 #		if defined(CLOUD_SHADOWS)
 	float3 normalizedDirLightDirectionWS = -normalize(mul(input.World, float4(DirLightDirection.xyz, 0))).xyz;
 
@@ -290,9 +282,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	lightsDiffuseColor += subsurfaceColor * dirLightColor * saturate(-dirLightAngle) * SubsurfaceScatteringAmount;
 
 	float3 directionalAmbientColor = mul(DirectionalAmbient, float4(worldNormal.xyz, 1));
-#		if defined(HDR_BLOOM)
-	directionalAmbientColor = LightPower(directionalAmbientColor, manualLightTweaks[0].AmbientPower);
-#		endif
 #		if defined(CLOUD_SHADOWS)
 	if (perPassCloudShadow[0].EnableCloudShadows && !lightingData[0].Reflections)
 		directionalAmbientColor *= lerp(1.0, cloudShadowMult, perPassCloudShadow[0].AbsorptionAmbient);

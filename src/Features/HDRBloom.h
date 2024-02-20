@@ -13,67 +13,60 @@ struct HDRBloom : public Feature
 
 	virtual inline std::string GetName() { return "HDR Bloom"; }
 	virtual inline std::string GetShortName() { return "HDRBloom"; }
-	virtual inline std::string_view GetShaderDefineName() override { return "HDR_BLOOM"; }
-	virtual inline bool HasShaderDefine(RE::BSShader::Type) override { return true; };
 
 	float avgLum = .1f;
 
 	struct Settings
 	{
-		bool EnableAutoExposure = true;
-		bool EnableBloom = true;
-		bool EnableTonemapper = true;
-
-		// light power
-		struct ManualLightTweaks
-		{
-			float DirLightPower = 2.f;
-			float LightPower = 1.5f;
-			float AmbientPower = 1.25f;
-			float EmitPower = 2.f;
-		} LightTweaks;
-
-		// auto exposure
-		bool AdaptAfterBloom = false;
-		float MinLogLum = -5.f;
-		float MaxLogLum = 1.f;
-		float AdaptSpeed = 1.5f;
-
 		// bloom
-		bool EnableNormalisation = true;
+		bool EnableBloom = true;
+		bool EnableNormalisation = false;
 
-		float UpsampleRadius = 1.f;
+		float UpsampleRadius = 2.f;
 		std::array<float, 8> MipBlendFactor = { .1f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
 
+		// auto exposure
+		bool EnableAutoExposure = true;
+		bool AdaptAfterBloom = true;
+
+		float MinLogLum = -5.f;
+		float MaxLogLum = 0.f;
+
+		float2 AdaptArea = { .6f, .6f };
+
+		float AdaptSpeed = 1.5f;
+
 		// tonemap
+		bool EnableTonemapper = true;
 		struct TonemapperSettings
 		{
-			float Exposure = 0.38f;
+			float Exposure = 1.3f;
 
-			float Slope = 1.2f;
-			float Power = 1.3f;
-			float Offset = -0.1f;
+			float Slope = 1.4f;
+			float Power = 1.5f;
+			float Offset = -0.3f;
 			float Saturation = 1.2f;
+
+			float PurkinjeStartLum = -4.f;
+			float PurkinjeMaxLogLum = -5.f;
+			float PurkinjeStrength = 1.f;
+
 		} Tonemapper;
 
 	} settings;
 
 	// buffers
-	struct LightTweaksSB
-	{
-		Settings::ManualLightTweaks settings;
-	};
-	std::unique_ptr<StructuredBuffer> lightTweaksSB = nullptr;
-
 	struct alignas(16) AutoExposureCB
 	{
 		float AdaptLerp;
+
+		float2 AdaptArea;
 
 		float MinLogLum;
 		float LogLumRange;
 		float RcpLogLumRange;
 
-		float pad[4 - (4) % 4];
+		float pad[4 - (6) % 4];
 	};
 	std::unique_ptr<ConstantBuffer> autoExposureCB = nullptr;
 
