@@ -9,17 +9,21 @@ Texture1D<float> RWTexAdaptation : register(t1);
 
 cbuffer TonemapCB : register(b0)
 {
-	uint EnableAutoExposure;
-	float Exposure;
+	float2 AdaptationRange;
+
+	float KeyValue;
+	float ExposureCompensation;
 
 	float AgXSlope;
 	float AgXPower;
 	float AgXOffset;
 	float AgXSaturation;
 
-	float PurkinjeStartLum;
-	float PurkinjeMaxLogLum;
+	float PurkinjeStartEV;
+	float PurkinjeMaxEV;
 	float PurkinjeStrength;
+
+	uint EnableAutoExposure;
 };
 
 SamplerState SampColor
@@ -30,23 +34,24 @@ SamplerState SampColor
 	AddressW = Mirror;
 };
 
-[numthreads(32, 32, 1)] void main(uint2 tid
-								  : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void main(uint2 tid : SV_DispatchThreadID) {
+	const static float logEV = -3;  // log2(0.125)
+
 	float3 color = TexColor[tid].rgb;
 
 	// auto exposure
 	if (EnableAutoExposure) {
 		float avgLuma = RWTexAdaptation.Load(0);
-		color *= Exposure * 0.18 / avgLuma;
+		color *= KeyValue / (clamp(avgLuma, AdaptationRange.x, AdaptationRange.y) + ExposureCompensation);
 
 		// purkinje shift
 		if (PurkinjeStrength > 1e-3) {
-			float purkinjeMix = lerp(PurkinjeStrength, 0.f, saturate((log2(avgLuma) - PurkinjeMaxLogLum) / (PurkinjeStartLum - PurkinjeMaxLogLum)));
+			float purkinjeMix = lerp(PurkinjeStrength, 0.f, saturate((log2(avgLuma) - logEV - PurkinjeMaxEV) / (PurkinjeStartEV - PurkinjeMaxEV)));
 			if (purkinjeMix > 1e-3)
 				color = PurkinjeShift(color, purkinjeMix);
 		}
 	} else
-		color *= Exposure;
+		color *= KeyValue / (0.18 + ExposureCompensation);
 
 	color = Agx(color);
 	color = ASC_CDL(color, AgXSlope, AgXPower, AgXOffset);

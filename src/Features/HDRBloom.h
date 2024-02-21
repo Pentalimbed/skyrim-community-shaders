@@ -29,7 +29,7 @@ struct HDRBloom : public Feature
 		bool EnableAutoExposure = true;
 		bool AdaptAfterBloom = true;
 
-		float2 HistogramRange = { -5.f, 0.f };
+		float2 HistogramRange = { -5.f, 3.f };
 		float2 AdaptArea = { .6f, .6f };
 
 		float AdaptSpeed = 1.5f;
@@ -38,15 +38,18 @@ struct HDRBloom : public Feature
 		bool EnableTonemapper = true;
 		struct TonemapperSettings
 		{
-			float Exposure = 1.3f;
+			float2 AdaptationRange = { -3.f, 1.f };
+
+			float KeyValue = 0.8f;
+			float ExposureCompensation = 0.f;
 
 			float Slope = 1.4f;
 			float Power = 1.5f;
 			float Offset = -0.3f;
 			float Saturation = 1.2f;
 
-			float PurkinjeStartLum = -4.f;
-			float PurkinjeMaxLogLum = -5.f;
+			float PurkinjeStartEV = -1.f;
+			float PurkinjeMaxEV = -3.f;
 			float PurkinjeStrength = 1.f;
 
 		} Tonemapper;
@@ -82,9 +85,9 @@ struct HDRBloom : public Feature
 
 	struct alignas(16) TonemapCB
 	{
-		uint EnableAutoExposure;
-
 		Settings::TonemapperSettings settings;
+
+		uint EnableAutoExposure;
 
 		float pad[4 - (sizeof(settings) / 4 + 1) % 4];
 	};

@@ -4,13 +4,14 @@
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings::TonemapperSettings,
-	Exposure,
+	KeyValue,
+	ExposureCompensation,
 	Slope,
 	Power,
 	Offset,
 	Saturation,
-	PurkinjeStartLum,
-	PurkinjeMaxLogLum,
+	PurkinjeStartEV,
+	PurkinjeMaxEV,
 	PurkinjeStrength)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
@@ -52,7 +53,34 @@ void HDRBloom::DrawSettings()
 		if (ImGui::BeginTabItem("Tonemapper")) {
 			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
 
-			ImGui::SliderFloat("Exposure", &settings.Tonemapper.Exposure, -15.f, 15.f, "%.2f EV");
+			ImGui::SliderFloat("Key Value", &settings.Tonemapper.KeyValue, 0.f, 2.f, "%.2f");
+			ImGui::SliderFloat("Exposure Compensation", &settings.Tonemapper.ExposureCompensation, -6.f, 21.f, "%.2f EV");
+
+			if (ImGui::TreeNodeEx("Auto Exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
+				ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
+				ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
+
+				ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
+				ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::SliderFloat2("Adaptation Range", &settings.Tonemapper.AdaptationRange.x, -6.f, 21.f, "%.2f EV");
+				ImGui::SliderFloat2("Histogram Range", &settings.HistogramRange.x, -6.f, 21.f, "%.2f EV");
+
+				if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
+					ImGui::TextWrapped("The Purkinje effect simulates the blue shift of human vision under low light.");
+
+					ImGui::SliderFloat("Max Strength", &settings.Tonemapper.PurkinjeStrength, 0.1f, 5.f, "%.2f");
+					ImGui::SliderFloat("Fade In EV", &settings.Tonemapper.PurkinjeStartEV, -6.f, 21.f, "%.2f EV");
+					if (auto _tt = Util::HoverTooltipWrapper())
+						ImGui::Text("The Purkinje effect will start to take place when the average scene luminance falls lower than this.");
+					ImGui::SliderFloat("Max Effect EV", &settings.Tonemapper.PurkinjeMaxEV, -6.f, 21.f, "%.2f EV");
+					if (auto _tt = Util::HoverTooltipWrapper())
+						ImGui::Text("From this point onward, the Purkinje effect remains the greatest.");
+
+					ImGui::TreePop();
+				}
+
+				ImGui::TreePop();
+			}
 
 			if (ImGui::TreeNodeEx("AgX", ImGuiTreeNodeFlags_DefaultOpen)) {
 				ImGui::SliderFloat("Slope", &settings.Tonemapper.Slope, 0.f, 2.f, "%.2f");
@@ -61,39 +89,6 @@ void HDRBloom::DrawSettings()
 				ImGui::SliderFloat("Saturation", &settings.Tonemapper.Saturation, 0.f, 2.f, "%.2f");
 				ImGui::TreePop();
 			}
-
-			ImGui::EndTabItem();
-		}
-
-		if (ImGui::BeginTabItem("Auto Exposure")) {
-			if (!settings.EnableTonemapper) {
-				ImGui::Text("Requires tonemapper.");
-				ImGui::BeginDisabled();
-			}
-
-			ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
-			ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
-
-			ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
-			ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-			ImGui::SliderFloat2("Histogram Range", &settings.HistogramRange.x, -8.f, 3.f, "%.2f EV");
-
-			if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
-				ImGui::TextWrapped("The Purkinje effect simulates the blue shift of human vision under low light.");
-
-				ImGui::SliderFloat("Max Strength", &settings.Tonemapper.PurkinjeStrength, 0.1f, 5.f, "%.2f");
-				ImGui::SliderFloat("Fade In Log Luma", &settings.Tonemapper.PurkinjeStartLum, -8.f, 3.f, "%.2f EV");
-				if (auto _tt = Util::HoverTooltipWrapper())
-					ImGui::Text("The Purkinje effect will start to take place when the average scene luminance falls lower than this.");
-				ImGui::SliderFloat("Max Effect Log Luma", &settings.Tonemapper.PurkinjeMaxLogLum, -8.f, 3.f, "%.2f EV");
-				if (auto _tt = Util::HoverTooltipWrapper())
-					ImGui::Text("From this point onward, the Purkinje effect remains the greatest.");
-
-				ImGui::TreePop();
-			}
-
-			if (!settings.EnableTonemapper)
-				ImGui::EndDisabled();
 
 			ImGui::EndTabItem();
 		}
@@ -318,7 +313,7 @@ void HDRBloom::DrawAdaptation(ResourceInfo tex_input)
 	AutoExposureCB cbData = {
 		.AdaptLerp = 1.f - exp(-RE::BSTimer::GetSingleton()->realTimeDelta * settings.AdaptSpeed),
 		.AdaptArea = settings.AdaptArea,
-		.MinLogLum = settings.HistogramRange.x,
+		.MinLogLum = settings.HistogramRange.x - 3,  // log2(0.125)
 		.LogLumRange = settings.HistogramRange.y - settings.HistogramRange.x
 	};
 	cbData.AdaptLerp = std::clamp(cbData.AdaptLerp, 0.f, 1.f);
@@ -449,7 +444,9 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 	// update cb
 	TonemapCB cbData = { .settings = settings.Tonemapper };
 	cbData.EnableAutoExposure = settings.EnableAutoExposure;
-	cbData.settings.Exposure = exp2(cbData.settings.Exposure);
+	cbData.settings.ExposureCompensation = exp2(cbData.settings.ExposureCompensation) * 0.125f;
+	cbData.settings.AdaptationRange.x = exp2(cbData.settings.AdaptationRange.x) * 0.125f;
+	cbData.settings.AdaptationRange.y = exp2(cbData.settings.AdaptationRange.y) * 0.125f;
 	tonemapCB->Update(cbData);
 
 	std::array<ID3D11ShaderResourceView*, 2> srvs = { tex_input.srv, texAdaptation->srv.get() };
