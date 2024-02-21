@@ -42,8 +42,13 @@ void HDRBloom::DrawSettings()
 
 			ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
 			if (ImGui::TreeNodeEx("Blend Factors", ImGuiTreeNodeFlags_DefaultOpen)) {
-				for (int i = 0; i < settings.MipBlendFactor.size(); i++)
+				ImGui::SliderFloat("Global", &settings.BlendFactor, 0.f, 1.f, "%.2f");
+				ImGui::SeparatorText("Per Level");
+				for (int i = 0; i < settings.MipBlendFactor.size(); i++) {
 					ImGui::SliderFloat(fmt::format("Level {}", i).c_str(), &settings.MipBlendFactor[i], 0.f, 1.f, "%.2f");
+					if (auto _tt = Util::HoverTooltipWrapper())
+						ImGui::Text("The greater the level, the blurrier it gets.");
+				}
 				ImGui::TreePop();
 			}
 
@@ -62,7 +67,11 @@ void HDRBloom::DrawSettings()
 
 				ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
 				ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("Specifies as proportions the width and height of the area that auto exposure will adapt to.");
 				ImGui::SliderFloat2("Adaptation Range", &settings.Tonemapper.AdaptationRange.x, -6.f, 21.f, "%.2f EV");
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("The average scene luminance will be clamped between them when doing auto exposure.");
 				ImGui::SliderFloat2("Histogram Range", &settings.HistogramRange.x, -6.f, 21.f, "%.2f EV");
 
 				if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -351,33 +360,38 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 
 	// update cb
 	BloomCB cbData = {
+		.IsZeroMip = true,
 		.IsFirstMip = true,
 		.UpsampleMult = 1.f,
+		.CurrentMipMult = 1.f,
 		.UpsampleRadius = settings.UpsampleRadius,
 	};
 	bloomCB->Update(cbData);
 
 	// copy to lowest mip
 	// TO BE CHANGED
-	context->CopySubresourceRegion(texBloom->resource.get(), 0, 0, 0, 0, input.tex, 0, nullptr);
 
-	ID3D11ShaderResourceView* srv = nullptr;
+	ID3D11ShaderResourceView* srv = input.srv;
 	ID3D11UnorderedAccessView* uav = nullptr;
 	ID3D11Buffer* cb = bloomCB->CB();
 	context->CSSetConstantBuffers(0, 1, &cb);
 
 	// downsample
 	context->CSSetShader(bloomDownsampleProgram.get(), nullptr, 0);
-	for (int i = 1; i < 9; i++) {
-		if (settings.MipBlendFactor[i - 1] < 1e-3f)
-			break;
+	for (int i = 0; i < 9; i++) {
+		if (i != 0) {
+			if (i == 1) {
+				cbData.IsZeroMip = false;
+				cbData.IsFirstMip = true;
+				bloomCB->Update(cbData);
+			} else if (i == 2) {
+				cbData.IsFirstMip = false;
+				bloomCB->Update(cbData);
+			}
 
-		if (i == 2) {
-			cbData.IsFirstMip = false;
-			bloomCB->Update(cbData);
+			srv = texBloomMipSRVs[i - 1].get();
 		}
 
-		srv = texBloomMipSRVs[i - 1].get();
 		uav = texBloomMipUAVs[i].get();
 		context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
 		context->CSSetShaderResources(0, 1, &srv);
@@ -396,23 +410,26 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 	// upsample
 	context->CSSetShader(bloomUpsampleProgram.get(), nullptr, 0);
 	for (int i = 7; i >= 0; i--) {
-		if (settings.MipBlendFactor[i] < 1e-3f)
-			continue;
-
 		if (i == 0) {
 			cbData.IsFirstMip = true;
 
 			if (settings.EnableNormalisation) {
 				float normalisationFactor = 0.f;
 				for (int j = 7; j >= 0; j--)
-					normalisationFactor = 1 + normalisationFactor * settings.MipBlendFactor[j];
-				normalisationFactor = 1.f / normalisationFactor;
+					normalisationFactor += settings.MipBlendFactor[j];
+				normalisationFactor = 1.f / (1 + normalisationFactor * settings.BlendFactor);
 				cbData.NormalisationFactor = normalisationFactor;
 			} else
 				cbData.NormalisationFactor = 1.f;
 		}
 
-		cbData.UpsampleMult = settings.MipBlendFactor[i];
+		cbData.UpsampleMult = 1.f;
+		if (i == 7)
+			cbData.UpsampleMult = settings.MipBlendFactor[i];
+		else if (i == 0)
+			cbData.UpsampleMult = settings.BlendFactor;
+		cbData.CurrentMipMult = (i == 0) ? 1.f : settings.MipBlendFactor[i - 1];
+
 		bloomCB->Update(cbData);
 
 		srv = texBloomMipSRVs[i + 1].get();

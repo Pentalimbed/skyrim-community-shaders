@@ -23,13 +23,14 @@ struct HDRBloom : public Feature
 		bool EnableNormalisation = false;
 
 		float UpsampleRadius = 2.f;
-		std::array<float, 8> MipBlendFactor = { .1f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
+		float BlendFactor = .1f;
+		std::array<float, 8> MipBlendFactor = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
 
 		// auto exposure
 		bool EnableAutoExposure = true;
 		bool AdaptAfterBloom = true;
 
-		float2 HistogramRange = { -5.f, 3.f };
+		float2 HistogramRange = { -5.f, 2.f };
 		float2 AdaptArea = { .6f, .6f };
 
 		float AdaptSpeed = 1.5f;
@@ -49,7 +50,7 @@ struct HDRBloom : public Feature
 			float Saturation = 1.2f;
 
 			float PurkinjeStartEV = -1.f;
-			float PurkinjeMaxEV = -3.f;
+			float PurkinjeMaxEV = -4.f;
 			float PurkinjeStrength = 1.f;
 
 		} Tonemapper;
@@ -73,13 +74,15 @@ struct HDRBloom : public Feature
 
 	struct alignas(16) BloomCB
 	{
+		uint IsZeroMip;
 		uint IsFirstMip;
 		float UpsampleMult;
+		float CurrentMipMult;
 		float NormalisationFactor;
 
 		float UpsampleRadius;
 
-		float pad[4 - (4) % 4];
+		float pad[4 - (6) % 4];
 	};
 	std::unique_ptr<ConstantBuffer> bloomCB = nullptr;
 

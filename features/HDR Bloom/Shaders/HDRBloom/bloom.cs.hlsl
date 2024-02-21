@@ -6,7 +6,7 @@
 
 RWTexture2D<float4> RWTexOut : register(u0);
 
-Texture2D<float4> TexColor : register(t0);  // mip level is passed directly by SRV
+Texture2D<float4> TexColor : register(t0);
 
 SamplerState SampColor
 {
@@ -18,11 +18,13 @@ SamplerState SampColor
 
 cbuffer BloomCB : register(b0)
 {
-	uint IsFirstMip;
-	float UpsampleMult;
-	float NormalisationFactor;
+	uint IsZeroMip : packoffset(c0.x);
+	uint IsFirstMip : packoffset(c0.y);
+	float UpsampleMult : packoffset(c0.z);
+	float CurrentMipMult : packoffset(c0.w);
+	float NormalisationFactor : packoffset(c1.x);
 
-	float UpsampleRadius;
+	float UpsampleRadius : packoffset(c1.y);
 };
 
 float4 KarisAverage(float4 a, float4 b, float4 c, float4 d)
@@ -47,37 +49,27 @@ float4 Downsample(float2 uv, float2 out_px_size)
 
 		for (x = 0; x < 2; ++x)
 			for (y = 0; y < 2; ++y)
-				fetches2x2[x * 2 + y] = TexColor.SampleLevel(
-					SampColor, uv + (int2(x, y) * 2 - 1) * out_px_size, 0);
+				fetches2x2[x * 2 + y] = TexColor.SampleLevel(SampColor, uv + (int2(x, y) * 2 - 1) * out_px_size, 0);
 		for (x = 0; x < 3; ++x)
 			for (y = 0; y < 3; ++y)
-				fetches3x3[x * 3 + y] = TexColor.SampleLevel(
-					SampColor, uv + (int2(x, y) - 1) * 2 * out_px_size, 0);
+				fetches3x3[x * 3 + y] = TexColor.SampleLevel(SampColor, uv + (int2(x, y) - 1) * 2 * out_px_size, 0);
 
-		retval += 0.5 * KarisAverage(fetches2x2[0], fetches2x2[1],
-							fetches2x2[2], fetches2x2[3]);
+		retval += 0.5 * KarisAverage(fetches2x2[0], fetches2x2[1], fetches2x2[2], fetches2x2[3]);
 
 		for (x = 0; x < 2; ++x)
 			for (y = 0; y < 2; ++y)
-				retval += 0.125 * KarisAverage(fetches3x3[x * 3 + y],
-									  fetches3x3[(x + 1) * 3 + y],
-									  fetches3x3[x * 3 + y + 1],
-									  fetches3x3[(x + 1) * 3 + y + 1]);
+				retval += 0.125 * KarisAverage(fetches3x3[x * 3 + y], fetches3x3[(x + 1) * 3 + y], fetches3x3[x * 3 + y + 1], fetches3x3[(x + 1) * 3 + y + 1]);
 	} else {
 		for (x = 0; x < 2; ++x)
 			for (y = 0; y < 2; ++y)
-				retval += 0.125 * TexColor.SampleLevel(
-									  SampColor,
-									  uv + (int2(x, y) - .5) * out_px_size, 0);
+				retval += 0.125 * TexColor.SampleLevel(SampColor, uv + (int2(x, y) - .5) * out_px_size, 0);
 
 		// const static float weights[9] = { 0.03125, 0.625, 0.03125, 0.625,
 		// 0.125, 0.625, 0.03125, 0.625, 0.03125 }; corresponds to (1 << (!x +
 		// !y)) * 0.03125 when $x,y \in [-1, 1] \cap \mathbb N$
 		for (x = -1; x <= 1; ++x)
 			for (y = -1; y <= 1; ++y)
-				retval += (1 << (!x + !y)) * 0.03125 *
-				          TexColor.SampleLevel(
-							  SampColor, uv + int2(x, y) * out_px_size, 0);
+				retval += (1u << (!x + !y)) * 0.03125 * TexColor.SampleLevel(SampColor, uv + int2(x, y) * out_px_size, 0);
 	}
 
 	return retval;
@@ -94,6 +86,11 @@ float4 Upsample(float2 uv, float2 radius)
 	return retval;
 }
 
+bool3 IsNaN(float3 x)
+{
+	return !(x < 0.f || x > 0.f || x == 0.f);
+}
+
 [numthreads(32, 32, 1)] void main(uint2 tid
 								  : SV_DispatchThreadID) {
 	uint2 dims;
@@ -103,10 +100,20 @@ float4 Upsample(float2 uv, float2 radius)
 	float2 uv = (tid + .5) * px_size;
 
 #if defined(DOWNSAMPLE)
-	RWTexOut[tid] = Downsample(uv, px_size);
+	float3 color;
+	if (IsZeroMip)
+		color = TexColor[tid].rgb;
+	else
+		color = Downsample(uv, px_size).rgb;
+
+	bool3 err = IsNaN(color) || (color < 0);
+	color.x = err.x ? 0 : color.x;
+	color.y = err.y ? 0 : color.y;
+	color.z = err.z ? 0 : color.z;
+
+	RWTexOut[tid] = float4(color, 1);
 #else  // upsample
-	float3 color =
-		RWTexOut[tid] + Upsample(uv, px_size * UpsampleRadius) * UpsampleMult;
+	float3 color = (RWTexOut[tid] * CurrentMipMult + Upsample(uv, px_size * UpsampleRadius) * UpsampleMult).rgb;
 	if (IsFirstMip)
 		color *= NormalisationFactor;
 	RWTexOut[tid] = float4(color, 1);
