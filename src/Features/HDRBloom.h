@@ -30,7 +30,7 @@ struct HDRBloom : public Feature
 		bool EnableAutoExposure = true;
 		bool AdaptAfterBloom = true;
 
-		float2 HistogramRange = { -5.f, 2.f };
+		float2 HistogramRange = { -5.f, 16.f };
 		float2 AdaptArea = { .6f, .6f };
 
 		float AdaptSpeed = 1.5f;
@@ -39,7 +39,7 @@ struct HDRBloom : public Feature
 		bool EnableTonemapper = true;
 		struct TonemapperSettings
 		{
-			float2 AdaptationRange = { -3.f, 1.f };
+			float2 AdaptationRange = { -1.f, 1.f };
 
 			float KeyValue = 0.8f;
 			float ExposureCompensation = 0.f;
