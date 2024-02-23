@@ -15,6 +15,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	TerrainOcclusion::Settings::EffectSettings,
 	EnableTerrainShadow,
 	EnableTerrainAO,
+	ShadowBias,
 	ShadowSoftening,
 	ShadowMaxDistance,
 	ShadowAnglePower,
@@ -63,6 +64,7 @@ void TerrainOcclusion::DrawSettings()
 	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.Effect.EnableTerrainAO);
 
 	if (ImGui::TreeNodeEx("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SliderFloat("Bias", &settings.Effect.ShadowBias, -500.f, 500.f, "%.1f units");
 		ImGui::SliderAngle("Softening", &settings.Effect.ShadowSoftening, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Controls the solid angle of sunlight, making terrain shadows softer.");
