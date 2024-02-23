@@ -256,9 +256,8 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		dirLightColor *= DirLightScale;
 	}
 
-#		if defined(CLOUD_SHADOWS)
 	float3 normalizedDirLightDirectionWS = -normalize(mul(input.World, float4(DirLightDirection.xyz, 0))).xyz;
-
+#		if defined(CLOUD_SHADOWS)
 	float3 cloudShadowMult = 1.0;
 	if (perPassCloudShadow[0].EnableCloudShadows && !lightingData[0].Reflections) {
 		cloudShadowMult = getCloudShadowMult(input.WorldPosition.xyz, normalizedDirLightDirectionWS.xyz, SampDiffuse);
