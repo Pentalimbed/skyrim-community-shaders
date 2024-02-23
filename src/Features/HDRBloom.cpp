@@ -3,7 +3,19 @@
 #include "Util.h"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-	HDRBloom::Settings::TonemapperSettings,
+	HDRBloom::Settings,
+	EnableBloom,
+	EnableNormalisation,
+	UpsampleRadius,
+	BlendFactor,
+	MipBlendFactor,
+	EnableAutoExposure,
+	AdaptAfterBloom,
+	EnableTonemapper,
+	HistogramRange,
+	AdaptArea,
+	AdaptSpeed,
+	AdaptationRange,
 	KeyValue,
 	ExposureCompensation,
 	Slope,
@@ -13,20 +25,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	PurkinjeStartEV,
 	PurkinjeMaxEV,
 	PurkinjeStrength)
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-	HDRBloom::Settings,
-	EnableBloom,
-	EnableNormalisation,
-	UpsampleRadius,
-	MipBlendFactor,
-	EnableAutoExposure,
-	AdaptAfterBloom,
-	EnableTonemapper,
-	HistogramRange,
-	AdaptArea,
-	AdaptSpeed,
-	Tonemapper)
 
 void HDRBloom::DrawSettings()
 {
@@ -41,15 +39,16 @@ void HDRBloom::DrawSettings()
 					"Can turn off if Adapt After Bloom is on.");
 
 			ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
-			if (ImGui::TreeNodeEx("Blend Factors", ImGuiTreeNodeFlags_DefaultOpen)) {
+
+			ImGui::SeparatorText("Blend Factors");
+			{
 				ImGui::SliderFloat("Global", &settings.BlendFactor, 0.f, 1.f, "%.2f");
-				ImGui::SeparatorText("Per Level");
+				ImGui::Separator();
 				for (int i = 0; i < settings.MipBlendFactor.size(); i++) {
 					ImGui::SliderFloat(fmt::format("Level {}", i).c_str(), &settings.MipBlendFactor[i], 0.f, 1.f, "%.2f");
 					if (auto _tt = Util::HoverTooltipWrapper())
 						ImGui::Text("The greater the level, the blurrier it gets.");
 				}
-				ImGui::TreePop();
 			}
 
 			ImGui::EndTabItem();
@@ -58,10 +57,11 @@ void HDRBloom::DrawSettings()
 		if (ImGui::BeginTabItem("Tonemapper")) {
 			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
 
-			ImGui::SliderFloat("Key Value", &settings.Tonemapper.KeyValue, 0.f, 2.f, "%.2f");
-			ImGui::SliderFloat("Exposure Compensation", &settings.Tonemapper.ExposureCompensation, -6.f, 21.f, "%.2f EV");
+			ImGui::SliderFloat("Key Value", &settings.KeyValue, 0.f, 2.f, "%.2f");
+			ImGui::SliderFloat("Exposure Compensation", &settings.ExposureCompensation, -6.f, 21.f, "%.2f EV");
 
-			if (ImGui::TreeNodeEx("Auto Exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::SeparatorText("Auto Exposure");
+			{
 				ImGui::Checkbox("Enable Auto Exposure", &settings.EnableAutoExposure);
 				ImGui::Checkbox("Adapt After Bloom", &settings.AdaptAfterBloom);
 
@@ -69,7 +69,7 @@ void HDRBloom::DrawSettings()
 				ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 				if (auto _tt = Util::HoverTooltipWrapper())
 					ImGui::Text("Specifies as proportions the width and height of the area that auto exposure will adapt to.");
-				ImGui::SliderFloat2("Adaptation Range", &settings.Tonemapper.AdaptationRange.x, -6.f, 21.f, "%.2f EV");
+				ImGui::SliderFloat2("Adaptation Range", &settings.AdaptationRange.x, -6.f, 21.f, "%.2f EV");
 				if (auto _tt = Util::HoverTooltipWrapper())
 					ImGui::Text("The average scene luminance will be clamped between them when doing auto exposure.");
 				ImGui::SliderFloat2("Histogram Range", &settings.HistogramRange.x, -6.f, 21.f, "%.2f EV");
@@ -77,26 +77,24 @@ void HDRBloom::DrawSettings()
 				if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
 					ImGui::TextWrapped("The Purkinje effect simulates the blue shift of human vision under low light.");
 
-					ImGui::SliderFloat("Max Strength", &settings.Tonemapper.PurkinjeStrength, 0.1f, 5.f, "%.2f");
-					ImGui::SliderFloat("Fade In EV", &settings.Tonemapper.PurkinjeStartEV, -6.f, 21.f, "%.2f EV");
+					ImGui::SliderFloat("Max Strength", &settings.PurkinjeStrength, 0.1f, 5.f, "%.2f");
+					ImGui::SliderFloat("Fade In EV", &settings.PurkinjeStartEV, -6.f, 21.f, "%.2f EV");
 					if (auto _tt = Util::HoverTooltipWrapper())
 						ImGui::Text("The Purkinje effect will start to take place when the average scene luminance falls lower than this.");
-					ImGui::SliderFloat("Max Effect EV", &settings.Tonemapper.PurkinjeMaxEV, -6.f, 21.f, "%.2f EV");
+					ImGui::SliderFloat("Max Effect EV", &settings.PurkinjeMaxEV, -6.f, 21.f, "%.2f EV");
 					if (auto _tt = Util::HoverTooltipWrapper())
 						ImGui::Text("From this point onward, the Purkinje effect remains the greatest.");
 
 					ImGui::TreePop();
 				}
-
-				ImGui::TreePop();
 			}
 
-			if (ImGui::TreeNodeEx("AgX", ImGuiTreeNodeFlags_DefaultOpen)) {
-				ImGui::SliderFloat("Slope", &settings.Tonemapper.Slope, 0.f, 2.f, "%.2f");
-				ImGui::SliderFloat("Power", &settings.Tonemapper.Power, 0.f, 2.f, "%.2f");
-				ImGui::SliderFloat("Offset", &settings.Tonemapper.Offset, -1.f, 1.f, "%.2f");
-				ImGui::SliderFloat("Saturation", &settings.Tonemapper.Saturation, 0.f, 2.f, "%.2f");
-				ImGui::TreePop();
+			ImGui::SeparatorText("AgX");
+			{
+				ImGui::SliderFloat("Slope", &settings.Slope, 0.f, 2.f, "%.2f");
+				ImGui::SliderFloat("Power", &settings.Power, 0.f, 2.f, "%.2f");
+				ImGui::SliderFloat("Offset", &settings.Offset, -1.f, 1.f, "%.2f");
+				ImGui::SliderFloat("Saturation", &settings.Saturation, 0.f, 2.f, "%.2f");
 			}
 
 			ImGui::EndTabItem();
@@ -459,11 +457,19 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
 	// update cb
-	TonemapCB cbData = { .settings = settings.Tonemapper };
-	cbData.EnableAutoExposure = settings.EnableAutoExposure;
-	cbData.settings.ExposureCompensation = exp2(cbData.settings.ExposureCompensation) * 0.125f;
-	cbData.settings.AdaptationRange.x = exp2(cbData.settings.AdaptationRange.x) * 0.125f;
-	cbData.settings.AdaptationRange.y = exp2(cbData.settings.AdaptationRange.y) * 0.125f;
+	TonemapCB cbData = {
+		.AdaptationRange = { exp2(settings.AdaptationRange.x) * 0.125f, exp2(settings.AdaptationRange.y) * 0.125f },
+		.KeyValue = settings.KeyValue,
+		.ExposureCompensation = exp2(settings.ExposureCompensation) * 0.125f,
+		.Slope = settings.Slope,
+		.Power = settings.Power,
+		.Offset = settings.Offset,
+		.Saturation = settings.Saturation,
+		.PurkinjeStartEV = settings.PurkinjeStartEV,
+		.PurkinjeMaxEV = settings.PurkinjeMaxEV,
+		.PurkinjeStrength = settings.PurkinjeStrength,
+		.EnableAutoExposure = settings.EnableAutoExposure
+	};
 	tonemapCB->Update(cbData);
 
 	std::array<ID3D11ShaderResourceView*, 2> srvs = { tex_input.srv, texAdaptation->srv.get() };

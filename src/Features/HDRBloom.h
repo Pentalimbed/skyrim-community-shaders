@@ -26,35 +26,30 @@ struct HDRBloom : public Feature
 		float BlendFactor = .1f;
 		std::array<float, 8> MipBlendFactor = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
 
+		// tonemap
+		bool EnableTonemapper = true;
+
+		float KeyValue = 0.8f;
+		float ExposureCompensation = 0.f;
+
 		// auto exposure
 		bool EnableAutoExposure = true;
 		bool AdaptAfterBloom = true;
 
 		float2 HistogramRange = { -5.f, 16.f };
+		float2 AdaptationRange = { -1.f, 1.f };
 		float2 AdaptArea = { .6f, .6f };
 
 		float AdaptSpeed = 1.5f;
 
-		// tonemap
-		bool EnableTonemapper = true;
-		struct TonemapperSettings
-		{
-			float2 AdaptationRange = { -1.f, 1.f };
+		float Slope = 1.3f;
+		float Power = 1.5f;
+		float Offset = -0.25f;
+		float Saturation = 1.2f;
 
-			float KeyValue = 0.8f;
-			float ExposureCompensation = 0.f;
-
-			float Slope = 1.4f;
-			float Power = 1.5f;
-			float Offset = -0.3f;
-			float Saturation = 1.2f;
-
-			float PurkinjeStartEV = -1.f;
-			float PurkinjeMaxEV = -4.f;
-			float PurkinjeStrength = 1.f;
-
-		} Tonemapper;
-
+		float PurkinjeStartEV = -1.f;
+		float PurkinjeMaxEV = -4.f;
+		float PurkinjeStrength = 1.f;
 	} settings;
 
 	// buffers
@@ -88,11 +83,23 @@ struct HDRBloom : public Feature
 
 	struct alignas(16) TonemapCB
 	{
-		Settings::TonemapperSettings settings;
+		float2 AdaptationRange;
+
+		float KeyValue;
+		float ExposureCompensation;
+
+		float Slope;
+		float Power;
+		float Offset;
+		float Saturation;
+
+		float PurkinjeStartEV;
+		float PurkinjeMaxEV;
+		float PurkinjeStrength;
 
 		uint EnableAutoExposure;
 
-		float pad[4 - (sizeof(settings) / 4 + 1) % 4];
+		// float pad[0];
 	};
 	std::unique_ptr<ConstantBuffer> tonemapCB = nullptr;
 
