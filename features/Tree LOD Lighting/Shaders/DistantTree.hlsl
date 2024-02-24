@@ -275,7 +275,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		occInfo = TexTerraOcc.SampleLevel(SampDiffuse, occUv, 0);
 	}
 	if (perPassTerraOcc[0].EnableTerrainShadow) {
-		float terrainShadow = GetSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, CameraPosAdjust[0].xy, SampDiffuse);
+		float terrainShadow = GetTerrainSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, SampDiffuse);
 		dirLightColor *= terrainShadow;
 	}
 #		endif
