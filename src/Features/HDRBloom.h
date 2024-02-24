@@ -50,6 +50,9 @@ struct HDRBloom : public Feature
 		float PurkinjeStartEV = -1.f;
 		float PurkinjeMaxEV = -4.f;
 		float PurkinjeStrength = 1.f;
+
+		// dither
+		bool EnableDither = true;
 	} settings;
 
 	// buffers
@@ -98,8 +101,11 @@ struct HDRBloom : public Feature
 		float PurkinjeStrength;
 
 		uint EnableAutoExposure;
+		uint EnableDither;
 
-		// float pad[0];
+		float Timer;
+
+		float pad[2];
 	};
 	std::unique_ptr<ConstantBuffer> tonemapCB = nullptr;
 

@@ -24,7 +24,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	Saturation,
 	PurkinjeStartEV,
 	PurkinjeMaxEV,
-	PurkinjeStrength)
+	PurkinjeStrength,
+	EnableDither)
 
 void HDRBloom::DrawSettings()
 {
@@ -56,6 +57,7 @@ void HDRBloom::DrawSettings()
 
 		if (ImGui::BeginTabItem("Tonemapper")) {
 			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
+			ImGui::Checkbox("Enable Dither", &settings.EnableDither);
 
 			ImGui::SliderFloat("Key Value", &settings.KeyValue, 0.f, 2.f, "%.2f");
 			ImGui::SliderFloat("Exposure Compensation", &settings.ExposureCompensation, -6.f, 21.f, "%.2f EV");
@@ -456,6 +458,10 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 {
 	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
 
+	static uint timer = 0;
+	if (!RE::UI::GetSingleton()->GameIsPaused())
+		timer += (size_t)(RE::GetSecondsSinceLastFrame() * 1000);
+
 	// update cb
 	TonemapCB cbData = {
 		.AdaptationRange = { exp2(settings.AdaptationRange.x) * 0.125f, exp2(settings.AdaptationRange.y) * 0.125f },
@@ -468,7 +474,9 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 		.PurkinjeStartEV = settings.PurkinjeStartEV,
 		.PurkinjeMaxEV = settings.PurkinjeMaxEV,
 		.PurkinjeStrength = settings.PurkinjeStrength,
-		.EnableAutoExposure = settings.EnableAutoExposure
+		.EnableAutoExposure = settings.EnableAutoExposure,
+		.EnableDither = settings.EnableDither,
+		.Timer = timer / 1000.f
 	};
 	tonemapCB->Update(cbData);
 
