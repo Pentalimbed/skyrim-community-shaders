@@ -4,8 +4,9 @@ struct PerPassTerraOcc
 	uint EnableTerrainAO;
 
 	float ShadowBias;
-	float ShadowSoftening;
-	float ShadowMaxDistance;
+	float ShadowSofteningRadiusAngle;
+	float ShadowMinStep;
+	// float ShadowMaxDistance;
 	float ShadowAnglePower;
 	uint ShadowSamples;
 
@@ -17,6 +18,9 @@ struct PerPassTerraOcc
 	float3 scale;
 	float3 invScale;
 	float3 offset;
+
+	float ShadowSofteningDiameterRcp;
+	float AoDistance;
 };
 
 StructuredBuffer<PerPassTerraOcc> perPassTerraOcc : register(t25);
@@ -34,37 +38,64 @@ float2 GetTerrainOcclusionXY(float2 uv)
 
 float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, SamplerState samp)
 {
-	if (dirLightDirectionWS.z < 1e-3)
-		return 1;
-
 	uint2 dims;
 	TexTerraOcc.GetDimensions(dims.x, dims.y);
+	float2 pxSize = rcp(dims);
 
 	float3 dirLightDir = normalize(float3(dirLightDirectionWS.xy, pow(dirLightDirectionWS.z, perPassTerraOcc[0].ShadowAnglePower)));
-	float3 tangent = cross(dirLightDir, float3(0, 0, 1));
-	float3 bitangent = cross(dirLightDir, tangent);
 
-	float3 dRayEndWS = dirLightDir / length(dirLightDir.xy) * perPassTerraOcc[0].ShadowMaxDistance;
-	float2 dRayEndUV = dRayEndWS.xy * perPassTerraOcc[0].scale.xy;
+	if (dirLightDir.z < 1e-3)
+		return 0;
+	if (dirLightDir.z > 1 - 1e-3)
+		return 1;
 
-	const float rcpN = rcp(perPassTerraOcc[0].ShadowSamples);
-	float maxFraction = 0.f;
-	float t = rcpN;
+	float dirLightAngle = asin(dirLightDir.z);
+	float lowerAngle = dirLightAngle - perPassTerraOcc[0].ShadowSofteningRadiusAngle;
+
+	float3 xyzDir = dirLightDir / length(dirLightDir.xy);
+	float3 uvzIncrement = float3(xyzDir.xy * perPassTerraOcc[0].scale.xy, tan(lowerAngle));
+
+	float viewFraction = 0.f;  // delta z / distance
+
+	const float minDt = perPassTerraOcc[0].ShadowMinStep;
+	const float maxDt = perPassTerraOcc[0].AoDistance;
+	float t = minDt;  // in world distance
+	float3 currUVZ = float3(uv, startZ) + t * uvzIncrement;
+
 	for (uint i = 0; i < perPassTerraOcc[0].ShadowSamples; i++) {
-		float2 currUV = uv + dRayEndUV * t;
-		if (all((currUV - uv) * dims < 1))
+		float4 currSample = TexTerraOcc.SampleLevel(samp, currUVZ.xy, 0);
+		float currConeCot = currSample.y;
+		float currGroundZ = currSample.z + perPassTerraOcc[0].ShadowBias;
+
+		float diffZ = currUVZ.z - currGroundZ;
+
+		float dt = minDt;
+		if (diffZ < 0) {  // intersect
+			viewFraction = (currGroundZ - startZ) / t;
+			if (viewFraction > currConeCot)
+				dt = maxDt;
+
+			currUVZ.z = currGroundZ;
+			uvzIncrement.z = viewFraction;
+		} else {  // find cone boundary
+			if (currGroundZ - startZ > 5e4)
+				break;
+
+			dt = diffZ / (currConeCot - viewFraction);
+			dt = clamp(dt, minDt, maxDt);
+		}
+
+		t += dt;
+		currUVZ += dt * uvzIncrement;
+
+		if (any(currUVZ.xy < 0) || any(currUVZ.xy) > 1)
 			break;
-
-		float dz = TexTerraOcc.SampleLevel(samp, currUV, 0).z + perPassTerraOcc[0].ShadowBias - startZ;
-		float dworld = t * dRayEndWS.xy;
-		if (dz > maxFraction * dworld)
-			maxFraction = dz / dworld;
-
-		t += rcpN;
 	}
 
-	float shadowFraction = asin(dirLightDir.z) - atan(maxFraction);
-	shadowFraction = 0.5 + shadowFraction * perPassTerraOcc[0].ShadowSoftening;
+	// return i * rcp(perPassTerraOcc[0].ShadowSamples);
+
+	float shadowFraction = asin(dirLightDir.z) - atan(viewFraction);
+	shadowFraction = 0.5 + shadowFraction * perPassTerraOcc[0].ShadowSofteningDiameterRcp;
 
 	return saturate(shadowFraction);
 }

@@ -16,8 +16,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	EnableTerrainShadow,
 	EnableTerrainAO,
 	ShadowBias,
-	ShadowSoftening,
-	ShadowMaxDistance,
+	ShadowSofteningRadiusAngle,
+	ShadowMinStep,
+	// ShadowMaxDistance,
 	ShadowAnglePower,
 	ShadowSamples,
 	AOAmbientMix,
@@ -64,11 +65,12 @@ void TerrainOcclusion::DrawSettings()
 	ImGui::Checkbox("Enable Terrain AO", (bool*)&settings.Effect.EnableTerrainAO);
 
 	if (ImGui::TreeNodeEx("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Bias", &settings.Effect.ShadowBias, -500.f, 500.f, "%.1f units");
-		ImGui::SliderAngle("Softening", &settings.Effect.ShadowSoftening, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Bias", &settings.Effect.ShadowBias, -500.f, 0.f, "%.1f units");
+		ImGui::SliderAngle("Softening", &settings.Effect.ShadowSofteningRadiusAngle, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Controls the solid angle of sunlight, making terrain shadows softer.");
-		ImGui::SliderFloat("Max Distance", &settings.Effect.ShadowMaxDistance, 1, 30, "%.2f cells");
+		ImGui::SliderFloat("Min Stepping Distance", &settings.Effect.ShadowMinStep, 1, 1024, "%.1f units");
+		// ImGui::SliderFloat("Max Distance", &settings.Effect.ShadowMaxDistance, 1, 30, "%.2f cells");
 		ImGui::SliderFloat("Angle Exaggeration", &settings.Effect.ShadowAnglePower, 1, 8, "%.1f");
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Arbitarily lowers the vanilla sunlight angle that is rather high even at sunrise/sunset, making terrain shadows longer.");
@@ -77,7 +79,7 @@ void TerrainOcclusion::DrawSettings()
 		const uint sampleMax = 30u;
 		ImGui::SliderScalar("Samples", ImGuiDataType_U32, &settings.Effect.ShadowSamples, &sampleMin, &sampleMax);
 		if (auto _tt = Util::HoverTooltipWrapper())
-			ImGui::Text("Longer shadows generally require more samples, but softening helps cover the inaccuracy.");
+			ImGui::Text("Longer shadows require more samples, but softening helps cover the inaccuracy.");
 
 		ImGui::TreePop();
 	}
@@ -97,7 +99,7 @@ void TerrainOcclusion::DrawSettings()
 				"On the ground AO is the most prominent. Up to a certain height it will gradually fade out.");
 
 		if (ImGui::TreeNodeEx("Precomputation", ImGuiTreeNodeFlags_DefaultOpen)) {
-			ImGui::SliderFloat("Distance", &settings.AoGen.AoDistance, 1.f / 32, 16, "%.2f cells");
+			ImGui::SliderFloat("Distance", &settings.AoGen.AoDistance, 1.f / 32, 32, "%.2f cells");
 			ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.AoGen.SliceCount);
 			ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.AoGen.SampleCount);
 			if (ImGui::Button("Force Regenerate AO", { -1, 0 }))
@@ -445,14 +447,16 @@ void TerrainOcclusion::Reset()
 	data.effect.EnableTerrainShadow = data.effect.EnableTerrainShadow && isHeightmapReady;
 
 	if (isHeightmapReady) {
-		data.effect.ShadowSoftening = .5f / data.effect.ShadowSoftening;
-		data.effect.ShadowMaxDistance *= 4096.f;
+		// data.effect.ShadowMaxDistance *= 4096.f;
 
 		data.effect.AOFadeOutHeight = 1.f / data.effect.AOFadeOutHeight;
 
 		data.invScale = cachedHeightmap->pos1 - cachedHeightmap->pos0;
 		data.scale = float3(1.f, 1.f, 1.f) / data.invScale;
 		data.offset = -cachedHeightmap->pos0 * data.scale;
+
+		data.ShadowSofteningDiameterRcp = .5f / data.effect.ShadowSofteningRadiusAngle;
+		data.AoDistance = settings.AoGen.AoDistance * 4096.f;
 	}
 
 	D3D11_MAPPED_SUBRESOURCE mapped;

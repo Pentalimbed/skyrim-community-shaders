@@ -76,6 +76,7 @@ float3 ReconstructNormal(float2 uv, float2 texelSize)
 	float rcp_sample_count = rcp(aoGen[0].sampleCount);
 	float2 world_uv_scale = rcp(aoGen[0].pos1.xy - aoGen[0].pos0.xy);  // delta world pos * world_uv_scale = delta uv;
 
+	float cos_cone = 0;
 	float visibility = 0;
 	for (uint slice = 0; slice < aoGen[0].sliceCount; slice++) {
 		float theta = (PI / aoGen[0].sliceCount) * slice;
@@ -101,9 +102,11 @@ float3 ReconstructNormal(float2 uv, float2 texelSize)
 			}
 			float h = n + clamp((-1 + 2 * side) * acos(horizon_cos) - n, -HALF_PI, HALF_PI);
 			visibility += saturate(proj_normal_len * (cos_n + 2 * h * sin(n) - cos(2 * h - n)) * .25);
+			cos_cone = max(horizon_cos, cos_cone);
 		}
 	}
 	visibility /= aoGen[0].sliceCount;
 
-	RWTexOcclusion[tid] = float4(visibility, 0, pos.z, 1);
+	float cot_cone = cos_cone * rsqrt(1 - cos_cone * cos_cone);
+	RWTexOcclusion[tid] = float4(visibility, cot_cone, pos.z, 1);
 }
