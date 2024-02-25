@@ -25,7 +25,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	PurkinjeStartEV,
 	PurkinjeMaxEV,
 	PurkinjeStrength,
-	EnableDither)
+	DitherMode)
 
 void HDRBloom::DrawSettings()
 {
@@ -57,7 +57,6 @@ void HDRBloom::DrawSettings()
 
 		if (ImGui::BeginTabItem("Tonemapper")) {
 			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
-			ImGui::Checkbox("Enable Dither", &settings.EnableDither);
 
 			ImGui::SliderFloat("Key Value", &settings.KeyValue, 0.f, 2.f, "%.2f");
 			ImGui::SliderFloat("Exposure Compensation", &settings.ExposureCompensation, -6.f, 21.f, "%.2f EV");
@@ -97,6 +96,24 @@ void HDRBloom::DrawSettings()
 				ImGui::SliderFloat("Power", &settings.Power, 0.f, 2.f, "%.2f");
 				ImGui::SliderFloat("Offset", &settings.Offset, -1.f, 1.f, "%.2f");
 				ImGui::SliderFloat("Saturation", &settings.Saturation, 0.f, 2.f, "%.2f");
+			}
+
+			ImGui::SeparatorText("Dither");
+			{
+				if (ImGui::BeginTable("Dither Mode Table", 3)) {
+					ImGui::TableNextColumn();
+					ImGui::RadioButton("Disabled", &settings.DitherMode, 0);
+					ImGui::TableNextColumn();
+					ImGui::RadioButton("Static", &settings.DitherMode, 1);
+					if (auto _tt = Util::HoverTooltipWrapper())
+						ImGui::Text("RGB shift by CeeJayDK");
+					ImGui::TableNextColumn();
+					ImGui::RadioButton("Temporal", &settings.DitherMode, 2);
+					if (auto _tt = Util::HoverTooltipWrapper())
+						ImGui::Text("Triangular dither by The Sandvich Maker & TreyM");
+
+					ImGui::EndTable();
+				}
 			}
 
 			ImGui::EndTabItem();
@@ -475,7 +492,7 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 		.PurkinjeMaxEV = settings.PurkinjeMaxEV,
 		.PurkinjeStrength = settings.PurkinjeStrength,
 		.EnableAutoExposure = settings.EnableAutoExposure,
-		.EnableDither = settings.EnableDither,
+		.DitherMode = (UINT)settings.DitherMode,
 		.Timer = timer / 1000.f
 	};
 	tonemapCB->Update(cbData);

@@ -52,7 +52,7 @@ struct HDRBloom : public Feature
 		float PurkinjeStrength = 1.f;
 
 		// dither
-		bool EnableDither = true;
+		int DitherMode = 1;
 	} settings;
 
 	// buffers
@@ -101,7 +101,7 @@ struct HDRBloom : public Feature
 		float PurkinjeStrength;
 
 		uint EnableAutoExposure;
-		uint EnableDither;
+		uint DitherMode;
 
 		float Timer;
 

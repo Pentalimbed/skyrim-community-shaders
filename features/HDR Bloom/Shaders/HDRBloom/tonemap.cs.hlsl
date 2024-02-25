@@ -2,6 +2,8 @@
 
 #include "common.hlsli"
 
+#include "TriDither.fx"
+
 RWTexture2D<float4> RWTexOut : register(u0);
 
 Texture2D<float4> TexColor : register(t0);
@@ -24,7 +26,7 @@ cbuffer TonemapCB : register(b0)
 	float PurkinjeStrength;
 
 	uint EnableAutoExposure;
-	uint EnableDither;
+	uint DitherMode;
 
 	float Timer;
 };
@@ -63,6 +65,10 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 [numthreads(32, 32, 1)] void main(uint2 tid : SV_DispatchThreadID) {
 	const static float logEV = -3;  // log2(0.125)
 
+	uint2 dims;
+	RWTexOut.GetDimensions(dims.x, dims.y);
+	float2 uv = tid / dims;
+
 	float3 color = TexColor[tid].rgb;
 
 	// auto exposure
@@ -84,8 +90,10 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 	color = Saturate(color, AgXSaturation);
 	color = AgxEotf(color);
 
-	if (EnableDither)
+	if (DitherMode == 1)
 		color = DitherShift(color, tid);
+	else if (DitherMode == 2)
+		color += TriDither(color, uv, Timer, 8);
 
 	color = saturate(color);
 
