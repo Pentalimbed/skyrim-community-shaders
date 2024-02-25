@@ -53,7 +53,7 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 	float lowerAngle = dirLightAngle - perPassTerraOcc[0].ShadowSofteningRadiusAngle;
 
 	float3 xyzDir = dirLightDir / length(dirLightDir.xy);
-	float3 uvzIncrement = float3(xyzDir.xy * perPassTerraOcc[0].scale.xy, tan(lowerAngle));
+	float3 uvzIncrement = float3(xyzDir.xy * perPassTerraOcc[0].scale.xy, max(1e-2, tan(lowerAngle)));
 
 	float viewFraction = 0.f;  // delta z / distance
 
