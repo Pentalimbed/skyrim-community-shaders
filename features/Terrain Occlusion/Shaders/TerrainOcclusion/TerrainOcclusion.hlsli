@@ -51,10 +51,12 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 		return 1;
 
 	float dirLightAngle = asin(dirLightDir.z);
-	float lowerAngle = dirLightAngle - perPassTerraOcc[0].ShadowSofteningRadiusAngle;
+	float2 angleRange = dirLightAngle + float2(-1, 1) * perPassTerraOcc[0].ShadowSofteningRadiusAngle;
+	angleRange = clamp(angleRange, 1e-2, 3.1415926525 * .5);
+	float2 tanAngleRange = tan(angleRange);
 
 	float3 xyzDir = dirLightDir / length(dirLightDir.xy);
-	float3 uvzIncrement = float3(xyzDir.xy * perPassTerraOcc[0].scale.xy, max(1e-2, tan(lowerAngle)));
+	float3 uvzIncrement = float3(xyzDir.xy * perPassTerraOcc[0].scale.xy, tanAngleRange.x);
 
 	float viewFraction = 0.f;  // delta z / distance
 
@@ -73,6 +75,8 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 		float dt = minDt;
 		if (diffZ < 0) {  // intersect
 			viewFraction = (currGroundZ - startZ) / t;
+			if (viewFraction > tanAngleRange.y)
+				return 0;
 			if (viewFraction > currConeCot)
 				dt = maxDt;
 
@@ -95,7 +99,7 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 
 	// return i * rcp(perPassTerraOcc[0].ShadowSamples);
 
-	float shadowFraction = asin(dirLightDir.z) - atan(viewFraction);
+	float shadowFraction = dirLightAngle - atan(viewFraction);
 	shadowFraction = 0.5 + shadowFraction * perPassTerraOcc[0].ShadowSofteningDiameterRcp;
 
 	return saturate(shadowFraction);
