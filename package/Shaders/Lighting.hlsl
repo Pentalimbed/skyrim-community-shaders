@@ -1500,14 +1500,11 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 		dirLightColor *= shadowColor.xxx;
 
 #	if defined(TERRA_OCC)
-	float2 occUv;
-	float4 occInfo;
-	if (perPassTerraOcc[0].EnableTerrainShadow || perPassTerraOcc[0].EnableTerrainAO) {
-		occUv = GetTerrainOcclusionUV(input.WorldPosition.xy + CameraPosAdjust[0].xy);
-		occInfo = TexTerraOcc.SampleLevel(SampColorSampler, occUv, 0);
-	}
+	float2 terraOccUV;
+	if (perPassTerraOcc[0].EnableTerrainShadow || perPassTerraOcc[0].EnableTerrainAO)
+		terraOccUV = GetTerrainOcclusionUV(input.WorldPosition.xy + CameraPosAdjust[0].xy);
 	if (perPassTerraOcc[0].EnableTerrainShadow) {
-		float terrainShadow = GetTerrainSoftShadow(occUv, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, SampColorSampler);
+		float terrainShadow = GetTerrainSoftShadow(terraOccUV, normalizedDirLightDirectionWS, input.WorldPosition.z + CameraPosAdjust[0].z, SampColorSampler);
 		dirLightColor *= terrainShadow;
 	}
 #	endif
@@ -1861,11 +1858,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(TERRA_OCC)
 	if (perPassTerraOcc[0].EnableTerrainAO) {
-		float terrainAoMult = occInfo.x;
+		float terrainHeight = TexHeightCone.SampleLevel(SampColorSampler, terraOccUV, 0).x;
+		float terrainAoMult = TexTerraOcc.SampleLevel(SampColorSampler, terraOccUV, 0).x;
+
 		// power
 		terrainAoMult = pow(terrainAoMult, perPassTerraOcc[0].AOPower);
 		// height fadeout
-		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - occInfo.z) * perPassTerraOcc[0].AOFadeOutHeightRcp);
+		float fadeOut = saturate((input.WorldPosition.z + CameraPosAdjust[0].z - terrainHeight) * perPassTerraOcc[0].AOFadeOutHeightRcp);
 		terrainAoMult = lerp(terrainAoMult, 1, fadeOut);
 		// mix
 		directionalAmbientColor *= lerp(1, terrainAoMult, perPassTerraOcc[0].AOAmbientMix);

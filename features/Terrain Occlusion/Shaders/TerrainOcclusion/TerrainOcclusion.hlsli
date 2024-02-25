@@ -24,7 +24,8 @@ struct PerPassTerraOcc
 };
 
 StructuredBuffer<PerPassTerraOcc> perPassTerraOcc : register(t25);
-Texture2D<float4> TexTerraOcc : register(t26);
+Texture2D<float> TexTerraOcc : register(t26);
+Texture2D<float2> TexHeightCone : register(t27);
 
 float2 GetTerrainOcclusionUV(float2 xy)
 {
@@ -39,7 +40,7 @@ float2 GetTerrainOcclusionXY(float2 uv)
 float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, SamplerState samp)
 {
 	uint2 dims;
-	TexTerraOcc.GetDimensions(dims.x, dims.y);
+	TexHeightCone.GetDimensions(dims.x, dims.y);
 	float2 pxSize = rcp(dims);
 
 	float3 dirLightDir = normalize(float3(dirLightDirectionWS.xy, pow(dirLightDirectionWS.z, perPassTerraOcc[0].ShadowAnglePower)));
@@ -63,9 +64,9 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 	float3 currUVZ = float3(uv, startZ) + t * uvzIncrement;
 
 	for (uint i = 0; i < perPassTerraOcc[0].ShadowSamples; i++) {
-		float4 currSample = TexTerraOcc.SampleLevel(samp, currUVZ.xy, 0);
+		float2 currSample = TexHeightCone.SampleLevel(samp, currUVZ.xy, 0);
+		float currGroundZ = currSample.x + perPassTerraOcc[0].ShadowBias;
 		float currConeCot = currSample.y;
-		float currGroundZ = currSample.z + perPassTerraOcc[0].ShadowBias;
 
 		float diffZ = currUVZ.z - currGroundZ;
 

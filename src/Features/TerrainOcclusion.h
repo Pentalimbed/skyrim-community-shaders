@@ -81,6 +81,7 @@ struct TerrainOcclusion : public Feature
 
 	std::unique_ptr<Texture2D> texHeightMap = nullptr;
 	std::unique_ptr<Texture2D> texOcclusion = nullptr;
+	std::unique_ptr<Texture2D> texHeightCone = nullptr;
 
 	virtual void SetupResources() override;
 	void CompileComputeShaders();
