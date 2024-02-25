@@ -308,7 +308,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #		if defined(TERRA_OCC)
 	if (perPassTerraOcc[0].EnableTerrainAO) {
-		float terrainHeight = TexHeightCone.SampleLevel(SampDiffuse, terraOccUV, 0).x;
+		float terrainHeight = GetTerrainZ(TexHeightCone.SampleLevel(SampDiffuse, terraOccUV, 0).x);
 		float terrainAoMult = TexTerraOcc.SampleLevel(SampDiffuse, terraOccUV, 0).x;
 
 		// power

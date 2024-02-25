@@ -48,9 +48,11 @@ struct TerrainOcclusion : public Feature
 
 	struct HeightMapMetadata
 	{
-		std::wstring path;
+		std::wstring dir;
+		std::wstring filename;
 		std::string worldspace;
 		float3 pos0, pos1;  // left-top-z=0 vs right-bottom-z=1
+		float2 zRange;
 	};
 	std::unordered_map<std::string, HeightMapMetadata> heightmaps;
 	HeightMapMetadata* cachedHeightmap;
@@ -61,6 +63,7 @@ struct TerrainOcclusion : public Feature
 
 		float3 pos0;
 		float3 pos1;
+		float2 zRange;
 	};
 	std::unique_ptr<Buffer> aoGenBuffer = nullptr;
 
@@ -71,6 +74,7 @@ struct TerrainOcclusion : public Feature
 		float3 scale;
 		float3 invScale;
 		float3 offset;
+		float2 zRange;
 
 		float ShadowSofteningDiameterRcp;
 		float AoDistance;
@@ -92,7 +96,7 @@ struct TerrainOcclusion : public Feature
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor) override;
 	void LoadHeightmap();
-	void GenerateAO();
+	void Precompute();
 	void ModifyLighting();
 
 	virtual void Load(json& o_json) override;

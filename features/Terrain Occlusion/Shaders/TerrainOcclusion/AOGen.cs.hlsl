@@ -11,6 +11,7 @@ struct AOGenBuffer
 
 	float3 pos0;
 	float3 pos1;
+	float2 zRange;
 };
 
 RWTexture2D<float> RWTexOcclusion : register(u0);
@@ -109,7 +110,8 @@ float3 ReconstructNormal(float2 uv, float2 texelSize)
 	}
 	visibility /= aoGen[0].sliceCount;
 
+	float norm_z = (pos.z - aoGen[0].zRange.x) / (aoGen[0].zRange.y - aoGen[0].zRange.x);
 	float cot_cone = cos_cone * rsqrt(1 - cos_cone * cos_cone);
 	RWTexOcclusion[tid] = visibility;
-	RWTexHeightCone[tid] = float2(pos.z, cot_cone);
+	RWTexHeightCone[tid] = float2(norm_z, cot_cone);
 }

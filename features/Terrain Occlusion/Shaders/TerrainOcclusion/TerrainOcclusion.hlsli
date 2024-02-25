@@ -6,7 +6,6 @@ struct PerPassTerraOcc
 	float ShadowBias;
 	float ShadowSofteningRadiusAngle;
 	float ShadowMinStep;
-	// float ShadowMaxDistance;
 	float ShadowAnglePower;
 	uint ShadowSamples;
 
@@ -18,6 +17,7 @@ struct PerPassTerraOcc
 	float3 scale;
 	float3 invScale;
 	float3 offset;
+	float2 zRange;
 
 	float ShadowSofteningDiameterRcp;
 	float AoDistance;
@@ -35,6 +35,11 @@ float2 GetTerrainOcclusionUV(float2 xy)
 float2 GetTerrainOcclusionXY(float2 uv)
 {
 	return (uv - perPassTerraOcc[0].offset.xy) * perPassTerraOcc[0].invScale.xy;
+}
+
+float GetTerrainZ(float norm_z)
+{
+	return lerp(perPassTerraOcc[0].zRange.x, perPassTerraOcc[0].zRange.y, norm_z);
 }
 
 float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, SamplerState samp)
@@ -67,7 +72,7 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 
 	for (uint i = 0; i < perPassTerraOcc[0].ShadowSamples; i++) {
 		float2 currSample = TexHeightCone.SampleLevel(samp, currUVZ.xy, 0);
-		float currGroundZ = currSample.x + perPassTerraOcc[0].ShadowBias;
+		float currGroundZ = GetTerrainZ(currSample.x) + perPassTerraOcc[0].ShadowBias;
 		float currConeCot = currSample.y;
 
 		float diffZ = currUVZ.z - currGroundZ;
@@ -83,9 +88,6 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 			currUVZ.z = currGroundZ;
 			uvzIncrement.z = viewFraction;
 		} else {  // find cone boundary
-			if (currGroundZ - startZ > 5e4)
-				break;
-
 			dt = diffZ / (currConeCot - viewFraction);
 			dt = clamp(dt, minDt, maxDt);
 		}
@@ -93,7 +95,7 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 		t += dt;
 		currUVZ += dt * uvzIncrement;
 
-		if (any(currUVZ.xy < 0) || any(currUVZ.xy) > 1)
+		if (any(currUVZ.xy < 0) || any(currUVZ.xy) > 1 || currUVZ.z > perPassTerraOcc[0].zRange.y)
 			break;
 	}
 

@@ -2,8 +2,10 @@
 
 #include "Util.h"
 
-#include <DirectXTex.h>
 #include <filesystem>
+
+#include <DirectXTex.h>
+#include <pystring/pystring.h>
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	TerrainOcclusion::Settings::AOGenSettings,
@@ -157,51 +159,38 @@ void TerrainOcclusion::SetupResources()
 
 			logger::debug("Found dds: {}", filename.string());
 
-			std::stringstream ss(filename.stem().string());
-			std::string item;
+			auto splitstr = pystring::split(filename.stem().string(), ".");
 
-			uint pos = 0;
-			HeightMapMetadata metadata;
-			try {
-				while (getline(ss, item, '.')) {
-					switch (pos) {
-					case 0:
-						metadata.worldspace = item;
-						break;
-					case 1:
-						metadata.pos0.x = std::stoi(item) * 4096.f;
-						break;
-					case 2:
-						metadata.pos1.y = std::stoi(item) * 4096.f;
-						break;
-					case 3:
-						metadata.pos1.x = (std::stoi(item) + 1) * 4096.f;
-						break;
-					case 4:
-						metadata.pos0.y = (std::stoi(item) + 1) * 4096.f;
-						break;
-					case 5:
-						metadata.pos0.z = std::stoi(item) * 8.f;
-						break;
-					case 6:
-						metadata.pos1.z = std::stoi(item) * 8.f;
-						break;
-					default:
-						break;
-					}
-					pos++;
+			if (splitstr.size() != 10)
+				logger::warn("{} has incorrect number ({} instead of 10) of fields", filename.string(), splitstr.size());
+
+			if (splitstr[1] == "HeightMap") {
+				HeightMapMetadata metadata;
+				try {
+					metadata.worldspace = splitstr[0];
+					metadata.pos0.x = std::stoi(splitstr[2]) * 4096.f;
+					metadata.pos1.y = std::stoi(splitstr[3]) * 4096.f;
+					metadata.pos1.x = (std::stoi(splitstr[4]) + 1) * 4096.f;
+					metadata.pos0.y = (std::stoi(splitstr[5]) + 1) * 4096.f;
+					metadata.pos0.z = std::stoi(splitstr[6]) * 8.f;
+					metadata.pos1.z = std::stoi(splitstr[7]) * 8.f;
+					metadata.zRange.x = std::stoi(splitstr[8]) * 8.f;
+					metadata.zRange.y = std::stoi(splitstr[9]) * 8.f;
+				} catch (std::exception& e) {
+					logger::warn("Failed to parse {}. Error: {}", filename.string(), e.what());
+					continue;
 				}
-			} catch (std::exception& e) {
-				logger::warn("Failed to parse {}. Error: {}", filename.string(), e.what());
-				continue;
-			}
-			metadata.path = dir_entry.path().wstring();
 
-			if (heightmaps.contains(metadata.worldspace)) {
-				logger::warn("{} has more than one height maps!", metadata.worldspace);
-			} else {
-				heightmaps[metadata.worldspace] = metadata;
-			}
+				metadata.dir = dir_entry.path().parent_path().wstring();
+				metadata.filename = filename.wstring();
+
+				if (heightmaps.contains(metadata.worldspace)) {
+					logger::warn("{} has more than one height maps!", metadata.worldspace);
+				} else {
+					heightmaps[metadata.worldspace] = metadata;
+				}
+			} else if (splitstr[1] != "AO" || splitstr[1] != "Cone")
+				logger::warn("{} has unknown type ({})", filename.string(), splitstr[1]);
 		}
 	}
 
@@ -264,7 +253,7 @@ void TerrainOcclusion::Draw(const RE::BSShader* shader, const uint32_t)
 	LoadHeightmap();
 
 	if (needAoGen)
-		GenerateAO();
+		Precompute();
 
 	switch (shader->shaderType.get()) {
 	case RE::BSShader::Type::Lighting:
@@ -305,7 +294,10 @@ void TerrainOcclusion::LoadHeightmap()
 
 		DirectX::ScratchImage image;
 		try {
-			DX::ThrowIfFailed(LoadFromDDSFile(target_heightmap.path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+			std::filesystem::path path{ target_heightmap.dir };
+			path /= target_heightmap.filename;
+
+			DX::ThrowIfFailed(LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
 		} catch (const DX::com_exception& e) {
 			logger::error("{}", e.what());
 			return;
@@ -379,7 +371,7 @@ void TerrainOcclusion::LoadHeightmap()
 	needAoGen = true;
 }
 
-void TerrainOcclusion::GenerateAO()
+void TerrainOcclusion::Precompute()
 {
 	if (!cachedHeightmap)
 		return;
@@ -390,7 +382,8 @@ void TerrainOcclusion::GenerateAO()
 		AOGenBuffer data = {
 			.settings = settings.AoGen,
 			.pos0 = cachedHeightmap->pos0,
-			.pos1 = cachedHeightmap->pos1
+			.pos1 = cachedHeightmap->pos1,
+			.zRange = cachedHeightmap->zRange
 		};
 
 		data.settings.AoDistance *= 4096.f;
@@ -467,6 +460,7 @@ void TerrainOcclusion::Reset()
 		data.scale = float3(1.f, 1.f, 1.f) / data.invScale;
 		data.offset = -cachedHeightmap->pos0 * data.scale;
 
+		data.zRange = cachedHeightmap->zRange;
 		data.ShadowSofteningDiameterRcp = .5f / data.effect.ShadowSofteningRadiusAngle;
 		data.AoDistance = settings.AoGen.AoDistance * 4096.f;
 	}
