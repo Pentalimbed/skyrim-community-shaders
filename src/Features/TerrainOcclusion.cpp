@@ -20,7 +20,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	ShadowBias,
 	ShadowSofteningRadiusAngle,
 	ShadowMinStep,
-	// ShadowMaxDistance,
 	ShadowAnglePower,
 	ShadowSamples,
 	AOAmbientMix,
@@ -105,7 +104,7 @@ void TerrainOcclusion::DrawSettings()
 			ImGui::InputScalar("Slices", ImGuiDataType_U32, &settings.AoGen.SliceCount);
 			ImGui::InputScalar("Samples", ImGuiDataType_U32, &settings.AoGen.SampleCount);
 			if (ImGui::Button("Force Regenerate AO", { -1, 0 }))
-				needAoGen = true;
+				needPrecompute = true;
 
 			ImGui::TreePop();
 		}
@@ -182,7 +181,7 @@ void TerrainOcclusion::SetupResources()
 				}
 
 				metadata.dir = dir_entry.path().parent_path().wstring();
-				metadata.filename = filename.wstring();
+				metadata.filename = filename.string();
 
 				if (heightmaps.contains(metadata.worldspace)) {
 					logger::warn("{} has more than one height maps!", metadata.worldspace);
@@ -244,15 +243,13 @@ void TerrainOcclusion::CompileComputeShaders()
 		if (occlusion_program_ptr)
 			occlusionProgram.attach(occlusion_program_ptr);
 	}
-
-	needAoGen = true;
 }
 
 void TerrainOcclusion::Draw(const RE::BSShader* shader, const uint32_t)
 {
 	LoadHeightmap();
 
-	if (needAoGen)
+	if (needPrecompute)
 		Precompute();
 
 	switch (shader->shaderType.get()) {
@@ -316,9 +313,6 @@ void TerrainOcclusion::LoadHeightmap()
 		texHeightMap.release();
 		texHeightMap = std::make_unique<Texture2D>(reinterpret_cast<ID3D11Texture2D*>(pResource));
 
-		D3D11_TEXTURE2D_DESC texDesc{};
-		texHeightMap->resource->GetDesc(&texDesc);
-
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
 			.Format = texHeightMap->desc.Format,
 			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
@@ -331,9 +325,105 @@ void TerrainOcclusion::LoadHeightmap()
 		cachedHeightmap = &heightmaps[worldspace_name];
 	}
 
-	logger::debug("Creating occlusion texture...");
+	// precomp tex
+	std::filesystem::path dir{ cachedHeightmap->dir };
+	auto aoImageFilename = pystring::replace(cachedHeightmap->filename, "HeightMap", "AO");
+	auto coneImageFilename = pystring::replace(cachedHeightmap->filename, "HeightMap", "Cone");
+	if (std::filesystem::exists(dir / aoImageFilename) && std::filesystem::exists(dir / coneImageFilename))
+		LoadPrecomputedTex();
+	else {
+		logger::info("Precomputed textures for {} not found.", cachedHeightmap->worldspace);
+		needPrecompute = true;
+	}
+}
+
+void TerrainOcclusion::LoadPrecomputedTex()
+{
+	auto device = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().forwarder;
+
+	texOcclusion.release();
+	texHeightCone.release();
+
+	std::filesystem::path dir{ cachedHeightmap->dir };
+	auto aoImageFilename = pystring::replace(cachedHeightmap->filename, "HeightMap", "AO");
+	auto coneImageFilename = pystring::replace(cachedHeightmap->filename, "HeightMap", "Cone");
+
+	{
+		DirectX::ScratchImage image;
+		try {
+			DX::ThrowIfFailed(LoadFromDDSFile((dir / aoImageFilename).c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+		} catch (const DX::com_exception& e) {
+			logger::error("{}", e.what());
+			return;
+		}
+
+		ID3D11Resource* pResource = nullptr;
+		try {
+			DX::ThrowIfFailed(CreateTexture(device,
+				image.GetImages(), image.GetImageCount(),
+				image.GetMetadata(), &pResource));
+		} catch (const DX::com_exception& e) {
+			logger::error("{}", e.what());
+			return;
+		}
+
+		texOcclusion = std::make_unique<Texture2D>(reinterpret_cast<ID3D11Texture2D*>(pResource));
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = texOcclusion->desc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = texOcclusion->desc.MipLevels }
+		};
+		texOcclusion->CreateSRV(srvDesc);
+	}
+
+	{
+		DirectX::ScratchImage image;
+		try {
+			DX::ThrowIfFailed(LoadFromDDSFile((dir / coneImageFilename).c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+		} catch (const DX::com_exception& e) {
+			logger::error("{}", e.what());
+			return;
+		}
+
+		ID3D11Resource* pResource = nullptr;
+		try {
+			DX::ThrowIfFailed(CreateTexture(device,
+				image.GetImages(), image.GetImageCount(),
+				image.GetMetadata(), &pResource));
+		} catch (const DX::com_exception& e) {
+			logger::error("{}", e.what());
+			return;
+		}
+
+		texHeightCone = std::make_unique<Texture2D>(reinterpret_cast<ID3D11Texture2D*>(pResource));
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = texHeightCone->desc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = texHeightCone->desc.MipLevels }
+		};
+		texHeightCone->CreateSRV(srvDesc);
+	}
+}
+
+void TerrainOcclusion::Precompute()
+{
+	if (!cachedHeightmap)
+		return;
+
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
+	auto context = renderer->GetRuntimeData().context;
+	auto device = renderer->GetRuntimeData().forwarder;
+
+	logger::info("Creating occlusion texture...");
 	{
 		texOcclusion.release();
+		texHeightCone.release();
 
 		D3D11_TEXTURE2D_DESC texDesc = {
 			.Width = texHeightMap->desc.Width,
@@ -368,16 +458,6 @@ void TerrainOcclusion::LoadHeightmap()
 		texHeightCone->CreateUAV(uavDesc);
 	}
 
-	needAoGen = true;
-}
-
-void TerrainOcclusion::Precompute()
-{
-	if (!cachedHeightmap)
-		return;
-
-	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
-
 	{
 		AOGenBuffer data = {
 			.settings = settings.AoGen,
@@ -411,7 +491,7 @@ void TerrainOcclusion::Precompute()
 	context->CSGetSamplers(0, ARRAYSIZE(old.samplers), old.samplers);
 
 	/* ---- DISPATCH ---- */
-	logger::debug("Precomputation...");
+	logger::info("Precomputation...");
 	newer.srvs[0] = aoGenBuffer->srv.get();
 	newer.srvs[1] = texHeightMap->srv.get();
 	newer.uavs[0] = texOcclusion->uav.get();
@@ -430,7 +510,27 @@ void TerrainOcclusion::Precompute()
 	context->CSSetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs, nullptr);
 	context->CSSetSamplers(0, ARRAYSIZE(old.samplers), old.samplers);
 
-	needAoGen = false;
+	/* ---- COMPRESS ---- */
+	DirectX::ScratchImage aoImage, coneImage, aoImageComp, coneImageComp;
+	DX::ThrowIfFailed(DirectX::CaptureTexture(device, context, texOcclusion->resource.get(), aoImage));
+	DX::ThrowIfFailed(DirectX::CaptureTexture(device, context, texHeightCone->resource.get(), coneImage));
+	DX::ThrowIfFailed(DirectX::Compress(device, aoImage.GetImages(), 1, aoImage.GetMetadata(),
+		DXGI_FORMAT_BC6H_UF16, DirectX::TEX_COMPRESS_DEFAULT, DirectX::TEX_ALPHA_WEIGHT_DEFAULT,
+		aoImageComp));
+	DX::ThrowIfFailed(DirectX::Compress(device, coneImage.GetImages(), 1, coneImage.GetMetadata(),
+		DXGI_FORMAT_BC6H_UF16, DirectX::TEX_COMPRESS_DEFAULT, DirectX::TEX_ALPHA_WEIGHT_DEFAULT,
+		coneImageComp));
+
+	/* ---- SAVE ---- */
+	std::filesystem::path dir{ cachedHeightmap->dir };
+	auto aoImageFilename = pystring::replace(cachedHeightmap->filename, "HeightMap", "AO");
+	auto coneImageFilename = pystring::replace(cachedHeightmap->filename, "HeightMap", "Cone");
+	DX::ThrowIfFailed(DirectX::SaveToDDSFile(*aoImageComp.GetImage(0, 0, 0), DirectX::DDS_FLAGS_NONE, (dir / aoImageFilename).c_str()));
+	DX::ThrowIfFailed(DirectX::SaveToDDSFile(*coneImageComp.GetImage(0, 0, 0), DirectX::DDS_FLAGS_NONE, (dir / coneImageFilename).c_str()));
+
+	LoadPrecomputedTex();
+
+	needPrecompute = false;
 }
 
 void TerrainOcclusion::Reset()

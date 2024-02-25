@@ -44,12 +44,12 @@ struct TerrainOcclusion : public Feature
 		} Effect;
 	} settings;
 
-	bool needAoGen = false;
+	bool needPrecompute = false;
 
 	struct HeightMapMetadata
 	{
 		std::wstring dir;
-		std::wstring filename;
+		std::string filename;
 		std::string worldspace;
 		float3 pos0, pos1;  // left-top-z=0 vs right-bottom-z=1
 		float2 zRange;
@@ -96,6 +96,7 @@ struct TerrainOcclusion : public Feature
 
 	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor) override;
 	void LoadHeightmap();
+	void LoadPrecomputedTex();
 	void Precompute();
 	void ModifyLighting();
 
