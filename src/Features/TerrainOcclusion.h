@@ -32,10 +32,10 @@ struct TerrainOcclusion : public Feature
 
 			float ShadowBias = -100.f;  // in game unit
 			float ShadowSofteningRadiusAngle = 2.f * RE::NI_PI / 180.f;
-			float ShadowMinStep = 512;
+			float ShadowMinStep = .75f;
 			// float ShadowMaxDistance = 15;
-			float ShadowAnglePower = 4.f;
-			uint ShadowSamples = 14;
+			float ShadowAnglePower = 1.f;
+			uint ShadowSamples = 10;
 
 			float AOAmbientMix = 1.f;
 			float AODiffuseMix = 0.f;

@@ -44,7 +44,7 @@ float GetTerrainSoftShadow(float2 uv, float3 dirLightDirectionWS, float startZ, 
 
 	float3 dirLightDir = normalize(float3(dirLightDirectionWS.xy, pow(dirLightDirectionWS.z, perPassTerraOcc[0].ShadowAnglePower)));
 
-	if (dirLightDir.z < 1e-3)
+	if (dirLightDir.z < 0)
 		return 0;
 	if (dirLightDir.z > 1 - 1e-3)
 		return 1;
