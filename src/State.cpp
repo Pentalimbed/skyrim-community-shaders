@@ -49,6 +49,10 @@ void State::Draw()
 
 void State::DrawDeferred()
 {
+	auto& shaderCache = SIE::ShaderCache::Instance();
+	if (!shaderCache.IsEnabled())
+		return;
+
 	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 	auto context = renderer->GetRuntimeData().context;
 
@@ -105,6 +109,10 @@ void State::DrawDeferred()
 
 void State::DrawPreProcess()
 {
+	auto& shaderCache = SIE::ShaderCache::Instance();
+	if (!shaderCache.IsEnabled())
+		return;
+
 	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 	auto context = renderer->GetRuntimeData().context;
 
