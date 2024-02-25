@@ -16,7 +16,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	AdaptArea,
 	AdaptSpeed,
 	AdaptationRange,
-	KeyValue,
 	ExposureCompensation,
 	Slope,
 	Power,
@@ -58,8 +57,7 @@ void HDRBloom::DrawSettings()
 		if (ImGui::BeginTabItem("Tonemapper")) {
 			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
 
-			ImGui::SliderFloat("Key Value", &settings.KeyValue, 0.f, 2.f, "%.2f");
-			ImGui::SliderFloat("Exposure Compensation", &settings.ExposureCompensation, -6.f, 21.f, "%.2f EV");
+			ImGui::SliderFloat("Exposure Compensation", &settings.ExposureCompensation, -6.f, 21.f, "%+.2f EV");
 
 			ImGui::SeparatorText("Auto Exposure");
 			{
@@ -482,8 +480,7 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 	// update cb
 	TonemapCB cbData = {
 		.AdaptationRange = { exp2(settings.AdaptationRange.x) * 0.125f, exp2(settings.AdaptationRange.y) * 0.125f },
-		.KeyValue = settings.KeyValue,
-		.ExposureCompensation = exp2(settings.ExposureCompensation) * 0.125f,
+		.ExposureCompensation = exp2(settings.ExposureCompensation),
 		.Slope = settings.Slope,
 		.Power = settings.Power,
 		.Offset = settings.Offset,

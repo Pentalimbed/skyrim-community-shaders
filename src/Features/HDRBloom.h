@@ -29,8 +29,7 @@ struct HDRBloom : public Feature
 		// tonemap
 		bool EnableTonemapper = true;
 
-		float KeyValue = 0.8f;
-		float ExposureCompensation = 0.f;
+		float ExposureCompensation = 2.f;
 
 		// auto exposure
 		bool EnableAutoExposure = true;
@@ -88,7 +87,6 @@ struct HDRBloom : public Feature
 	{
 		float2 AdaptationRange;
 
-		float KeyValue;
 		float ExposureCompensation;
 
 		float Slope;
@@ -105,7 +103,7 @@ struct HDRBloom : public Feature
 
 		float Timer;
 
-		float pad[2];
+		float pad[3];
 	};
 	std::unique_ptr<ConstantBuffer> tonemapCB = nullptr;
 

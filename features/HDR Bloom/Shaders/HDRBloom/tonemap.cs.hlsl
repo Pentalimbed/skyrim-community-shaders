@@ -13,7 +13,6 @@ cbuffer TonemapCB : register(b0)
 {
 	float2 AdaptationRange;
 
-	float KeyValue;
 	float ExposureCompensation;
 
 	float AgXSlope;
@@ -74,7 +73,7 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 	// auto exposure
 	if (EnableAutoExposure) {
 		float avgLuma = RWTexAdaptation.Load(0);
-		color *= KeyValue / (clamp(avgLuma, AdaptationRange.x, AdaptationRange.y) + ExposureCompensation);
+		color *= 0.18 * ExposureCompensation / clamp(avgLuma, AdaptationRange.x, AdaptationRange.y);
 
 		// purkinje shift
 		if (PurkinjeStrength > 1e-3) {
@@ -83,7 +82,7 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 				color = PurkinjeShift(color, purkinjeMix);
 		}
 	} else
-		color *= KeyValue / (0.18 + ExposureCompensation);
+		color *= ExposureCompensation;
 
 	color = Agx(color);
 	color = ASC_CDL(color, AgXSlope, AgXPower, AgXOffset);
