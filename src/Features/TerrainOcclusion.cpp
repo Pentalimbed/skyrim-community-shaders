@@ -69,7 +69,7 @@ void TerrainOcclusion::DrawSettings()
 		ImGui::SliderAngle("Softening", &settings.Effect.ShadowSofteningRadiusAngle, .1f, 10.f, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Controls the solid angle of sunlight, making terrain shadows softer.");
-		ImGui::SliderFloat("Min Stepping Distance", &settings.Effect.ShadowMinStep, 1, 1024, "%.1f units");
+		ImGui::SliderFloat("Min Stepping Distance", &settings.Effect.ShadowMinStep, 1, 4096, "%.1f units");
 		// ImGui::SliderFloat("Max Distance", &settings.Effect.ShadowMaxDistance, 1, 30, "%.2f cells");
 		ImGui::SliderFloat("Angle Exaggeration", &settings.Effect.ShadowAnglePower, 1, 8, "%.1f");
 		if (auto _tt = Util::HoverTooltipWrapper())
