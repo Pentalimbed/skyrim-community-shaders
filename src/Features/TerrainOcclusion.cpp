@@ -113,13 +113,16 @@ void TerrainOcclusion::DrawSettings()
 
 	if (ImGui::TreeNodeEx("Debug")) {
 		std::string curr_worldspace = "N/A";
+		std::string curr_worldspace_name = "N/A";
 		auto tes = RE::TES::GetSingleton();
 		if (tes) {
 			auto worldspace = tes->GetRuntimeData2().worldSpace;
-			if (worldspace)
-				curr_worldspace = worldspace->GetName();
+			if (worldspace) {
+				curr_worldspace = worldspace->GetFormEditorID();
+				curr_worldspace_name = worldspace->GetName();
+			}
 		}
-		ImGui::Text(fmt::format("Current worldspace: {}", curr_worldspace).c_str());
+		ImGui::Text(fmt::format("Current worldspace: {} ({})", curr_worldspace, curr_worldspace_name).c_str());
 		ImGui::Text(fmt::format("Has height map: {}", heightmaps.contains(curr_worldspace)).c_str());
 
 		ImGui::Separator();
@@ -276,7 +279,7 @@ void TerrainOcclusion::LoadHeightmap()
 	auto worldspace = tes->GetRuntimeData2().worldSpace;
 	if (!worldspace)
 		return;
-	std::string worldspace_name = worldspace->GetName();
+	std::string worldspace_name = worldspace->GetFormEditorID();
 	if (!heightmaps.contains(worldspace_name))
 		return;
 	if (cachedHeightmap && cachedHeightmap->worldspace == worldspace_name)
@@ -542,7 +545,7 @@ void TerrainOcclusion::Reset()
 	if (tes) {
 		auto worldspace = tes->GetRuntimeData2().worldSpace;
 		if (worldspace)
-			isHeightmapReady = cachedHeightmap && cachedHeightmap->worldspace == worldspace->GetName();
+			isHeightmapReady = cachedHeightmap && cachedHeightmap->worldspace == worldspace->GetFormEditorID();
 	}
 
 	PerPass data = {
