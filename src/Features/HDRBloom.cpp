@@ -35,10 +35,12 @@ void HDRBloom::DrawSettings()
 			ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
 			if (auto _tt = Util::HoverTooltipWrapper())
 				ImGui::Text(
-					"Prevent bloom from beightening up the image.\n"
+					"Prevent bloom from brightening up the image.\n"
 					"Can turn off if Adapt After Bloom is on.");
 
 			ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
+			if (auto _tt = Util::HoverTooltipWrapper())
+				ImGui::Text("A greater radius makes the bloom slightly blurrier.");
 
 			ImGui::SeparatorText("Blend Factors");
 			{
@@ -47,7 +49,7 @@ void HDRBloom::DrawSettings()
 				for (int i = 0; i < settings.MipBlendFactor.size(); i++) {
 					ImGui::SliderFloat(fmt::format("Level {}", i).c_str(), &settings.MipBlendFactor[i], 0.f, 1.f, "%.2f");
 					if (auto _tt = Util::HoverTooltipWrapper())
-						ImGui::Text("The greater the level, the blurrier it gets.");
+						ImGui::Text("The greater the level, the wider part of the bloom it controls.");
 				}
 			}
 
@@ -58,6 +60,8 @@ void HDRBloom::DrawSettings()
 			ImGui::Checkbox("Enable Tonemapper", &settings.EnableTonemapper);
 
 			ImGui::SliderFloat("Exposure Compensation", &settings.ExposureCompensation, -6.f, 21.f, "%+.2f EV");
+			if (auto _tt = Util::HoverTooltipWrapper())
+				ImGui::Text("Adding/subtracting additional exposure to the image.");
 
 			ImGui::SeparatorText("Auto Exposure");
 			{
@@ -67,11 +71,18 @@ void HDRBloom::DrawSettings()
 				ImGui::SliderFloat("Adaptation Speed", &settings.AdaptSpeed, 0.1f, 5.f, "%.2f");
 				ImGui::SliderFloat2("Focus Area", &settings.AdaptArea.x, 0.f, 1.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 				if (auto _tt = Util::HoverTooltipWrapper())
-					ImGui::Text("Specifies as proportions the width and height of the area that auto exposure will adapt to.");
+					ImGui::Text("[Width, Height] Specifies the proportion of the area that auto exposure will adapt to.");
 				ImGui::SliderFloat2("Adaptation Range", &settings.AdaptationRange.x, -6.f, 21.f, "%.2f EV");
 				if (auto _tt = Util::HoverTooltipWrapper())
-					ImGui::Text("The average scene luminance will be clamped between them when doing auto exposure.");
+					ImGui::Text(
+						"[Min, Max] The average scene luminance will be clamped between them when doing auto exposure."
+						"Turning up the minimum, for example, makes it adapt less to darkness and therefore prevents over-brightening of dark scenes.");
 				ImGui::SliderFloat2("Histogram Range", &settings.HistogramRange.x, -6.f, 21.f, "%.2f EV");
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text(
+						"[Min, Max] The range of luminance the algorithm recognises. "
+						"Should be set to encompass the whole range of intensities the game could possibly produce for best accuracy. "
+						"Usually requires no change.");
 
 				if (ImGui::TreeNodeEx("Purkinje Effect", ImGuiTreeNodeFlags_DefaultOpen)) {
 					ImGui::TextWrapped("The Purkinje effect simulates the blue shift of human vision under low light.");
@@ -88,7 +99,7 @@ void HDRBloom::DrawSettings()
 				}
 			}
 
-			ImGui::SeparatorText("AgX");
+			ImGui::SeparatorText("AgX (ASC CDL)");
 			{
 				ImGui::SliderFloat("Slope", &settings.Slope, 0.f, 2.f, "%.2f");
 				ImGui::SliderFloat("Power", &settings.Power, 0.f, 2.f, "%.2f");

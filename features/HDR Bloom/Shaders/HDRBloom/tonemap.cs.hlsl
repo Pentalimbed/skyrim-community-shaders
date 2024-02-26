@@ -44,19 +44,14 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 {
 	//note: from comment by CeeJayDK
 	float dither_bit = 8.0;  //Bit-depth of display. Normally 8 but some LCD monitors are 7 or even 6-bit.
-
 	//Calculate grid position
 	float grid_position = frac(dot(pxCoord, float2(1.0 / 16.0, 10.0 / 36.0) + 0.093));
-
 	//Calculate how big the shift should be
 	float dither_shift = 0.25 * (1.0 / (pow(2.0, dither_bit) - 1.0));
-
 	//Shift the individual colors differently, thus making it even harder to see the dithering pattern
 	float3 dither_shift_RGB = float3(dither_shift, -dither_shift, dither_shift);  //subpixel dithering
-
 	//modify shift acording to grid position.
 	dither_shift_RGB = lerp(2.0 * dither_shift_RGB, -2.0 * dither_shift_RGB, grid_position);  //shift acording to grid position.
-
 	//shift the color by dither_shift
 	return color + 0.5 / 255.0 + dither_shift_RGB;
 }
