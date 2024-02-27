@@ -3,12 +3,22 @@
 #include "Util.h"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+	HDRBloom::GhostParameters,
+	Mip,
+	Scale,
+	Intensity,
+	Chromatic);
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	HDRBloom::Settings,
 	EnableBloom,
-	EnableNormalisation,
-	UpsampleRadius,
-	BlendFactor,
-	MipBlendFactor,
+	EnableGhosts,
+	BloomThreshold,
+	BloomUpsampleRadius,
+	BloomBlendFactor,
+	GhostsThreshold,
+	GhostParams,
+	MipBloomBlendFactor,
 	EnableAutoExposure,
 	AdaptAfterBloom,
 	EnableTonemapper,
@@ -29,29 +39,52 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 void HDRBloom::DrawSettings()
 {
 	if (ImGui::BeginTabBar("##HDRBLOOM")) {
-		if (ImGui::BeginTabItem("Bloom")) {
+		if (ImGui::BeginTabItem("Bloom & Flare")) {
 			ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
+			ImGui::Checkbox("Enable Ghosts", &settings.EnableGhosts);
 
-			ImGui::Checkbox("Normalisation", &settings.EnableNormalisation);
-			if (auto _tt = Util::HoverTooltipWrapper())
-				ImGui::Text(
-					"Prevent bloom from brightening up the image.\n"
-					"Can turn off if Adapt After Bloom is on.");
-
-			ImGui::SliderFloat("Upsampling Radius", &settings.UpsampleRadius, 1.f, 5.f, "%.1f px");
-			if (auto _tt = Util::HoverTooltipWrapper())
-				ImGui::Text("A greater radius makes the bloom slightly blurrier.");
-
-			ImGui::SeparatorText("Blend Factors");
+			ImGui::SeparatorText("Bloom");
+			ImGui::PushID("Bloom");
 			{
-				ImGui::SliderFloat("Global", &settings.BlendFactor, 0.f, 1.f, "%.2f");
+				ImGui::SliderFloat("Threshold", &settings.BloomThreshold, -6.f, 21.f, "%+.2f EV");
+				ImGui::SliderFloat("Upsampling Radius", &settings.BloomUpsampleRadius, 1.f, 5.f, "%.1f px");
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("A greater radius makes the bloom slightly blurrier.");
+
+				ImGui::SliderFloat("Mix", &settings.BloomBlendFactor, 0.f, 1.f, "%.2f");
+
 				ImGui::Separator();
-				for (int i = 0; i < settings.MipBlendFactor.size(); i++) {
-					ImGui::SliderFloat(fmt::format("Level {}", i).c_str(), &settings.MipBlendFactor[i], 0.f, 1.f, "%.2f");
-					if (auto _tt = Util::HoverTooltipWrapper())
-						ImGui::Text("The greater the level, the wider part of the bloom it controls.");
+
+				static int mipLevel = 1;
+				ImGui::SliderInt("Blur Level", &mipLevel, 1, (int)settings.MipBloomBlendFactor.size() + 1, "%d", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::Indent();
+				{
+					ImGui::SliderFloat("Intensity", &settings.MipBloomBlendFactor[mipLevel - 1], 0.f, 1.f, "%.2f");
 				}
+				ImGui::Unindent();
 			}
+			ImGui::PopID();
+
+			ImGui::SeparatorText("Ghosts");
+			ImGui::PushID("Ghosts");
+			{
+				ImGui::SliderFloat("Threshold", &settings.GhostsThreshold, -6.f, 21.f, "%+.2f EV");
+
+				ImGui::Separator();
+
+				static int item = 0;
+				ImGui::SliderInt("Index", &item, 0, (int)settings.GhostParams.size(), "%d", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::Indent();
+				{
+					auto& ghostParams = settings.GhostParams[item];
+					ImGui::SliderInt("Blur Level", (int*)&ghostParams.Mip, 1, (int)s_BloomMips, "%d", ImGuiSliderFlags_AlwaysClamp);
+					ImGui::SliderFloat("Scale", &ghostParams.Scale, -3.f, 3.f, "%.2f");
+					ImGui::SliderFloat("Intensity", &ghostParams.Intensity, -3.f, 3.f, "%.2f");
+					ImGui::SliderFloat("Chromatic Aberration", &ghostParams.Chromatic, -.1f, .1f, "%.3f");
+				}
+				ImGui::Unindent();
+			}
+			ImGui::PopID();
 
 			ImGui::EndTabItem();
 		}
@@ -129,10 +162,17 @@ void HDRBloom::DrawSettings()
 		}
 
 		if (ImGui::BeginTabItem("Debug")) {
-			ImGui::BulletText("texBloom");
 			static int mip = 0;
-			ImGui::SliderInt("Mip Level", &mip, 0, 8, "%d", ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp);
+			ImGui::SliderInt("Mip Level", &mip, 0, (int)s_BloomMips - 1, "%d", ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp);
+
+			ImGui::BulletText("texBloom");
 			ImGui::Image(texBloomMipSRVs[mip].get(), { texBloom->desc.Width * .2f, texBloom->desc.Height * .2f });
+
+			ImGui::BulletText("texGhostsBlur");
+			ImGui::Image(texGhostsMipSRVs[mip].get(), { texGhostsBlur->desc.Width * .2f, texGhostsBlur->desc.Height * .2f });
+
+			ImGui::BulletText("texGhosts");
+			ImGui::Image(texGhosts->srv.get(), { texGhosts->desc.Width * .4f, texGhosts->desc.Height * .4f });
 
 			ImGui::EndTabItem();
 		}
@@ -160,12 +200,14 @@ void HDRBloom::SetupResources()
 		autoExposureCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<AutoExposureCB>());
 		bloomCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<BloomCB>());
 		tonemapCB = std::make_unique<ConstantBuffer>(ConstantBufferDesc<TonemapCB>());
-	}
 
+		ghostsSB = std::make_unique<StructuredBuffer>(StructuredBufferDesc<GhostParameters>(7u), 7);
+		ghostsSB->CreateSRV();
+	}
 	logger::debug("Creating 1D textures...");
 	{
 		D3D11_TEXTURE1D_DESC texDesc = {
-			.Width = 257,
+			.Width = 256,
 			.MipLevels = 1,
 			.ArraySize = 1,
 			.Format = DXGI_FORMAT_R32_UINT,
@@ -206,11 +248,12 @@ void HDRBloom::SetupResources()
 
 		D3D11_TEXTURE2D_DESC texDesc;
 		gameTexMainCopy.texture->GetDesc(&texDesc);
+		texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
 			.Format = texDesc.Format,
 			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-			.Texture2D = { .MostDetailedMip = 0, .MipLevels = (UINT)-1 }
+			.Texture2D = { .MostDetailedMip = 0, .MipLevels = 1 }
 		};
 
 		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
@@ -221,43 +264,72 @@ void HDRBloom::SetupResources()
 
 		// texTonemap
 		{
-			texDesc.MipLevels = 1;
+			texDesc.MipLevels = srvDesc.Texture2D.MipLevels = 1;
 			texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
 			texDesc.MiscFlags = 0;
-
-			srvDesc.Texture2D.MipLevels = 1;
 
 			texTonemap = std::make_unique<Texture2D>(texDesc);
 			texTonemap->CreateSRV(srvDesc);
 			texTonemap->CreateUAV(uavDesc);
 		}
 
-		// texBloom
+		// texBloom/texGhostsBlur
 		{
-			texDesc.MipLevels = 9;
+			texDesc.MipLevels = srvDesc.Texture2D.MipLevels = s_BloomMips;
 
 			texBloom = std::make_unique<Texture2D>(texDesc);
+			texBloom->CreateSRV(srvDesc);
+			texGhostsBlur = std::make_unique<Texture2D>(texDesc);
+			texGhostsBlur->CreateSRV(srvDesc);
 
 			// SRV for each mip
-			for (uint i = 0; i < 9; i++) {
+			for (uint i = 0; i < s_BloomMips; i++) {
 				D3D11_SHADER_RESOURCE_VIEW_DESC mipSrvDesc = {
 					.Format = texDesc.Format,
 					.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
 					.Texture2D = { .MostDetailedMip = i, .MipLevels = 1 }
 				};
 				DX::ThrowIfFailed(device->CreateShaderResourceView(texBloom->resource.get(), &mipSrvDesc, texBloomMipSRVs[i].put()));
+				DX::ThrowIfFailed(device->CreateShaderResourceView(texGhostsBlur->resource.get(), &mipSrvDesc, texGhostsMipSRVs[i].put()));
 			}
 
 			// UAV for each mip
-			for (uint i = 0; i < 9; i++) {
+			for (uint i = 0; i < s_BloomMips; i++) {
 				D3D11_UNORDERED_ACCESS_VIEW_DESC mipUavDesc = {
 					.Format = texDesc.Format,
 					.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
 					.Texture2D = { .MipSlice = i }
 				};
 				DX::ThrowIfFailed(device->CreateUnorderedAccessView(texBloom->resource.get(), &mipUavDesc, texBloomMipUAVs[i].put()));
+				DX::ThrowIfFailed(device->CreateUnorderedAccessView(texGhostsBlur->resource.get(), &mipUavDesc, texGhostsMipUAVs[i].put()));
 			}
 		}
+
+		// texGhosts
+		{
+			texDesc.MipLevels = srvDesc.Texture2D.MipLevels = 1;
+			texDesc.Width >>= 1;
+			texDesc.Height >>= 1;
+
+			texGhosts = std::make_unique<Texture2D>(texDesc);
+			texGhosts->CreateSRV(srvDesc);
+			texGhosts->CreateUAV(uavDesc);
+		}
+	}
+
+	logger::debug("Creating samplers...");
+	{
+		D3D11_SAMPLER_DESC samplerDesc = {
+			.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+			.AddressU = D3D11_TEXTURE_ADDRESS_BORDER,
+			.AddressV = D3D11_TEXTURE_ADDRESS_BORDER,
+			.AddressW = D3D11_TEXTURE_ADDRESS_BORDER,
+			.MaxAnisotropy = 1,
+			.MinLOD = 0,
+			.MaxLOD = D3D11_FLOAT32_MAX
+		};
+
+		DX::ThrowIfFailed(device->CreateSamplerState(&samplerDesc, colorSampler.put()));
 	}
 
 	CompileComputeShaders();
@@ -273,13 +345,33 @@ void HDRBloom::CompileComputeShaders()
 	if (programPtr)
 		histogramAvgProgram.attach(programPtr);
 
-	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", { { "DOWNSAMPLE", "" } }, "cs_5_0"));
+	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", {}, "cs_5_0", "CS_Threshold"));
 	if (programPtr)
-		bloomDownsampleProgram.attach(programPtr);
+		bloomThresholdProgram.attach(programPtr);
 
-	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", {}, "cs_5_0"));
+	for (uint i = 0; i < 3; ++i) {
+		std::vector<std::pair<const char*, const char*>> defines = {};
+		if (i != 1)
+			defines.push_back({ "BLOOM", "" });
+		if (i != 0)
+			defines.push_back({ "GHOSTS", "" });
+
+		programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", defines, "cs_5_0", "CS_Downsample"));
+		if (programPtr)
+			bloomDownsampleProgram[i].attach(programPtr);
+	}
+
+	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", {}, "cs_5_0", "CS_Upsample"));
 	if (programPtr)
 		bloomUpsampleProgram.attach(programPtr);
+
+	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", {}, "cs_5_0", "CS_Ghosts"));
+	if (programPtr)
+		bloomGhostsProgram.attach(programPtr);
+
+	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", {}, "cs_5_0", "CS_Composite"));
+	if (programPtr)
+		bloomCompositeProgram.attach(programPtr);
 
 	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\tonemap.cs.hlsl", {}, "cs_5_0"));
 	if (programPtr)
@@ -296,8 +388,12 @@ void HDRBloom::ClearShaderCache()
 	};
 	checkClear(histogramProgram);
 	checkClear(histogramAvgProgram);
-	checkClear(bloomDownsampleProgram);
+	checkClear(bloomThresholdProgram);
+	for (uint i = 0; i < 3; ++i)
+		checkClear(bloomDownsampleProgram[i]);
 	checkClear(bloomUpsampleProgram);
+	checkClear(bloomGhostsProgram);
+	checkClear(bloomCompositeProgram);
 	checkClear(tonemapProgram);
 	CompileComputeShaders();
 }
@@ -386,96 +482,129 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 
 	// update cb
 	BloomCB cbData = {
-		.IsZeroMip = true,
+		.Thresholds = float2{ exp2(settings.BloomThreshold), exp2(settings.GhostsThreshold) } * .125f,
 		.IsFirstMip = true,
+		.UpsampleRadius = settings.BloomUpsampleRadius,
 		.UpsampleMult = 1.f,
-		.CurrentMipMult = 1.f,
-		.UpsampleRadius = settings.UpsampleRadius,
+		.CurrentMipMult = 1.f
 	};
 	bloomCB->Update(cbData);
 
-	// copy to lowest mip
-	// TO BE CHANGED
+	// update sb
+	ghostsSB->Update(settings.GhostParams.data(), sizeof(GhostParameters) * settings.GhostParams.size());
 
-	ID3D11ShaderResourceView* srv = input.srv;
-	ID3D11UnorderedAccessView* uav = nullptr;
-	ID3D11Buffer* cb = bloomCB->CB();
-	context->CSSetConstantBuffers(0, 1, &cb);
+	struct ShaderState
+	{
+		ID3D11ShaderResourceView* srvs[4] = { nullptr };
+		ID3D11ComputeShader* shader = nullptr;
+		ID3D11Buffer* buffer = nullptr;
+		ID3D11UnorderedAccessView* uavs[2] = { nullptr };
+		ID3D11SamplerState* sampler = nullptr;
+	} nullstate, newstate;
 
-	// downsample
-	context->CSSetShader(bloomDownsampleProgram.get(), nullptr, 0);
-	for (int i = 0; i < 9; i++) {
-		if (i != 0) {
-			if (i == 1) {
-				cbData.IsZeroMip = false;
-				cbData.IsFirstMip = true;
-				bloomCB->Update(cbData);
-			} else if (i == 2) {
-				cbData.IsFirstMip = false;
-				bloomCB->Update(cbData);
-			}
+	auto setState = [&](ShaderState& state) {
+		context->CSSetShader(state.shader, nullptr, 0);
+		context->CSSetShaderResources(0, ARRAYSIZE(state.srvs), state.srvs);
+		context->CSSetConstantBuffers(0, 1, &state.buffer);
+		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(state.uavs), state.uavs, nullptr);
+		context->CSSetSamplers(0, 1, &state.sampler);
+	};
+	setState(nullstate);
 
-			srv = texBloomMipSRVs[i - 1].get();
-		}
+	newstate.sampler = colorSampler.get();
+	newstate.buffer = bloomCB->CB();
+	newstate.srvs[3] = ghostsSB->SRV();
 
-		uav = texBloomMipUAVs[i].get();
-		context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
-		context->CSSetShaderResources(0, 1, &srv);
+	// Threshold
+	{
+		newstate.shader = bloomThresholdProgram.get();
+		newstate.srvs[0] = input.srv;
+		newstate.uavs[0] = texBloomMipUAVs[0].get();
+		newstate.uavs[1] = texGhostsMipUAVs[0].get();
+		setState(newstate);
 
-		uint mipWidth = texBloom->desc.Width >> i;
-		uint mipHeight = texBloom->desc.Height >> i;
-		context->Dispatch(((mipWidth - 1) >> 5) + 1, ((mipHeight - 1) >> 5) + 1, 1);
+		context->Dispatch(((texBloom->desc.Width - 1) >> 5) + 1, ((texBloom->desc.Height - 1) >> 5) + 1, 1);
 	}
 
-	// clear oh dear
-	srv = nullptr;
-	uav = nullptr;
-	context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
-	context->CSSetShaderResources(0, 1, &srv);
+	setState(nullstate);
+
+	// Downsample
+	size_t shaderIdx = settings.EnableBloom + settings.EnableGhosts * 2 - 1;
+	newstate.shader = bloomDownsampleProgram[shaderIdx].get();
+	for (int i = 0; i < s_BloomMips - 1; i++) {
+		if (i == 1) {
+			cbData.IsFirstMip = true;
+			bloomCB->Update(cbData);
+		} else if (i == 2) {
+			cbData.IsFirstMip = false;
+			bloomCB->Update(cbData);
+		}
+
+		newstate.srvs[1] = texBloomMipSRVs[i].get();
+		newstate.srvs[2] = texGhostsMipSRVs[i].get();
+		newstate.uavs[0] = texBloomMipUAVs[i + 1].get();
+		newstate.uavs[1] = texGhostsMipUAVs[i + 1].get();
+
+		setState(newstate);
+
+		uint mipWidth = texBloom->desc.Width >> (i + 1);
+		uint mipHeight = texBloom->desc.Height >> (i + 1);
+		context->Dispatch(((mipWidth - 1) >> 5) + 1, ((mipHeight - 1) >> 5) + 1, 1);
+
+		setState(nullstate);
+	}
+
+	// ghosts
+	{
+		newstate.shader = bloomGhostsProgram.get();
+		newstate.srvs[2] = texGhostsBlur->srv.get();
+		newstate.uavs[1] = texGhosts->uav.get();
+
+		setState(newstate);
+
+		context->Dispatch(((texGhosts->desc.Width - 1) >> 5) + 1, ((texGhosts->desc.Height - 1) >> 5) + 1, 1);
+	}
+
+	setState(nullstate);
 
 	// upsample
-	context->CSSetShader(bloomUpsampleProgram.get(), nullptr, 0);
-	for (int i = 7; i >= 0; i--) {
-		if (i == 0) {
-			cbData.IsFirstMip = true;
-
-			if (settings.EnableNormalisation) {
-				float normalisationFactor = 0.f;
-				for (int j = 7; j >= 0; j--)
-					normalisationFactor += settings.MipBlendFactor[j];
-				normalisationFactor = 1.f / (1 + normalisationFactor * settings.BlendFactor);
-				cbData.NormalisationFactor = normalisationFactor;
-			} else
-				cbData.NormalisationFactor = 1.f;
-		}
-
+	newstate.shader = bloomUpsampleProgram.get();
+	for (int i = s_BloomMips - 2; i >= 1; i--) {
 		cbData.UpsampleMult = 1.f;
-		if (i == 7)
-			cbData.UpsampleMult = settings.MipBlendFactor[i];
-		else if (i == 0)
-			cbData.UpsampleMult = settings.BlendFactor;
-		cbData.CurrentMipMult = (i == 0) ? 1.f : settings.MipBlendFactor[i - 1];
-
+		if (i == s_BloomMips - 2)
+			cbData.UpsampleMult = settings.MipBloomBlendFactor[i];
+		cbData.CurrentMipMult = settings.MipBloomBlendFactor[i - 1];
 		bloomCB->Update(cbData);
 
-		srv = texBloomMipSRVs[i + 1].get();
-		uav = texBloomMipUAVs[i].get();
-		context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
-		context->CSSetShaderResources(0, 1, &srv);
+		newstate.srvs[1] = texBloomMipSRVs[i + 1].get();
+		newstate.uavs[0] = texBloomMipUAVs[i].get();
+
+		setState(newstate);
 
 		uint mipWidth = texBloom->desc.Width >> i;
 		uint mipHeight = texBloom->desc.Height >> i;
 		context->Dispatch(((mipWidth - 1) >> 5) + 1, ((mipHeight - 1) >> 5) + 1, 1);
+
+		setState(nullstate);
 	}
 
-	// clean up
-	srv = nullptr;
-	uav = nullptr;
-	cb = nullptr;
-	context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
-	context->CSSetShaderResources(0, 1, &srv);
-	context->CSSetConstantBuffers(0, 1, &cb);
-	context->CSSetShader(nullptr, nullptr, 0);
+	// composite
+	{
+		cbData.UpsampleMult = settings.BloomBlendFactor;
+		bloomCB->Update(cbData);
+
+		newstate.shader = bloomCompositeProgram.get();
+		newstate.srvs[1] = texBloomMipSRVs[1].get();
+		newstate.srvs[2] = texGhosts->srv.get();
+		newstate.uavs[0] = texBloomMipUAVs[0].get();
+		newstate.uavs[1] = nullptr;
+
+		setState(newstate);
+
+		context->Dispatch(((texBloom->desc.Width - 1) >> 5) + 1, ((texBloom->desc.Height - 1) >> 5) + 1, 1);
+	}
+
+	setState(nullstate);
 
 	return { texBloom->resource.get(), texBloomMipSRVs[0].get() };
 }

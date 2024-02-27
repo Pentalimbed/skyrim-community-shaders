@@ -2,7 +2,7 @@
 
 #include "common.hlsli"
 
-#include "TriDither.fx"
+#include "TriDither.fxh"
 
 RWTexture2D<float4> RWTexOut : register(u0);
 

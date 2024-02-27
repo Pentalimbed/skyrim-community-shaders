@@ -1,5 +1,10 @@
 /// By ProfJack/五脚猫, 2024-2-17 UTC
 
+bool3 IsNaN(float3 x)
+{
+	return !(x < 0.f || x > 0.f || x == 0.f);
+}
+
 float Luma(float3 color)
 {
 	return dot(color, float3(0.2126, 0.7152, 0.0722));
@@ -131,7 +136,7 @@ float3 PurkinjeShift(float3 c, float nightAdaptation)
 	float rc_lm = K * (p * g.x / m.x + (1.0 - p) * g.y / m.y) * k5 * lmsr.w;
 
 	float3 lms_gain = float3(-0.5 * rc_gr + 0.5 * rc_lm, 0.5 * rc_gr + 0.5 * rc_lm, rc_by + rc_lm) * nightAdaptation;
-	float3 rgb_gain = LMS2RGB(lmsr + lms_gain) / logExposure;
+	float3 rgb_gain = LMS2RGB(lmsr.rgb + lms_gain) / logExposure;
 
 	return rgb_gain;
 }
