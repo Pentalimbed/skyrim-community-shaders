@@ -92,6 +92,13 @@ void HDRBloom::DrawSettings()
 			}
 			ImGui::PopID();
 
+			ImGui::SeparatorText("Vignette");
+			{
+				ImGui::TextWrapped("Set Natural Vignette Power to 0 to disable.");
+				ImGui::SliderFloat("Natural Vignette Focal Length", &settings.NaturalVignetteFocal, 0.1f, 2.f, "%.2f");
+				ImGui::SliderFloat("Natural Vignette Power", &settings.NaturalVignettePower, 0.f, 4.f, "%.2f");
+			}
+
 			ImGui::EndTabItem();
 		}
 
@@ -497,7 +504,9 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 		.UpsampleRadius = settings.BloomUpsampleRadius,
 		.UpsampleMult = 1.f,
 		.CurrentMipMult = 1.f,
-		.GhostsCentralSize = settings.GhostsCentralSize
+		.GhostsCentralSize = settings.GhostsCentralSize,
+		.NaturalVignetteFocal = settings.NaturalVignetteFocal,
+		.NaturalVignettePower = settings.NaturalVignettePower,
 	};
 	// cbData.BlurSigmaFactor.x = 2.f * RE::NI_PI * settings.GhostsBlurSigma * settings.GhostsBlurSigma;
 	// cbData.BlurSigmaFactor.y = 1.f / cbData.BlurSigmaFactor.x;

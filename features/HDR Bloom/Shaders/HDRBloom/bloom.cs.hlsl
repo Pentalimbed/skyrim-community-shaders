@@ -35,6 +35,9 @@ cbuffer BloomCB : register(b0)
 	float CurrentMipMult : packoffset(c1.y);
 	// ghosts
 	float GhostsCentralSize : packoffset(c1.z);
+	// composite
+	float NaturalVignetteFocal : packoffset(c1.w);
+	float NaturalVignettePower : packoffset(c2.x);
 };
 
 SamplerState SampColor : register(s0);
@@ -211,5 +214,15 @@ float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
 	float3 col = TexColor[tid].rgb +
 	             UpsampleCOD(TexBloomIn, uv, px_size * UpsampleRadius).rgb * UpsampleMult +
 	             TexGhostsIn.SampleLevel(SampColor, uv, 0).rgb;
+
+	// natural vignette
+	if (NaturalVignettePower > 1e-3f) {
+		float cos_view = length(uv - .5);
+		cos_view = NaturalVignetteFocal * rsqrt(cos_view * cos_view + NaturalVignetteFocal * NaturalVignetteFocal);
+		float vignette = pow(cos_view, NaturalVignettePower);
+
+		col *= vignette;
+	}
+
 	RWTexBloomOut[tid] = float4(col, 1);
 };

@@ -26,7 +26,7 @@ struct HDRBloom : public Feature
 
 	struct Settings
 	{
-		// bloom
+		// bloom & lens
 		bool EnableBloom = true;
 		bool EnableGhosts = false;
 
@@ -38,6 +38,9 @@ struct HDRBloom : public Feature
 		float GhostsThreshold = 1.f;  // EV
 		float GhostsCentralSize = .4f;
 		std::array<GhostParameters, s_BloomMips> GhostParams = {};
+
+		float NaturalVignetteFocal = 1.f;
+		float NaturalVignettePower = 3.f;
 
 		// tonemap
 		bool EnableTonemapper = true;
@@ -94,7 +97,11 @@ struct HDRBloom : public Feature
 		float CurrentMipMult;
 		// ghosts
 		float GhostsCentralSize;
-		float pad0;
+		// composite
+		float NaturalVignetteFocal;
+		float NaturalVignettePower;
+
+		float pad[3];
 	};
 	std::unique_ptr<ConstantBuffer> bloomCB = nullptr;
 
