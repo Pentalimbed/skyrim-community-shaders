@@ -2,6 +2,7 @@
 /// ref:
 /// http://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare
 /// https://www.froyok.fr/blog/2021-09-ue4-custom-lens-flare/
+/// https://community.arm.com/cfs-file/__key/communityserver-blogs-components-weblogfiles/00-00-00-20-66/siggraph2015_2D00_mmg_2D00_marius_2D00_notes.pdf
 
 #include "common.hlsli"
 
@@ -32,6 +33,8 @@ cbuffer BloomCB : register(b0)
 	float UpsampleRadius : packoffset(c0.w);
 	float UpsampleMult : packoffset(c1.x);  // in composite: bloom mult
 	float CurrentMipMult : packoffset(c1.y);
+	// ghosts
+	float GhostsCentralSize : packoffset(c1.z);
 };
 
 SamplerState SampColor : register(s0);
@@ -47,9 +50,10 @@ float3 Sanitise(float3 v)
 
 float3 ThresholdColor(float3 col, float threshold)
 {
-	if (Luma(col) < threshold)
+	float luma = Luma(col);
+	if (luma < 1e-3)
 		return 0;
-	return col;
+	return col * (max(0, luma - threshold) / luma);
 }
 
 float4 KarisAverage(float4 a, float4 b, float4 c, float4 d)
@@ -63,7 +67,7 @@ float4 KarisAverage(float4 a, float4 b, float4 c, float4 d)
 }
 
 // Maybe rewrite as fetch
-float4 Downsample(Texture2D tex, float2 uv, float2 out_px_size)
+float4 DownsampleCOD(Texture2D tex, float2 uv, float2 out_px_size)
 {
 	int x, y;
 
@@ -99,13 +103,22 @@ float4 Downsample(Texture2D tex, float2 uv, float2 out_px_size)
 	return retval;
 }
 
-float4 Upsample(Texture2D tex, float2 uv, float2 radius)
+float4 UpsampleCOD(Texture2D tex, float2 uv, float2 radius)
 {
 	float4 retval = 0;
 	for (int x = -1; x <= 1; ++x)
 		for (int y = -1; y <= 1; ++y)
 			retval += (1 << (!x + !y)) * 0.0625 * tex.SampleLevel(SampColor, uv + float2(x, y) * radius, 0);
 	return retval;
+}
+
+float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
+{
+	float3 col;
+	col.r = tex.SampleLevel(SampColor, lerp(.5, uv, 1 - chromatic), mip).r;
+	col.g = tex.SampleLevel(SampColor, uv, mip).g;
+	col.b = tex.SampleLevel(SampColor, lerp(.5, uv, 1 + chromatic), mip).b;
+	return col;
 }
 
 [numthreads(32, 32, 1)] void CS_Threshold(uint2 tid : SV_DispatchThreadID) {
@@ -131,28 +144,17 @@ float4 Upsample(Texture2D tex, float2 uv, float2 radius)
 
 #ifdef BLOOM
 	{
-		float3 col = Downsample(TexBloomIn, uv, px_size).rgb;
+		float3 col = DownsampleCOD(TexBloomIn, uv, px_size).rgb;
 		RWTexBloomOut[tid] = float4(col, 1);
 	}
 #endif
 
 #ifdef GHOSTS
 	{
-		float3 col = Downsample(TexGhostsIn, uv, px_size).rgb;
+		float3 col = DownsampleCOD(TexGhostsIn, uv, px_size).rgb;
 		RWTexGhostsOut[tid] = float4(col, 1);
 	}
 #endif
-};
-
-[numthreads(32, 32, 1)] void CS_Upsample(uint2 tid : SV_DispatchThreadID) {
-	uint2 dims;
-	RWTexBloomOut.GetDimensions(dims.x, dims.y);
-
-	float2 px_size = rcp(dims);
-	float2 uv = (tid + .5) * px_size;
-
-	float3 col = RWTexBloomOut[tid].rgb * CurrentMipMult + Upsample(TexBloomIn, uv, px_size * UpsampleRadius).rgb * UpsampleMult;
-	RWTexBloomOut[tid] = float4(col, 1);
 };
 
 [numthreads(32, 32, 1)] void CS_Ghosts(uint2 tid : SV_DispatchThreadID) {
@@ -167,21 +169,36 @@ float4 Upsample(Texture2D tex, float2 uv, float2 radius)
 		if (GhostParametersSB[i].Intensity > 1e-3) {
 			float3 ghost = 0;
 
-			float mip = GhostParametersSB[i].Mip;
+			uint mip = GhostParametersSB[i].Mip;
 			float scale = rcp(GhostParametersSB[i].Scale);
 			float intensity = GhostParametersSB[i].Intensity;
 			float chromatic = GhostParametersSB[i].Chromatic;
 
-			if (abs(chromatic) > 1e-3) {
-				ghost.r = TexGhostsIn.SampleLevel(SampColor, .5 + (.5 - uv) * scale * (1 - chromatic), mip).r;
-				ghost.g = TexGhostsIn.SampleLevel(SampColor, .5 + (.5 - uv) * scale, mip).g;
-				ghost.b = TexGhostsIn.SampleLevel(SampColor, .5 + (.5 - uv) * scale * (1 + chromatic), mip).b;
-			} else
-				ghost = TexGhostsIn.SampleLevel(SampColor, .5 + (.5 - uv) * scale, mip).rgb;
+			float2 sampleUV = .5 + (.5 - uv) * scale;
+
+			if (abs(chromatic) > 1e-3)
+				ghost = SampleChromatic(TexGhostsIn, sampleUV, mip, chromatic);
+			else
+				ghost = TexGhostsIn.SampleLevel(SampColor, sampleUV, mip).rgb;
+
+			// only central weights
+			ghost *= 1 - smoothstep(0, GhostsCentralSize, length(sampleUV - .5));
+
 			col += ghost * intensity;
 		}
 
 	RWTexGhostsOut[tid] = float4(col, 1);
+};
+
+[numthreads(32, 32, 1)] void CS_Upsample(uint2 tid : SV_DispatchThreadID) {
+	uint2 dims;
+	RWTexBloomOut.GetDimensions(dims.x, dims.y);
+
+	float2 px_size = rcp(dims);
+	float2 uv = (tid + .5) * px_size;
+
+	float3 col = RWTexBloomOut[tid].rgb * CurrentMipMult + UpsampleCOD(TexBloomIn, uv, px_size * UpsampleRadius).rgb * UpsampleMult;
+	RWTexBloomOut[tid] = float4(col, 1);
 };
 
 [numthreads(32, 32, 1)] void CS_Composite(uint2 tid : SV_DispatchThreadID) {
@@ -192,7 +209,7 @@ float4 Upsample(Texture2D tex, float2 uv, float2 radius)
 	float2 uv = (tid + .5) * px_size;
 
 	float3 col = TexColor[tid].rgb +
-	             Upsample(TexBloomIn, uv, px_size * UpsampleRadius).rgb * UpsampleMult +
+	             UpsampleCOD(TexBloomIn, uv, px_size * UpsampleRadius).rgb * UpsampleMult +
 	             TexGhostsIn.SampleLevel(SampColor, uv, 0).rgb;
 	RWTexBloomOut[tid] = float4(col, 1);
 };

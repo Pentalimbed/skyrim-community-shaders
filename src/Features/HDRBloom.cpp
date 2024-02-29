@@ -17,6 +17,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	BloomUpsampleRadius,
 	BloomBlendFactor,
 	GhostsThreshold,
+	GhostsCentralSize,
 	GhostParams,
 	MipBloomBlendFactor,
 	EnableAutoExposure,
@@ -39,7 +40,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 void HDRBloom::DrawSettings()
 {
 	if (ImGui::BeginTabBar("##HDRBLOOM")) {
-		if (ImGui::BeginTabItem("Bloom & Flare")) {
+		if (ImGui::BeginTabItem("Bloom & Lens")) {
 			ImGui::Checkbox("Enable Bloom", &settings.EnableBloom);
 			ImGui::Checkbox("Enable Ghosts", &settings.EnableGhosts);
 
@@ -56,7 +57,9 @@ void HDRBloom::DrawSettings()
 				ImGui::Separator();
 
 				static int mipLevel = 1;
-				ImGui::SliderInt("Blur Level", &mipLevel, 1, (int)settings.MipBloomBlendFactor.size() + 1, "%d", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::SliderInt("Mip Level", &mipLevel, 1, (int)settings.MipBloomBlendFactor.size() + 1, "%d", ImGuiSliderFlags_AlwaysClamp);
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("The greater the level, the blurrier the part it controls");
 				ImGui::Indent();
 				{
 					ImGui::SliderFloat("Intensity", &settings.MipBloomBlendFactor[mipLevel - 1], 0.f, 1.f, "%.2f");
@@ -69,15 +72,18 @@ void HDRBloom::DrawSettings()
 			ImGui::PushID("Ghosts");
 			{
 				ImGui::SliderFloat("Threshold", &settings.GhostsThreshold, -6.f, 21.f, "%+.2f EV");
+				ImGui::SliderFloat("Central Size", &settings.GhostsCentralSize, 0.1f, 1.f, "%.2f");
+				if (auto _tt = Util::HoverTooltipWrapper())
+					ImGui::Text("The size of the central area where lights may cause ghosting.");
 
 				ImGui::Separator();
 
 				static int item = 0;
-				ImGui::SliderInt("Index", &item, 0, (int)settings.GhostParams.size(), "%d", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::SliderInt("Individual Control", &item, 0, (int)settings.GhostParams.size(), "%d", ImGuiSliderFlags_AlwaysClamp);
 				ImGui::Indent();
 				{
 					auto& ghostParams = settings.GhostParams[item];
-					ImGui::SliderInt("Blur Level", (int*)&ghostParams.Mip, 1, (int)s_BloomMips, "%d", ImGuiSliderFlags_AlwaysClamp);
+					ImGui::SliderInt("Source Mip Level", (int*)&ghostParams.Mip, 1, (int)s_BloomMips, "%d", ImGuiSliderFlags_AlwaysClamp);
 					ImGui::SliderFloat("Scale", &ghostParams.Scale, -3.f, 3.f, "%.2f");
 					ImGui::SliderFloat("Intensity", &ghostParams.Intensity, -3.f, 3.f, "%.2f");
 					ImGui::SliderFloat("Chromatic Aberration", &ghostParams.Chromatic, -.1f, .1f, "%.3f");
@@ -373,6 +379,10 @@ void HDRBloom::CompileComputeShaders()
 	if (programPtr)
 		bloomCompositeProgram.attach(programPtr);
 
+	// programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\bloom.cs.hlsl", {}, "cs_5_0", "CS_Blur"));
+	// if (programPtr)
+	// 	bloomBlurProgram.attach(programPtr);
+
 	programPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(L"Data\\Shaders\\HDRBloom\\tonemap.cs.hlsl", {}, "cs_5_0"));
 	if (programPtr)
 		tonemapProgram.attach(programPtr);
@@ -419,7 +429,7 @@ void HDRBloom::DrawPreProcess()
 		DrawAdaptation(lastTexColor);
 
 	// COD Bloom
-	if (settings.EnableBloom)
+	if (settings.EnableBloom || settings.EnableGhosts)
 		lastTexColor = DrawCODBloom(lastTexColor);
 
 	if (settings.EnableAutoExposure && settings.AdaptAfterBloom)
@@ -486,8 +496,11 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 		.IsFirstMip = true,
 		.UpsampleRadius = settings.BloomUpsampleRadius,
 		.UpsampleMult = 1.f,
-		.CurrentMipMult = 1.f
+		.CurrentMipMult = 1.f,
+		.GhostsCentralSize = settings.GhostsCentralSize
 	};
+	// cbData.BlurSigmaFactor.x = 2.f * RE::NI_PI * settings.GhostsBlurSigma * settings.GhostsBlurSigma;
+	// cbData.BlurSigmaFactor.y = 1.f / cbData.BlurSigmaFactor.x;
 	bloomCB->Update(cbData);
 
 	// update sb
@@ -567,6 +580,18 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 
 	setState(nullstate);
 
+	// ghosts blur
+	// context->GenerateMips(texGhosts->srv.get());
+	// {
+	// 	newstate.shader = bloomBlurProgram.get();
+	// 	newstate.srvs[2] = texGhosts->srv.get();
+	// 	newstate.uavs[1] = texGhostsMipUAVs[1].get();
+
+	// 	setState(newstate);
+
+	// 	context->Dispatch(((texGhosts->desc.Width - 1) >> 5) + 1, ((texGhosts->desc.Height - 1) >> 5) + 1, 1);
+	// }
+
 	// upsample
 	newstate.shader = bloomUpsampleProgram.get();
 	for (int i = s_BloomMips - 2; i >= 1; i--) {
@@ -594,8 +619,8 @@ HDRBloom::ResourceInfo HDRBloom::DrawCODBloom(HDRBloom::ResourceInfo input)
 		bloomCB->Update(cbData);
 
 		newstate.shader = bloomCompositeProgram.get();
-		newstate.srvs[1] = texBloomMipSRVs[1].get();
-		newstate.srvs[2] = texGhosts->srv.get();
+		newstate.srvs[1] = settings.EnableBloom ? texBloomMipSRVs[1].get() : nullptr;
+		newstate.srvs[2] = settings.EnableGhosts ? texGhosts->srv.get() : nullptr;
 		newstate.uavs[0] = texBloomMipUAVs[0].get();
 		newstate.uavs[1] = nullptr;
 

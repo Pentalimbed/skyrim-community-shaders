@@ -1,5 +1,7 @@
 /// By ProfJack/五脚猫, 2024-2-17 UTC
 
+#define PI 3.1415927
+
 bool3 IsNaN(float3 x)
 {
 	return !(x < 0.f || x > 0.f || x == 0.f);

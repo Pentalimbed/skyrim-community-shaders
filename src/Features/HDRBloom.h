@@ -36,6 +36,7 @@ struct HDRBloom : public Feature
 		std::array<float, s_BloomMips - 1> MipBloomBlendFactor = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
 
 		float GhostsThreshold = 1.f;  // EV
+		float GhostsCentralSize = .4f;
 		std::array<GhostParameters, s_BloomMips> GhostParams = {};
 
 		// tonemap
@@ -89,10 +90,11 @@ struct HDRBloom : public Feature
 		uint IsFirstMip;
 		// upsample
 		float UpsampleRadius;
-		float UpsampleMult;    // in composite: bloom mult
-		float CurrentMipMult;  // in composite: ghosts mult
-
-		float pad[2];
+		float UpsampleMult;  // in composite: bloom mult
+		float CurrentMipMult;
+		// ghosts
+		float GhostsCentralSize;
+		float pad0;
 	};
 	std::unique_ptr<ConstantBuffer> bloomCB = nullptr;
 
@@ -144,6 +146,7 @@ struct HDRBloom : public Feature
 	winrt::com_ptr<ID3D11ComputeShader> bloomDownsampleProgram[3] = { nullptr };  // 0 - bloom only, 1 - ghost only, 2 - both
 	winrt::com_ptr<ID3D11ComputeShader> bloomUpsampleProgram = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> bloomGhostsProgram = nullptr;
+	// winrt::com_ptr<ID3D11ComputeShader> bloomBlurProgram = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> bloomCompositeProgram = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> tonemapProgram = nullptr;
 
