@@ -261,7 +261,6 @@ void HDRBloom::SetupResources()
 
 		D3D11_TEXTURE2D_DESC texDesc;
 		gameTexMainCopy.texture->GetDesc(&texDesc);
-		texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
 			.Format = texDesc.Format,
