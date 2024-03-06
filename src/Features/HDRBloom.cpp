@@ -19,6 +19,8 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	GhostsThreshold,
 	GhostsCentralSize,
 	GhostParams,
+	NaturalVignetteFocal,
+	NaturalVignettePower,
 	MipBloomBlendFactor,
 	EnableAutoExposure,
 	AdaptAfterBloom,
