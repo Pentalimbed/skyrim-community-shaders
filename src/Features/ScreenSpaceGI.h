@@ -18,11 +18,16 @@ struct ScreenSpaceGI : Feature
 		bool Enabled = true;
 
 		float DepthRejection = 8.f;
+		float DepthThreshold = .1f;
+		float NormalThreshold = 64.f;
 	} settings;
 
 	struct alignas(16) SSGICB
 	{
 		float DepthRejection;
+		float DepthThreshold;
+		float NormalThreshold;
+
 		int Range;
 		float Spread;
 		float RcpRangeSpreadSqr;
@@ -30,12 +35,9 @@ struct ScreenSpaceGI : Feature
 		DirectX::XMUINT2 BufferDim;
 		float2 RcpBufferDim;
 
-		float ZFar;
-		float ZNear;
+		float2 NDCToViewMul;
+		float2 NDCToViewAdd;
 		float2 DepthUnpackConsts;
-
-		float4x4 ViewMatrix;
-		float4x4 InvViewProjMatrix;
 	};
 	eastl::unique_ptr<ConstantBuffer> ssgiCB;
 

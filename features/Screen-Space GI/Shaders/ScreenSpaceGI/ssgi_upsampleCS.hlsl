@@ -66,9 +66,9 @@ groupshared float3 gs_P[POSTPROCESS_BLOCKSIZE][POSTPROCESS_BLOCKSIZE];
 	const float3 ddyP = P - gs_P[GTid.x][GTid.y ^ 1u];
 
 	const float curve = saturate(1 - pow(1 - max(dot(ddxP, ddxP), dot(ddyP, ddyP)), 32));
-	const float normalPow = lerp(normalThreshold, 1, curve);
+	const float normalPow = lerp(NormalThreshold, 1, curve);
 #else
-	const float normalPow = normalThreshold;
+	const float normalPow = NormalThreshold;
 #endif
 
 	float3 result = 0;
@@ -89,7 +89,7 @@ groupshared float3 gs_P[POSTPROCESS_BLOCKSIZE][POSTPROCESS_BLOCKSIZE];
 
 			const float sampleDepth = input_depth_low.SampleLevel(sampler_point_clamp, sample_uv, 0);
 			const float sampleLinearDepth = compute_lineardepth(sampleDepth);
-			float bilateralDepthWeight = 1 - saturate(abs(sampleLinearDepth - linearDepth) * depthThreshold);
+			float bilateralDepthWeight = 1 - saturate(abs(sampleLinearDepth - linearDepth) * DepthThreshold);
 
 			const float3 sampleN = DecodeNormal(input_normal_low.SampleLevel(sampler_linear_clamp, sample_uv, 0));
 			float normalError = pow(saturate(dot(sampleN, N)), normalPow);

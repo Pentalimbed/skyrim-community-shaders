@@ -26,6 +26,8 @@ void ScreenSpaceGI::DrawSettings()
 {
 	ImGui::Checkbox("Enabled", &settings.Enabled);
 	ImGui::SliderFloat("Depth Rejection", &settings.DepthRejection, .1f, 100.f, "%.1f");
+	ImGui::SliderFloat("Depth Threshold", &settings.DepthThreshold, 0.f, 100.f, "%.2f");
+	ImGui::SliderFloat("Normal Threshold", &settings.NormalThreshold, .1f, 100.f, "%.1f");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,11 +278,11 @@ ScreenSpaceGI::SSGICB ScreenSpaceGI::GetBaseCBData()
 
 	SSGICB data = {
 		.DepthRejection = 1.f / settings.DepthRejection,
-		.ZFar = eye.projMat(4, 3) / (eye.projMat(3, 3) - 1.f),  // wrong!
-		.ZNear = eye.projMat(4, 3) / (eye.projMat(3, 3) + 1.f),
+		.DepthThreshold = settings.DepthThreshold,
+		.NormalThreshold = settings.NormalThreshold,
+		.NDCToViewMul = { 2.0f / eye.projMat(0, 0), -2.0f / eye.projMat(1, 1) },
+		.NDCToViewAdd = { -1.0f / eye.projMat(0, 0), 1.0f / eye.projMat(1, 1) },
 		.DepthUnpackConsts = { -eye.projMat(3, 2), eye.projMat(2, 2) },
-		.ViewMatrix = eye.viewMat,
-		.InvViewProjMatrix = eye.viewMat.Invert() * eye.projMat.Invert(),
 	};
 
 	return data;

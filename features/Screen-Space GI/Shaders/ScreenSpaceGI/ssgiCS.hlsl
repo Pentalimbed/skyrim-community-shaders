@@ -125,7 +125,7 @@ float3 compute_diffuse(
 		const int2 pixel = tile_upperleft + unflatten2D(t, TILE_SIZE);
 		const float depth = input_depth[uint3(pixel, layer)];
 		const float2 uv = (pixel + 0.5f) * RcpBufferDim;
-		const float3 P = reconstruct_position(uv, depth, InvViewProjMatrix);  // TODO VR
+		const float3 P = reconstruct_position(uv, depth);
 		const float3 color = input_color[uint3(pixel, layer)];
 		const uint pkcolor = Pack_R11G11B10_FLOAT(color.rgb);
 		cache_xy[t] = pack_half2(P.xy);
@@ -147,7 +147,7 @@ float3 compute_diffuse(
 
 	P.xy = unpack_half2(cache_xy[idx]);
 
-	const float3 N = mul((float3x3)ViewMatrix, DecodeNormal(input_normal[interleaved_pixel].rg));
+	const float3 N = DecodeNormal(input_normal[interleaved_pixel].rg);
 
 	float3 diffuse = 0;
 	float sum = 0;

@@ -26,7 +26,6 @@ THE SOFTWARE.
 - unpack_half2
 - flatten2D
 - unflatten2D
-- reconstruct_position
 
 --------------------------
 
@@ -52,6 +51,8 @@ SamplerState sampler_point_clamp : register(s1);
 cbuffer SSGICB : register(b1)
 {
 	float DepthRejection;
+	float DepthThreshold;
+	float NormalThreshold;
 
 	int Range;
 	float Spread;
@@ -60,11 +61,9 @@ cbuffer SSGICB : register(b1)
 	uint2 BufferDim;
 	float2 RcpBufferDim;
 
-	float ZFar;
-	float ZNear;
+	float2 NDCToViewMul;
+	float2 NDCToViewAdd;
 	float2 DepthUnpackConsts;
-	float4x4 ViewMatrix;
-	float4x4 InvViewProjMatrix;
 };
 
 uint pack_half2(in float2 value)
@@ -113,54 +112,24 @@ float3 Unpack_R11G11B10_FLOAT(uint rgb)
 	return float3(r, g, b);
 }
 
-// Reconstructs world-space position from depth buffer
-//	uv		: screen space coordinate in [0, 1] range
-//	z		: depth value at current pixel
-//	InvVP	: Inverse of the View-Projection matrix that was used to generate the depth value
-inline float3 reconstruct_position(in float2 uv, in float z, in float4x4 inverse_view_projection)
-{
-	float x = uv.x * 2 - 1;
-	float y = (1 - uv.y) * 2 - 1;
-	float4 position_s = float4(x, y, z, 1);
-	float4 position_v = mul(inverse_view_projection, position_s);
-	return position_v.xyz / position_v.w;
-}
-inline float3 reconstruct_position(in float2 uv, in float z)
-{
-	return reconstruct_position(uv, z, InvViewProjMatrix);
-}
-
-// Source: https://github.com/GPUOpen-Effects/FidelityFX-Denoiser/blob/master/ffx-shadows-dnsr/ffx_denoiser_shadows_util.h
-//  LANE TO 8x8 MAPPING
-//  ===================
-//  00 01 08 09 10 11 18 19
-//  02 03 0a 0b 12 13 1a 1b
-//  04 05 0c 0d 14 15 1c 1d
-//  06 07 0e 0f 16 17 1e 1f
-//  20 21 28 29 30 31 38 39
-//  22 23 2a 2b 32 33 3a 3b
-//  24 25 2c 2d 34 35 3c 3d
-//  26 27 2e 2f 36 37 3e 3f
-uint bitfield_extract(uint src, uint off, uint bits)
-{
-	uint mask = (1u << bits) - 1;
-	return (src >> off) & mask;
-}  // ABfe
-uint bitfield_insert(uint src, uint ins, uint bits)
-{
-	uint mask = (1u << bits) - 1;
-	return (ins & mask) | (src & (~mask));
-}  // ABfiM
-uint2 remap_lane_8x8(uint lane)
-{
-	return uint2(bitfield_insert(bitfield_extract(lane, 2u, 3u), lane, 1u), bitfield_insert(bitfield_extract(lane, 3u, 3u), bitfield_extract(lane, 1u, 2u), 2u));
-}
-
-// from xegtao
 float compute_lineardepth(float ndc)
 {
 	float depthLinearizeMul = DepthUnpackConsts.x;
 	float depthLinearizeAdd = DepthUnpackConsts.y;
 	// Optimised version of "-cameraClipNear / (cameraClipFar - projDepth * (cameraClipFar - cameraClipNear)) * cameraClipFar"
 	return depthLinearizeMul / (depthLinearizeAdd - ndc);
+}
+
+// Inputs are screen XY and viewspace depth, output is viewspace position
+float3 ScreenSpaceToViewSpacePosition(const float2 screenPos, const float viewspaceDepth)
+{
+	float3 ret;
+	ret.xy = (NDCToViewMul * screenPos.xy + NDCToViewAdd) * viewspaceDepth;
+	ret.z = viewspaceDepth;
+	return ret;
+}
+
+inline float3 reconstruct_position(in float2 uv, in float z)
+{
+	return ScreenSpaceToViewSpacePosition(uv, compute_lineardepth(z));
 }
