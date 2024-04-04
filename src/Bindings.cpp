@@ -1,8 +1,9 @@
 #include "Bindings.h"
 #include "State.h"
 #include "Util.h"
-#include <ShaderCache.h>
+#include <Features/ScreenSpaceGI.h>
 #include <Features/ScreenSpaceShadows.h>
+#include <ShaderCache.h>
 
 void Bindings::DepthStencilStateSetDepthMode(RE::BSGraphics::DepthStencilDepthMode a_mode)
 {
@@ -356,6 +357,10 @@ void Bindings::DeferredPasses()
 
 	if (ScreenSpaceShadows::GetSingleton()->loaded) {
 		ScreenSpaceShadows::GetSingleton()->DrawShadows();
+	}
+
+	if (ScreenSpaceGI::GetSingleton()->loaded) {
+		ScreenSpaceGI::GetSingleton()->DrawGI();
 	}
 
 	{
