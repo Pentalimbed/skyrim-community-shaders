@@ -24,7 +24,8 @@ void ScreenSpaceGI::RestoreDefaultSettings()
 
 void ScreenSpaceGI::DrawSettings()
 {
-	// 0.1f, 100.0f depth rejection
+	ImGui::Checkbox("Enabled", &settings.Enabled);
+	ImGui::SliderFloat("Depth Rejection", &settings.DepthRejection, .1f, 100.f, "%.1f");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

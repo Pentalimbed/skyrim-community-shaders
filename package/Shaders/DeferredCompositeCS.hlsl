@@ -1,16 +1,18 @@
 
 #include "Common/GBuffer.hlsl"
 
-Texture2D<half3> SpecularTexture 				: register(t0);
-Texture2D<unorm half4> AlbedoTexture 			: register(t1);
-Texture2D<unorm half3> ReflectanceTexture 		: register(t2);
-Texture2D<unorm half4> NormalRoughnessTexture 	: register(t3);
-Texture2D<unorm half> ShadowMaskTexture 		: register(t4);
-Texture2D<unorm half> DepthTexture 				: register(t5);
+Texture2D<half3> SpecularTexture : register(t0);
+Texture2D<unorm half4> AlbedoTexture : register(t1);
+Texture2D<unorm half3> ReflectanceTexture : register(t2);
+Texture2D<unorm half4> NormalRoughnessTexture : register(t3);
+Texture2D<unorm half> ShadowMaskTexture : register(t4);
+Texture2D<unorm half> DepthTexture : register(t5);
 
-RWTexture2D<half4> MainRW 						: register(u0);
-RWTexture2D<half4> NormalTAAMaskSpecularMaskRW 	: register(u1);
-RWTexture2D<unorm half> FilteredShadowMaskRW 	: register(u2);
+Texture2D<unorm half4> SSGITexture : register(t6);
+
+RWTexture2D<half4> MainRW : register(u0);
+RWTexture2D<half4> NormalTAAMaskSpecularMaskRW : register(u1);
+RWTexture2D<unorm half> FilteredShadowMaskRW : register(u2);
 
 SamplerState LinearSampler : register(s0);
 
@@ -71,8 +73,7 @@ half2 ViewToUV(half3 position, bool is_position, uint a_eyeIndex)
 	return (uv.xy / uv.w) * half2(0.5f, -0.5f) + 0.5f;
 }
 
-[numthreads(32, 32, 1)] void main(uint3 globalId : SV_DispatchThreadID, uint3 localId : SV_GroupThreadID, uint3 groupId : SV_GroupID) 
-{
+[numthreads(32, 32, 1)] void DirectionalShadowPass(uint3 globalId : SV_DispatchThreadID, uint3 localId : SV_GroupThreadID, uint3 groupId : SV_GroupID) {
 	half2 uv = half2(globalId.xy + 0.5) * RcpBufferDim.xy;
 
 	half3 normalGlossiness = NormalRoughnessTexture[globalId.xy];
@@ -81,20 +82,15 @@ half2 ViewToUV(half3 position, bool is_position, uint a_eyeIndex)
 	half rawDepth = DepthTexture[globalId.xy];
 	half depth = GetScreenDepth(rawDepth);
 
-	uint eyeIndex = 0;
-
 	half shadow = ShadowMaskTexture[globalId.xy];
 	half weight = 1.0;
-	
+
 	half NdotL = dot(normalVS, DirLightDirectionVS[0].xyz);
 
-	if (NdotL > 0.0)
-	{
+	if (NdotL > 0.0) {
 		// Approximation of PCF in screen-space
-		for(int i = -1; i < 1; i++)
-		{		
-			for(int k = -1; k < 1; k++)
-			{
+		for (int i = -1; i < 1; i++) {
+			for (int k = -1; k < 1; k++) {
 				if (i == 0 && k == 0)
 					continue;
 				float2 offset = float2(i, k) * RcpBufferDim.xy * 1.5;
@@ -105,8 +101,27 @@ half2 ViewToUV(half3 position, bool is_position, uint a_eyeIndex)
 			}
 		}
 		shadow /= weight;
-	}	
-	
+	}
+
+	half4 albedo = AlbedoTexture[globalId.xy];
+
+	half3 color = MainRW[globalId.xy].rgb;
+	color += albedo * lerp(max(0, NdotL), 1.0, albedo.w) * DirLightColor.xyz * shadow;
+
+	MainRW[globalId.xy] = half4(color.xyz, 1.0);
+};
+
+[numthreads(32, 32, 1)] void MainCompositePass(uint3 globalId : SV_DispatchThreadID, uint3 localId : SV_GroupThreadID, uint3 groupId : SV_GroupID) {
+	half2 uv = half2(globalId.xy + 0.5) * RcpBufferDim.xy;
+
+	half3 normalGlossiness = NormalRoughnessTexture[globalId.xy];
+	half3 normalVS = DecodeNormal(normalGlossiness.xyz);
+
+	half rawDepth = DepthTexture[globalId.xy];
+	half depth = GetScreenDepth(rawDepth);
+
+	uint eyeIndex = 0;
+
 	half4 diffuseColor = MainRW[globalId.xy];
 	half3 specularColor = SpecularTexture[globalId.xy];
 
@@ -117,30 +132,29 @@ half2 ViewToUV(half3 position, bool is_position, uint a_eyeIndex)
 	half4 albedo = AlbedoTexture[globalId.xy];
 
 	half3 color = diffuseColor + specularColor;
-	
-	color += albedo * lerp(max(0, NdotL), 1.0, albedo.w) * DirLightColor.xyz * shadow;
+
+	half4 ssgiAO = SSGITexture[globalId.xy];
+	half3 gi = ssgiAO.rgb * 5;
+	// half ao = ssgiAO.w;
+	half ao = 1.0;
 
 	half3 directionalAmbientColor = mul(DirectionalAmbient, half4(normalWS, 1.0));
-	color += albedo * directionalAmbientColor;
+	color += albedo * (directionalAmbientColor * ao + gi);
 
-#	if defined(DEBUG)
+#if defined(DEBUG)
 	half2 texCoord = half2(globalId.xy) / BufferDim.xy;
 
-	if (texCoord.x < 0.5 && texCoord.y < 0.5)
-	{
+	if (texCoord.x < 0.5 && texCoord.y < 0.5) {
 		color = color;
-	} else if (texCoord.x < 0.5)
-	{
+	} else if (texCoord.x < 0.5) {
 		color = albedo;
-	} else if (texCoord.y < 0.5)
-	{
-		color = normalWS;	
+	} else if (texCoord.y < 0.5) {
+		color = normalWS;
 	} else {
-		color = glossiness;	
+		color = glossiness;
 	}
-#	endif
+#endif
 
 	MainRW[globalId.xy] = half4(color.xyz, 1.0);
 	NormalTAAMaskSpecularMaskRW[globalId.xy] = half4(EncodeNormalVanilla(normalVS), 0.0, glossiness);
 }
-
