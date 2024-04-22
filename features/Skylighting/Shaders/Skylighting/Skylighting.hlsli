@@ -147,8 +147,10 @@ void GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition, out float3
 		// scatter
 		float sunTransmittance = exp(-sunMarchDist * t * extinction) * shadow;  // assuming water surface is always level
 #	if defined(WATER_CAUSTICS)
-		float2 causticsUV = frac((startPosWS.xy + PosAdjust[0].xy + casuticUvShift * t) * 5e-4);
-		sunTransmittance *= ComputeWaterCaustics(causticsUV);
+		if (perPassWaterCaustics[0].EnableWaterCaustics) {
+			float2 causticsUV = frac((startPosWS.xy + PosAdjust[0].xy + casuticUvShift * t) * 5e-4);
+			sunTransmittance *= lerp(0.5, 1.2, ComputeWaterCaustics(causticsUV));
+		}
 #	endif
 		float inScatter = scatterCoeff * phase * sunTransmittance;
 		scatter += inScatter * (1 - sampleTransmittance) / extinction * transmittance;
