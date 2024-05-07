@@ -10,12 +10,13 @@ Texture2D<unorm half3> NormalRoughnessTexture : register(t3);
 Texture2D<unorm half> ShadowMaskTexture : register(t4);
 Texture2D<unorm half> DepthTexture : register(t5);
 Texture2D<unorm half3> MasksTexture : register(t6);
-Texture2D<unorm half4> GITexture : register(t7);
+Texture2D<unorm half3> DiffuseAmbientTexture : register(t7);
 
 Texture2D<unorm half2> SkylightingTexture : register(t10);
 
 RWTexture2D<half4> MainRW : register(u0);
 RWTexture2D<half4> NormalTAAMaskSpecularMaskRW : register(u1);
+RWTexture2D<half3> DiffuseAmbientRW : register(u2);
 
 TextureCube<unorm half3> EnvTexture : register(t12);
 TextureCube<unorm half3> ReflectionTexture : register(t13);
@@ -122,15 +123,16 @@ half GetScreenDepth(half depth)
 	half3 color = MainRW[globalId.xy].rgb;
 	color += albedo * lerp(max(0, NdotL), 1.0, masks.z) * DirLightColor.xyz * shadow;
 
+	MainRW[globalId.xy] = half4(color.xyz, 1.0);
+
 	half3 normalWS = normalize(mul(InvViewMatrix[eyeIndex], half4(normalVS, 0)));
 	half3 directionalAmbientColor = mul(DirectionalAmbient, half4(normalWS, 1.0));
 
-	float skylighting = SkylightingTexture[globalId.xy];
-	skylighting *= saturate(dot(normalWS, float3(0, 0, 1)) * 0.5 + 0.5);
+	float skylighting = SkylightingTexture[globalId.xy].x;
+	skylighting = skylighting * saturate(dot(normalWS, float3(0, 0, 1)) * 0.5 + 0.5) +                                  // up direction
+	              lerp(1.0, skylighting, 0.5) * lerp(saturate(dot(normalWS, float3(0, 0, -1)) * 0.5 + 0.5), 1.0, 0.5);  // down direction
 
-	color += albedo * directionalAmbientColor * skylighting;
-
-	MainRW[globalId.xy] = half4(color.xyz, 1.0);
+	DiffuseAmbientRW[globalId.xy] = albedo * directionalAmbientColor * skylighting;
 };
 
 float random(float2 uv)
@@ -156,41 +158,18 @@ float InterleavedGradientNoise(float2 uv)
 	half2 uv = half2(globalId.xy + 0.5) * RcpBufferDim.xy;
 	uint eyeIndex = GetEyeIndexFromTexCoord(uv);
 
-	half3 normalGlossiness = NormalRoughnessTexture[globalId.xy];
-	half3 normalVS = DecodeNormal(normalGlossiness.xy);
-
 	half3 diffuseColor = MainRW[globalId.xy];
-
 	half3 albedo = AlbedoTexture[globalId.xy];
-
-	half4 giAo = GITexture[globalId.xy];
-	half3 gi = giAo.rgb;
-	half ao = giAo.w;
-
-	half3 masks = MasksTexture[globalId.xy];
-
-	half3 normalWS = normalize(mul(InvViewMatrix[eyeIndex], half4(normalVS, 0)));
-
-	half3 directionalAmbientColor = mul(DirectionalAmbient, half4(normalWS, 1.0));
-
-	float skylighting = SkylightingTexture[globalId.xy];
-
-	half weight = 1.0;
-
 	half rawDepth = DepthTexture[globalId.xy];
-	half depth = GetScreenDepth(rawDepth);
+	half3 ambient = DiffuseAmbientTexture[globalId.xy] * (rawDepth < 1.0);
+	diffuseColor += ambient;
 
-	gi *= (rawDepth < 1.0);
-	ao = lerp(ao, 1.0, rawDepth == 1.0);
-
-	diffuseColor *= ao;
-	diffuseColor += gi;
-
-	skylighting = lerp(skylighting, 1.0, 0.5);
-
-	diffuseColor += albedo * directionalAmbientColor * ao * skylighting * lerp(saturate(dot(normalWS, float3(0, 0, -1)) * 0.5 + 0.5), 1.0, 0.5);
-
-	float3 giao = (skylighting * directionalAmbientColor * ao) + gi;
+	// half3 normalGlossiness = NormalRoughnessTexture[globalId.xy];
+	// half3 normalVS = DecodeNormal(normalGlossiness.xy);
+	// half3 normalWS = normalize(mul(InvViewMatrix[eyeIndex], half4(normalVS, 0)));
+	// half3 directionalAmbientColor = mul(DirectionalAmbient, half4(normalWS, 1.0));
+	// float skylighting = SkylightingTexture[globalId.xy];
+	// diffuseColor += albedo * directionalAmbientColor * skylighting * lerp(saturate(dot(normalWS, float3(0, 0, -1)) * 0.5 + 0.5), 1.0, 0.5);
 
 	MainRW[globalId.xy] = half4(diffuseColor, 1.0);
 };
@@ -227,7 +206,6 @@ float3 Lin2sRGB(float3 color)
 	half3 color = sRGB2Lin(diffuseColor) + sRGB2Lin(specularColor);
 
 	float skylighting = SkylightingTexture[globalId.xy].y;
-	half4 giAo = GITexture[globalId.xy];
 
 	half rawDepth = DepthTexture[globalId.xy];
 
@@ -250,7 +228,7 @@ float3 Lin2sRGB(float3 color)
 	float3 specularIrradiance2 = ReflectionTexture.SampleLevel(LinearSampler, R, level).xyz;
 	specularIrradiance2 = sRGB2Lin(specularIrradiance2);
 
-	color += reflectance * lerp(specularIrradiance, specularIrradiance2, skylighting * giAo.w) * giAo.w;
+	color += reflectance * lerp(specularIrradiance, specularIrradiance2, skylighting);
 
 	color = Lin2sRGB(color);
 

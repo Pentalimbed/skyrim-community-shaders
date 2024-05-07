@@ -560,7 +560,7 @@ void TerrainOcclusion::DrawTerrainOcclusion()
 
 	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 	auto& context = State::GetSingleton()->context;
-	auto deferred = Deferred::GetSingleton();
+	// auto deferred = Deferred::GetSingleton();
 
 	std::array<ID3D11ShaderResourceView*, 5> srvs = { nullptr };
 	std::array<ID3D11UnorderedAccessView*, 2> uavs = { nullptr };
@@ -577,12 +577,12 @@ void TerrainOcclusion::DrawTerrainOcclusion()
 			srvs.at(4) = texShadowHeight->srv.get();
 
 		uavs.at(0) = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGET::kSHADOW_MASK].UAV;
-		uavs.at(1) = deferred->giTexture->uav.get();
+		// uavs.at(1) = deferred->giTexture->uav.get();
 
 		context->CSSetShaderResources(0, (uint)srvs.size(), srvs.data());
 		context->CSSetUnorderedAccessViews(0, (uint)uavs.size(), uavs.data(), nullptr);
 		context->CSSetShader(outputProgram.get(), nullptr, 0);
-		context->Dispatch((deferred->giTexture->desc.Width + 31u) >> 5, (deferred->giTexture->desc.Height + 31u) >> 5, 1);
+		context->Dispatch(((uint)State::GetSingleton()->screenWidth + 31u) >> 5, ((uint)State::GetSingleton()->screenHeight + 31u) >> 5, 1);
 	}
 
 	// clean up

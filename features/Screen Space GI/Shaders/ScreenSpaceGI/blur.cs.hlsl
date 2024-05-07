@@ -6,12 +6,12 @@
 #include "../Common/VR.hlsli"
 #include "common.hlsli"
 
-Texture2D<lpfloat4> srcGI : register(t0);              // maybe half-res
+Texture2D<float4> srcGI : register(t0);                // maybe half-res
 Texture2D<unorm float> srcAccumFrames : register(t1);  // maybe half-res
 Texture2D<half> srcDepth : register(t2);
 Texture2D<half4> srcNormal : register(t3);
 
-RWTexture2D<lpfloat4> outGI : register(u0);
+RWTexture2D<float4> outGI : register(u0);
 RWTexture2D<unorm float> outAccumFrames : register(u1);
 
 // samples = 8, min distance = 0.5, average samples on radius = 2
@@ -31,10 +31,29 @@ float HistoryRadiusScaling(float accumFrames)
 	return lerp(1, 0.5, accumFrames / MaxAccumFrames);
 };
 
+// https://developer.download.nvidia.com/video/gputechconf/gtc/2020/presentations/s22699-fast-denoising-with-self-stabilizing-recurrent-blurs.pdf
+float3 GetSpecularDominantDirection(float3 N, float3 V, float roughness)
+{
+	// See [5]
+	float f = (1.0 - roughness) * (sqrt(1.0 - roughness) + roughness);
+	float3 R = reflect(-V, N);
+	float3 dir = lerp(N, R, f);
+	return normalize(dir);
+}
+
+float2x3 GetKernelBasis(float3 N, float3 V, float roughness)
+{
+	float3 D = GetSpecularDominantDirection(N, V, roughness);
+	float3 R = reflect(-D, N);
+	T = normalize(cross(N, R));
+	B = cross(R, T);
+	return float2x3(T, B);
+}
+
 [numthreads(8, 8, 1)] void main(const uint2 dtid
 								: SV_DispatchThreadID) {
-	const float srcScale = SrcFrameDim * RcpTexDim;
-	const float outScale = OutFrameDim * RcpTexDim;
+	const float2 srcScale = SrcFrameDim * RcpTexDim;
+	const float2 outScale = OutFrameDim * RcpTexDim;
 
 	float radius = BlurRadius;
 #ifdef TEMPORAL_DENOISER
@@ -52,9 +71,9 @@ float HistoryRadiusScaling(float accumFrames)
 	float3 pos = ScreenToViewPosition(screenPos, depth, eyeIndex);
 	float3 normal = DecodeNormal(FULLRES_LOAD(srcNormal, dtid, uv, samplerLinearClamp).xy);
 
-	lpfloat4 sum = srcGI[dtid];
+	float4 sum = srcGI[dtid];
 #ifdef TEMPORAL_DENOISER
-	lpfloat4 fsum = accumFrames;
+	float4 fsum = accumFrames;
 #endif
 	float4 wsum = 1;
 	for (uint i = 0; i < numSamples; i++) {
@@ -71,18 +90,18 @@ float HistoryRadiusScaling(float accumFrames)
 		float depthSample = srcDepth.SampleLevel(samplerLinearClamp, uvSample * srcScale, 0);
 		float3 posSample = ScreenToViewPosition(screenPosSample, depthSample, eyeIndex);
 
-		float3 normalSample = DecodeNormal(srcNormal.SampleLevel(samplerLinearClamp, uvSample * srcScale, 0).xy);
+		// float3 normalSample = DecodeNormal(srcNormal.SampleLevel(samplerLinearClamp, uvSample * srcScale, 0).xy);
 
 		// geometry weight
 		w *= saturate(1 - abs(dot(normal, posSample - pos)) * DistanceNormalisation);
 		// normal weight
-		w *= 1 - saturate(acosFast4(saturate(dot(normalSample, normal))) / fsl_HALF_PI * 2);
+		// w *= 1 - saturate(acosFast4(saturate(dot(normalSample, normal))) / fsl_HALF_PI * 2);
 
-		lpfloat4 gi = srcGI.SampleLevel(samplerLinearClamp, uvSample * outScale, 0);
+		float4 gi = srcGI.SampleLevel(samplerLinearClamp, uvSample * outScale, 0);
 
 		sum += gi * w;
 #ifdef TEMPORAL_DENOISER
-		fsum += srcAccumFrames.SampleLevel(samplerLinearClamp, uvSample * outScale, 0);
+		fsum += srcAccumFrames.SampleLevel(samplerLinearClamp, uvSample * outScale, 0) * w;
 #endif
 		wsum += w;
 	}

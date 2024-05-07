@@ -160,7 +160,6 @@ void CloudShadows::DrawShadows()
 
 		auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 		auto& context = State::GetSingleton()->context;
-		auto deferred = Deferred::GetSingleton();
 
 		if (frame_checker.isNewFrame())
 			context->GenerateMips(texCubemapCloudOcc->srv.get());
@@ -177,7 +176,7 @@ void CloudShadows::DrawShadows()
 		context->CSSetShaderResources(0, (uint)srvs.size(), srvs.data());
 		context->CSSetUnorderedAccessViews(0, (uint)uavs.size(), uavs.data(), nullptr);
 		context->CSSetShader(outputProgram, nullptr, 0);
-		context->Dispatch((deferred->giTexture->desc.Width + 31u) >> 5, (deferred->giTexture->desc.Height + 31u) >> 5, 1);
+		context->Dispatch(((uint)State::GetSingleton()->screenWidth + 31u) >> 5, ((uint)State::GetSingleton()->screenHeight + 31u) >> 5, 1);
 
 		// clean up
 		srvs.fill(nullptr);

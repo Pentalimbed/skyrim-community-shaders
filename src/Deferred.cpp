@@ -166,7 +166,7 @@ void Deferred::SetupResources()
 		auto mainTex = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
 		mainTex.texture->GetDesc(&texDesc);
 
-		texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		texDesc.Format = DXGI_FORMAT_R11G11B10_FLOAT;
 		texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
@@ -188,10 +188,13 @@ void Deferred::SetupResources()
 		};
 
 		{
-			giTexture = new Texture2D(texDesc);
-			giTexture->CreateSRV(srvDesc);
-			giTexture->CreateRTV(rtvDesc);
-			giTexture->CreateUAV(uavDesc);
+			diffuseAmbientTexture = new Texture2D(texDesc);
+			diffuseAmbientTexture->CreateSRV(srvDesc);
+			diffuseAmbientTexture->CreateRTV(rtvDesc);
+			diffuseAmbientTexture->CreateUAV(uavDesc);
+
+			prevDiffuseAmbientTexture = new Texture2D(texDesc);
+			prevDiffuseAmbientTexture->CreateSRV(srvDesc);
 		}
 	}
 
@@ -433,7 +436,7 @@ void Deferred::DeferredPasses()
 
 	{
 		FLOAT clr[4] = { 0., 0., 0., 1. };
-		context->ClearUnorderedAccessViewFloat(giTexture->uav.get(), clr);
+		context->ClearUnorderedAccessViewFloat(diffuseAmbientTexture->uav.get(), clr);
 	}
 
 	auto specular = renderer->GetRuntimeData().renderTargets[SPECULAR];
@@ -496,7 +499,7 @@ void Deferred::DeferredPasses()
 
 		context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
 
-		ID3D11UnorderedAccessView* uavs[2]{ main.UAV, normals.UAV };
+		ID3D11UnorderedAccessView* uavs[3]{ main.UAV, normals.UAV, diffuseAmbientTexture->uav.get() };
 		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 
 		context->CSSetSamplers(0, 1, &linearSampler);
@@ -511,94 +514,96 @@ void Deferred::DeferredPasses()
 		uint32_t dispatchY = (uint32_t)std::ceil(resolutionY / 32.0f);
 
 		context->Dispatch(dispatchX, dispatchY, 1);
+
+		ID3D11UnorderedAccessView* uav = nullptr;
+		context->CSSetUnorderedAccessViews(2, 1, &uav, nullptr);
 	}
 
 	// Features that require full diffuse lighting should be put here
 
 	if (ScreenSpaceGI::GetSingleton()->loaded) {
-		ScreenSpaceGI::GetSingleton()->DrawSSGI(giTexture);
+		ScreenSpaceGI::GetSingleton()->DrawSSGI(diffuseAmbientTexture, prevDiffuseAmbientTexture);
 	}
 
 	{
-		{
-			ID3D11ShaderResourceView* srvs[8]{
-				specular.SRV,
-				albedo.SRV,
-				reflectance.SRV,
-				normalRoughness.SRV,
-				shadowMask.SRV,
-				depth.depthSRV,
-				masks.SRV,
-				giTexture->srv.get(),
-			};
+		ID3D11ShaderResourceView* srvs[8]{
+			specular.SRV,
+			albedo.SRV,
+			reflectance.SRV,
+			normalRoughness.SRV,
+			shadowMask.SRV,
+			depth.depthSRV,
+			masks.SRV,
+			diffuseAmbientTexture->srv.get(),
+		};
 
-			context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
+		context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
 
-			ID3D11UnorderedAccessView* uavs[2]{ main.UAV, normals.UAV };
-			context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
+		ID3D11UnorderedAccessView* uavs[2]{ main.UAV, normals.UAV };
+		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 
-			context->CSSetSamplers(0, 1, &linearSampler);
+		context->CSSetSamplers(0, 1, &linearSampler);
 
-			auto shader = GetComputeAmbientComposite();
-			context->CSSetShader(shader, nullptr, 0);
+		auto shader = GetComputeAmbientComposite();
+		context->CSSetShader(shader, nullptr, 0);
 
-			float resolutionX = state->screenWidth * viewport->GetRuntimeData().dynamicResolutionCurrentWidthScale;
-			float resolutionY = state->screenHeight * viewport->GetRuntimeData().dynamicResolutionCurrentHeightScale;
+		float resolutionX = state->screenWidth * viewport->GetRuntimeData().dynamicResolutionCurrentWidthScale;
+		float resolutionY = state->screenHeight * viewport->GetRuntimeData().dynamicResolutionCurrentHeightScale;
 
-			uint32_t dispatchX = (uint32_t)std::ceil(resolutionX / 32.0f);
-			uint32_t dispatchY = (uint32_t)std::ceil(resolutionY / 32.0f);
+		uint32_t dispatchX = (uint32_t)std::ceil(resolutionX / 32.0f);
+		uint32_t dispatchY = (uint32_t)std::ceil(resolutionY / 32.0f);
 
-			context->Dispatch(dispatchX, dispatchY, 1);
-		}
+		context->Dispatch(dispatchX, dispatchY, 1);
 	}
+
+	context->CopyResource(prevDiffuseAmbientTexture->resource.get(), diffuseAmbientTexture->resource.get());
 
 	if (SubsurfaceScattering::GetSingleton()->loaded) {
 		SubsurfaceScattering::GetSingleton()->DrawSSSWrapper(false);
 	}
 
 	{
-		{
-			ID3D11ShaderResourceView* srvs[8]{
-				specular.SRV,
-				albedo.SRV,
-				reflectance.SRV,
-				normalRoughness.SRV,
-				shadowMask.SRV,
-				depth.depthSRV,
-				masks.SRV,
-				giTexture->srv.get(),
-			};
+		ID3D11ShaderResourceView* srvs[7]{
+			specular.SRV,
+			albedo.SRV,
+			reflectance.SRV,
+			normalRoughness.SRV,
+			shadowMask.SRV,
+			depth.depthSRV,
+			masks.SRV,
+		};
 
-			context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
+		context->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
 
-			ID3D11UnorderedAccessView* uavs[2]{ main.UAV, normals.UAV };
-			context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
+		ID3D11UnorderedAccessView* uavs[2]{ main.UAV, normals.UAV };
+		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 
-			context->CSSetSamplers(0, 1, &linearSampler);
+		context->CSSetSamplers(0, 1, &linearSampler);
 
-			auto shader = GetComputeMainComposite();
-			context->CSSetShader(shader, nullptr, 0);
+		auto shader = GetComputeMainComposite();
+		context->CSSetShader(shader, nullptr, 0);
 
-			float resolutionX = state->screenWidth * viewport->GetRuntimeData().dynamicResolutionCurrentWidthScale;
-			float resolutionY = state->screenHeight * viewport->GetRuntimeData().dynamicResolutionCurrentHeightScale;
+		float resolutionX = state->screenWidth * viewport->GetRuntimeData().dynamicResolutionCurrentWidthScale;
+		float resolutionY = state->screenHeight * viewport->GetRuntimeData().dynamicResolutionCurrentHeightScale;
 
-			uint32_t dispatchX = (uint32_t)std::ceil(resolutionX / 32.0f);
-			uint32_t dispatchY = (uint32_t)std::ceil(resolutionY / 32.0f);
+		uint32_t dispatchX = (uint32_t)std::ceil(resolutionX / 32.0f);
+		uint32_t dispatchY = (uint32_t)std::ceil(resolutionY / 32.0f);
 
-			context->Dispatch(dispatchX, dispatchY, 1);
-		}
+		context->Dispatch(dispatchX, dispatchY, 1);
 	}
 
-	ID3D11ShaderResourceView* views[8]{ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
-	context->CSSetShaderResources(0, ARRAYSIZE(views), views);
+	{
+		ID3D11ShaderResourceView* views[14]{ nullptr };
+		context->CSSetShaderResources(0, ARRAYSIZE(views), views);
 
-	ID3D11UnorderedAccessView* uavs[2]{ nullptr, nullptr };
-	context->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
+		ID3D11UnorderedAccessView* clearUavs[3]{ nullptr };
+		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(clearUavs), clearUavs, nullptr);
 
-	ID3D11Buffer* buffer = nullptr;
-	context->CSSetConstantBuffers(0, 1, &buffer);
+		ID3D11Buffer* buffer = nullptr;
+		context->CSSetConstantBuffers(0, 1, &buffer);
 
-	context->CSSetShader(nullptr, nullptr, 0);
+		context->CSSetShader(nullptr, nullptr, 0);
+	}
 }
 
 void Deferred::EndDeferred()

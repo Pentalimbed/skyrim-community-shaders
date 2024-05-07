@@ -81,7 +81,8 @@ public:
 
 	ID3D11SamplerState* linearSampler = nullptr;
 
-	Texture2D* giTexture = nullptr;  // RGB - GI/IL, A - AO
+	Texture2D* diffuseAmbientTexture = nullptr;
+	Texture2D* prevDiffuseAmbientTexture = nullptr;
 
 	struct BSParticleShaderRainEmitter
 	{
