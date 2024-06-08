@@ -66,24 +66,67 @@ float3 GetShadow(float3 positionWS)
 	return shadow;
 }
 
-float GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition)
+float phaseHenyeyGreenstein(float cosTheta, float g)
+{
+	static const float scale = .25 / 3.1415926535;
+	const float g2 = g * g;
+
+	float num = (1.0 - g2);
+	float denom = pow(abs(1.0 + g2 - 2.0 * g * cosTheta), 1.5);
+
+	return scale * num / denom;
+}
+
+void GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition, out float scatter, out float transmittance)
 {
 	const static uint nSteps = 16;
 	const static float step = 1.0 / float(nSteps);
 
+	// https://s.campbellsci.com/documents/es/technical-papers/obs_light_absorption.pdf
+	// clear water: 0.002 cm^-1 * 1.428 cm/game unit
+	const float scatterCoeff = 0.002 * 1.428 * scatterCoeffMult;
+	const float absorpCoeff = 0.0002 * 1.428 * absorpCoeffMult;
+	const float extinction = scatterCoeff + absorpCoeff;
+	// A model for the diffuse attenuation coefficient of downwelling irradiance
+	// https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2004JC002275
+	const float multiScatterConstant =
+		1.428e-2 *
+		((1 + 0.005 * acos(abs(SunDir.z)) * 180 / M_PI) * absorpCoeff +
+			4.18 * (1 - 0.52 * exp(-10.8 * absorpCoeff)) * scatterCoeff);  // k_d in paper
+
 	float3 worldDir = endPosWS - startPosWS;
+	float dist = length(worldDir);
 
-	float noise = InterleavedGradientNoise(screenPosition) * 2.0 * M_PI;
+	if (dist < 1e-3) {
+		scatter = 1;
+		transmittance = 0;
+		return;
+	}
 
-	startPosWS += worldDir * step * noise;
+	worldDir = worldDir / dist;
 
-	float3 worldDirNorm = normalize(worldDir);
+	const static float isoPhase = .25 / 3.1415926535;
+	// float phase = isoPhase;
+	float phase = phaseHenyeyGreenstein(dot(SunDir.xyz, worldDir), 0.5);
+	float depthRatio = rcp(worldDir.z);
+	float distRatio = abs(SunDir.z * depthRatio);
 
-	float distRatio = abs(SunDir.z / worldDirNorm.z);
-	float2 causticsUVShift = (worldDirNorm + SunDir / distRatio).xy * length(worldDir);
+	float noise = InterleavedGradientNoise(screenPosition);
 
-	noise = noise * 2.0 * M_PI;
-	half2x2 rotationMatrix = half2x2(cos(noise), sin(noise), -sin(noise), cos(noise));
+	const float cutoffTransmittance = 1e-2;  // don't go deeper than this
+#	if defined(UNDERWATER)
+	const float cutoffDist = -log(cutoffTransmittance) / (extinction + 1e-8);
+#	else
+	const float cutoffDist = -log(cutoffTransmittance) / ((1 + distRatio) * extinction + 1e-8);
+#	endif
+
+	float marchDist = min(dist, cutoffDist);
+	float sunMarchDist = marchDist * distRatio;
+	float marchDepth = marchDist * depthRatio;
+
+#	if defined(WATER_CAUSTICS)
+	float2 causticsUVShift = (endPosWS - startPosWS).xy + SunDir.xy * sunMarchDist;
+#	endif
 
 	PerGeometry sD = perShadow[0];
 	sD.EndSplitDistances.x = GetScreenDepth(sD.EndSplitDistances.x);
@@ -91,15 +134,20 @@ float GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition)
 	sD.EndSplitDistances.z = GetScreenDepth(sD.EndSplitDistances.z);
 	sD.EndSplitDistances.w = GetScreenDepth(sD.EndSplitDistances.w);
 
-	float vl = 0;
-
+	scatter = 0;
+	transmittance = 1;
 	for (uint i = 0; i < nSteps; ++i) {
-		float t = saturate(i * step);
+		float t = saturate((i + noise.x) * step);
 
+		float sampleTransmittance = exp(-step * marchDist * extinction);
+		transmittance *= sampleTransmittance;
+
+		// scattering
+		// shadowing
 		float shadow = 0;
+		float caustics = 1;
 		{
-			float3 samplePositionWS = startPosWS + worldDir * t;
-
+			float3 samplePositionWS = startPosWS + worldDir * t * marchDist;
 			float shadowMapDepth = length(samplePositionWS.xyz);
 
 			half cascadeIndex = 0;
@@ -125,28 +173,34 @@ float GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition)
 
 			half3 samplePositionLS = mul(transpose(lightProjectionMatrix), half4(samplePositionWS.xyz, 1)).xyz;
 
-			float2 sampleNoise = frac(noise + i * 0.38196601125);
+			float2 sampleNoise = frac(noise + i * float2(0.245122333753, 0.430159709002));
 			float r = sqrt(sampleNoise.x);
 			float theta = 2 * M_PI * sampleNoise.y;
 			float2 samplePositionLSOffset;
 			sincos(theta, samplePositionLSOffset.y, samplePositionLSOffset.x);
-			samplePositionLS.xy += 8.0 * samplePositionLSOffset * r / shadowRange;
+			samplePositionLS.xy += 4.0 * samplePositionLSOffset * r / shadowRange;
 
 			float deltaZ = samplePositionLS.z - shadowMapThreshold;
 
 			float4 depths = TexShadowMapSampler.GatherRed(LinearSampler, half3(samplePositionLS.xy, cascadeIndex), 0);
 
 			shadow = dot(depths > deltaZ, 0.25);
+		}
 
 #	if defined(WATER_CAUSTICS)
-			if (perPassWaterCaustics[0].EnableWaterCaustics) {
-				float2 causticsUV = frac((startPosWS.xy + PosAdjust[0].xy + causticsUVShift * t) * 5e-4);
-				shadow *= ComputeWaterCaustics(causticsUV);
-			}
-#	endif
+		if (perPassWaterCaustics[0].EnableWaterCaustics) {
+			float2 causticsUV = frac((startPosWS.xy + PosAdjust[0].xy + causticsUVShift * t) * 5e-4);
+			caustics = ComputeWaterCaustics(causticsUV);
 		}
-		vl += shadow;
+#	endif
+
+		float sunTransmittance = exp(-sunMarchDist * t * extinction) * shadow * caustics;  // assuming water surface is always level
+		float inScatter = scatterCoeff * phase * sunTransmittance;
+		inScatter += exp(-multiScatterConstant * marchDepth * t) * shadow * (scatterCoeff + absorpCoeff) * isoPhase;  // multiscatter, no caustics coz it kinda feels too stripey
+
+		scatter += inScatter * (1 - sampleTransmittance) / (extinction + 1e-8) * transmittance;
 	}
-	return vl * step;
+
+	transmittance = exp(-dist * (1 + distRatio) * extinction);
 }
 #endif

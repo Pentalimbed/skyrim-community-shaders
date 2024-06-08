@@ -608,7 +608,15 @@ float3 GetWaterDiffuseColor(PS_INPUT input, float3 normal, float3 viewDirection,
 	float3 refractionColor = RefractionTex.Sample(RefractionSampler, refractionUV).xyz;
 	float3 refractionDiffuseColor = lerp(ShallowColor.xyz, DeepColor.xyz, distanceMul.y);
 
-	float vl = GetVL(input.WPosition.xyz, refractionWorldPosition.xyz, screenPosition) * (1.0 + saturate(dot(viewDirection, SunDir.xyz)));
+	float3 scatter = 0;
+	float3 transmittance = 1;
+	GetVL(input.WPosition.xyz, refractionWorldPosition.xyz, screenPosition, scatter.x, transmittance.x);
+
+	float3 scatterColoring = ShallowColor.rgb * 4;
+	scatter = scatter.xxx * SunColor.xyz * SunDir.w * scatterColoring;
+	transmittance = lerp(DeepColor.xyz, 1, transmittance.xxx);
+
+	float3 vl = scatter.xxx * 10;
 
 #			if defined(UNDERWATER)
 	float refractionMul = 0;
@@ -619,7 +627,8 @@ float3 GetWaterDiffuseColor(PS_INPUT input, float3 normal, float3 viewDirection,
 	float3 refractionDiffuseColorSkylight = refractionDiffuseColor * vl * SunColor.xyz * SunDir.w;
 	refractionDiffuseColor += refractionDiffuseColorSkylight;
 
-	refractionColor = lerp(refractionColor * WaterParams.w, refractionDiffuseColor, refractionMul);
+	// refractionColor = lerp(refractionColor * WaterParams.w, refractionDiffuseColor, refractionMul);
+	refractionColor = refractionColor * WaterParams.w * transmittance + scatter;
 	return refractionColor;
 #		else
 	return lerp(ShallowColor.xyz, DeepColor.xyz, fresnel) * GetLdotN(normal);
