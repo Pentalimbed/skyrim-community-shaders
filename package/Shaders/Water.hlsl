@@ -612,7 +612,7 @@ float3 GetWaterDiffuseColor(PS_INPUT input, float3 normal, float3 viewDirection,
 	float3 transmittance = 1;
 	GetVL(input.WPosition.xyz, refractionWorldPosition.xyz, screenPosition, scatter.x, transmittance.x);
 
-	float3 scatterColoring = ShallowColor.rgb * 4;
+	float3 scatterColoring = ShallowColor.rgb * 10;
 	scatter = scatter.xxx * SunColor.xyz * SunDir.w * scatterColoring;
 	transmittance = lerp(DeepColor.xyz, 1, transmittance.xxx);
 

@@ -98,8 +98,8 @@ void GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition, out float 
 	float dist = length(worldDir);
 
 	if (dist < 1e-3) {
-		scatter = 1;
-		transmittance = 0;
+		scatter = 0;
+		transmittance = 1;
 		return;
 	}
 
@@ -108,21 +108,21 @@ void GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition, out float 
 	const static float isoPhase = .25 / 3.1415926535;
 	// float phase = isoPhase;
 	float phase = phaseHenyeyGreenstein(dot(SunDir.xyz, worldDir), 0.5);
-	float depthRatio = rcp(worldDir.z);
-	float distRatio = abs(SunDir.z * depthRatio);
+	float distRatio = abs(worldDir.z / SunDir.z);
 
 	float noise = InterleavedGradientNoise(screenPosition);
 
 	const float cutoffTransmittance = 1e-2;  // don't go deeper than this
 #	if defined(UNDERWATER)
-	const float cutoffDist = -log(cutoffTransmittance) / (extinction + 1e-8);
+	const float refractExtinction = (extinction + 1e-8);
 #	else
-	const float cutoffDist = -log(cutoffTransmittance) / ((1 + distRatio) * extinction + 1e-8);
+	const float refractExtinction = ((1 + distRatio) * extinction + 1e-8);  // taking sun transmission into account
 #	endif
+	const float cutoffDist = -log(cutoffTransmittance) / refractExtinction;
 
 	float marchDist = min(dist, cutoffDist);
 	float sunMarchDist = marchDist * distRatio;
-	float marchDepth = marchDist * depthRatio;
+	float marchDepth = marchDist * worldDir.z;
 
 #	if defined(WATER_CAUSTICS)
 	float2 causticsUVShift = (endPosWS - startPosWS).xy + SunDir.xy * sunMarchDist;
@@ -201,6 +201,6 @@ void GetVL(float3 startPosWS, float3 endPosWS, float2 screenPosition, out float 
 		scatter += inScatter * (1 - sampleTransmittance) / (extinction + 1e-8) * transmittance;
 	}
 
-	transmittance = exp(-dist * (1 + distRatio) * extinction);
+	transmittance = exp(-dist * refractExtinction);
 }
 #endif
