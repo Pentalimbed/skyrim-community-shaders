@@ -303,6 +303,26 @@ namespace Hooks
 		static inline REL::Relocation<decltype(thunk)> func;
 	};
 
+	struct BSImagespaceShaderHDRTonemapBlendCinematic_SetupTechnique
+	{
+		static void thunk(RE::BSShader* a_shader, RE::BSShaderMaterial* a_material)
+		{
+			State::GetSingleton()->PreProcess();
+			func(a_shader, a_material);
+		}
+		static inline REL::Relocation<decltype(thunk)> func;
+	};
+
+	struct BSImagespaceShaderHDRTonemapBlendCinematicFade_SetupTechnique
+	{
+		static void thunk(RE::BSShader* a_shader, RE::BSShaderMaterial* a_material)
+		{
+			State::GetSingleton()->PreProcess();
+			func(a_shader, a_material);
+		}
+		static inline REL::Relocation<decltype(thunk)> func;
+	};
+
 	struct WndProcHandler_Hook
 	{
 		static LRESULT thunk(HWND a_hwnd, UINT a_msg, WPARAM a_wParam, LPARAM a_lParam)
@@ -473,6 +493,10 @@ namespace Hooks
 
 		logger::info("Hooking BSGraphics::Renderer::InitD3D");
 		stl::write_thunk_call<BSGraphics_Renderer_Init_InitD3D>(REL::RelocationID(75595, 77226).address() + REL::Relocate(0x50, 0x2BC));
+
+		logger::info("Hooking preprocess passes");
+		stl::write_vfunc<0x2, BSImagespaceShaderHDRTonemapBlendCinematic_SetupTechnique>(RE::VTABLE_BSImagespaceShaderHDRTonemapBlendCinematic[0]);
+		stl::write_vfunc<0x2, BSImagespaceShaderHDRTonemapBlendCinematicFade_SetupTechnique>(RE::VTABLE_BSImagespaceShaderHDRTonemapBlendCinematicFade[0]);
 
 		logger::info("Hooking WndProcHandler");
 		stl::write_thunk_call_6<RegisterClassA_Hook>(REL::VariantID(75591, 77226, 0xDC4B90).address() + REL::VariantOffset(0x8E, 0x15C, 0x99).offset());

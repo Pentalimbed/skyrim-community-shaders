@@ -43,6 +43,7 @@ public:
 	};
 
 	void Draw();
+	void PreProcess();
 	void Reset();
 	void Setup();
 
