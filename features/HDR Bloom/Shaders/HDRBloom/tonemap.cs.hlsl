@@ -56,7 +56,8 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 	return color + 0.5 / 255.0 + dither_shift_RGB;
 }
 
-[numthreads(32, 32, 1)] void main(uint2 tid : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void main(uint2 tid
+								  : SV_DispatchThreadID) {
 	const static float logEV = -3;  // log2(0.125)
 
 	uint2 dims;

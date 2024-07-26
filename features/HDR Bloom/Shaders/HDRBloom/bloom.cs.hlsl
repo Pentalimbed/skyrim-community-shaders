@@ -124,7 +124,8 @@ float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
 	return col;
 }
 
-[numthreads(32, 32, 1)] void CS_Threshold(uint2 tid : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void CS_Threshold(uint2 tid
+										  : SV_DispatchThreadID) {
 	float3 col_input = TexColor[tid].rgb;
 
 	float3 col = col_input;
@@ -138,7 +139,8 @@ float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
 	RWTexGhostsOut[tid] = float4(col, 1);
 };
 
-[numthreads(32, 32, 1)] void CS_Downsample(uint2 tid : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void CS_Downsample(uint2 tid
+										   : SV_DispatchThreadID) {
 	uint2 dims;
 	RWTexBloomOut.GetDimensions(dims.x, dims.y);
 
@@ -160,7 +162,8 @@ float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
 #endif
 };
 
-[numthreads(32, 32, 1)] void CS_Ghosts(uint2 tid : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void CS_Ghosts(uint2 tid
+									   : SV_DispatchThreadID) {
 	uint2 dims;
 	RWTexGhostsOut.GetDimensions(dims.x, dims.y);
 
@@ -193,7 +196,8 @@ float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
 	RWTexGhostsOut[tid] = float4(col, 1);
 };
 
-[numthreads(32, 32, 1)] void CS_Upsample(uint2 tid : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void CS_Upsample(uint2 tid
+										 : SV_DispatchThreadID) {
 	uint2 dims;
 	RWTexBloomOut.GetDimensions(dims.x, dims.y);
 
@@ -204,7 +208,8 @@ float3 SampleChromatic(Texture2D tex, float2 uv, uint mip, float chromatic)
 	RWTexBloomOut[tid] = float4(col, 1);
 };
 
-[numthreads(32, 32, 1)] void CS_Composite(uint2 tid : SV_DispatchThreadID) {
+[numthreads(32, 32, 1)] void CS_Composite(uint2 tid
+										  : SV_DispatchThreadID) {
 	uint2 dims;
 	RWTexBloomOut.GetDimensions(dims.x, dims.y);
 

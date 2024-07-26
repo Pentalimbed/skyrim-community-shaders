@@ -32,7 +32,8 @@ cbuffer AutoExposureCB : register(b0)
 groupshared uint histogramShared[256];
 
 #ifdef AVG
-[numthreads(256, 1, 1)] void main(uint gidx : SV_GroupIndex) {
+[numthreads(256, 1, 1)] void main(uint gidx
+								  : SV_GroupIndex) {
 	uint2 dims;
 	TexColor.GetDimensions(dims.x, dims.y);
 	uint numPixels = dims.x * dims.y * AdaptArea.x * AdaptArea.y;
@@ -62,7 +63,9 @@ groupshared uint histogramShared[256];
 	}
 }
 #else
-[numthreads(16, 16, 1)] void main(uint2 tid : SV_DispatchThreadID, uint gidx : SV_GroupIndex) {
+[numthreads(16, 16, 1)] void main(uint2 tid
+								  : SV_DispatchThreadID, uint gidx
+								  : SV_GroupIndex) {
 	uint2 dims;
 	TexColor.GetDimensions(dims.x, dims.y);
 
