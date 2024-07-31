@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Tracy/Tracy.hpp>
 #include <Tracy/TracyD3D11.hpp>
 
 #include <Buffer.h>
@@ -144,8 +145,10 @@ public:
 
 	inline ~State()
 	{
+#ifdef TRACY_ENABLE
 		if (tracyCtx)
 			TracyD3D11Destroy(tracyCtx);
+#endif
 	}
 
 private:

@@ -58,7 +58,8 @@
 				"BUILD_SKYRIM": true,
 				"ENABLE_SKYRIM_AE": "ON",
 				"ENABLE_SKYRIM_SE": "OFF",
-				"ENABLE_SKYRIM_VR": "OFF"
+				"ENABLE_SKYRIM_VR": "OFF",
+				"BUILD_TESTS": "OFF"
 			},
 			"inherits": [
 				"common",
@@ -73,7 +74,8 @@
 				"BUILD_SKYRIM": true,
 				"ENABLE_SKYRIM_AE": "OFF",
 				"ENABLE_SKYRIM_SE": "ON",
-				"ENABLE_SKYRIM_VR": "OFF"
+				"ENABLE_SKYRIM_VR": "OFF",
+				"BUILD_TESTS": "OFF"
 			},
 			"inherits": [
 				"common",
@@ -88,7 +90,8 @@
 				"BUILD_SKYRIM": true,
 				"ENABLE_SKYRIM_AE": "OFF",
 				"ENABLE_SKYRIM_SE": "OFF",
-				"ENABLE_SKYRIM_VR": "ON"
+				"ENABLE_SKYRIM_VR": "ON",
+				"BUILD_TESTS": "OFF"
 			},
 			"inherits": [
 				"common",
@@ -103,7 +106,8 @@
 				"BUILD_SKYRIM": true,
 				"ENABLE_SKYRIM_AE": "ON",
 				"ENABLE_SKYRIM_SE": "ON",
-				"ENABLE_SKYRIM_VR": "ON"
+				"ENABLE_SKYRIM_VR": "ON",
+				"BUILD_TESTS": "OFF"
 			},
 			"inherits": [
 				"common",
@@ -118,7 +122,8 @@
 				"BUILD_SKYRIM": true,
 				"ENABLE_SKYRIM_AE": "OFF",
 				"ENABLE_SKYRIM_SE": "ON",
-				"ENABLE_SKYRIM_VR": "ON"
+				"ENABLE_SKYRIM_VR": "ON",
+				"BUILD_TESTS": "OFF"
 			},
 			"inherits": [
 				"common",
@@ -134,7 +139,7 @@
 				"ENABLE_SKYRIM_AE": "ON",
 				"ENABLE_SKYRIM_SE": "ON",
 				"ENABLE_SKYRIM_VR": "OFF",
-				"Build Tests": "OFF"
+				"BUILD_TESTS": "OFF"
 			},
 			"inherits": [
 				"common",

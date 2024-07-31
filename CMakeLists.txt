@@ -15,11 +15,11 @@ message("Options:")
 option(AUTO_PLUGIN_DEPLOYMENT "Copy the build output and addons to env:CommunityShadersOutputDir." OFF)
 option(ZIP_TO_DIST "Zip the base mod and addons to their own 7z file in dist." ON)
 option(AIO_ZIP_TO_DIST "Zip the base mod and addons to a AIO 7z file in dist." ON)
-option(TRACY_ENABLE "Enable support for tracy profiler" ON)
+option(TRACY_SUPPORT "Enable support for tracy profiler" OFF)
 message("\tAuto plugin deployment: ${AUTO_PLUGIN_DEPLOYMENT}")
 message("\tZip to dist: ${ZIP_TO_DIST}")
 message("\tAIO Zip to dist: ${AIO_ZIP_TO_DIST}")
-message("\tTracy profiler: ${TRACY_ENABLE}")
+message("\tTracy profiler: ${TRACY_SUPPORT}")
 
 # #######################################################################################################################
 # # Add CMake features
@@ -47,6 +47,12 @@ find_package(Tracy CONFIG REQUIRED)
 set(NVAPI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/extern/nvapi/" CACHE STRING "Path to NVAPI include headers/shaders" )
 set(NVAPI_LIBRARY "${CMAKE_SOURCE_DIR}/extern/nvapi/amd64/nvapi64.lib" CACHE STRING "Path to NVAPI .lib file")
 
+target_compile_definitions(
+	${PROJECT_NAME}
+	PRIVATE
+	"$<$<BOOL:${TRACY_SUPPORT}>:TRACY_SUPPORT>"
+)
+
 target_include_directories(
 	${PROJECT_NAME}
 	PRIVATE
@@ -72,7 +78,7 @@ target_link_libraries(
 	unordered_dense::unordered_dense
 	efsw::efsw
 	Tracy::TracyClient
-	 ${NVAPI_LIBRARY} 
+	${NVAPI_LIBRARY} 
 )
 
 # https://gitlab.kitware.com/cmake/cmake/-/issues/24922#note_1371990
