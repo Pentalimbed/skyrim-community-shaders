@@ -34,38 +34,45 @@ void SetupImGuiStyle()
 	// Rounded slider grabber
 	style.GrabRounding = 12.0f;
 
+	ImVec4 palette[] = {
+		{ 0.118f, 0.118f, 0.118f, 1.0f },
+		{ 0.15f, 0.15f, 0.15f, 1.0f },
+		{ 0.2f, 0.2f, 0.2f, 1.0f },
+		{ 0.3f, 0.3f, 0.3f, 1.0f }
+	};
+
 	// Window
-	colors[ImGuiCol_WindowBg] = ImVec4{ 0.118f, 0.118f, 0.118f, 0.784f };
-	colors[ImGuiCol_ResizeGrip] = ImVec4{ 0.2f, 0.2f, 0.2f, 0.5f };
-	colors[ImGuiCol_ResizeGripHovered] = ImVec4{ 0.3f, 0.3f, 0.3f, 0.75f };
-	colors[ImGuiCol_ResizeGripActive] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
+	colors[ImGuiCol_WindowBg] = ImVec4{ palette[0].x, palette[0].y, palette[0].z, 0.784f };
+	colors[ImGuiCol_ResizeGrip] = ImVec4{ palette[2].x, palette[2].y, palette[2].z, 0.5f };
+	colors[ImGuiCol_ResizeGripHovered] = ImVec4{ palette[3].x, palette[3].y, palette[3].z, 0.75f };
+	colors[ImGuiCol_ResizeGripActive] = palette[1];
 
 	// Header
-	colors[ImGuiCol_Header] = ImVec4{ 0.2f, 0.2f, 0.2f, 1.0f };
-	colors[ImGuiCol_HeaderHovered] = ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f };
-	colors[ImGuiCol_HeaderActive] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
+	colors[ImGuiCol_Header] = palette[2];
+	colors[ImGuiCol_HeaderHovered] = palette[3];
+	colors[ImGuiCol_HeaderActive] = palette[1];
 
 	// Title
-	colors[ImGuiCol_TitleBg] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
-	colors[ImGuiCol_TitleBgActive] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
-	colors[ImGuiCol_TitleBgCollapsed] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
+	colors[ImGuiCol_TitleBg] = palette[1];
+	colors[ImGuiCol_TitleBgActive] = palette[1];
+	colors[ImGuiCol_TitleBgCollapsed] = palette[1];
 
 	// Frame Background
-	colors[ImGuiCol_FrameBg] = ImVec4{ 0.2f, 0.2f, 0.2f, 1.0f };
-	colors[ImGuiCol_FrameBgHovered] = ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f };
-	colors[ImGuiCol_FrameBgActive] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
+	colors[ImGuiCol_FrameBg] = palette[2];
+	colors[ImGuiCol_FrameBgHovered] = palette[3];
+	colors[ImGuiCol_FrameBgActive] = palette[1];
 
 	// Button
-	colors[ImGuiCol_Button] = ImVec4{ 0.2f, 0.2f, 0.2f, 1.0f };
-	colors[ImGuiCol_ButtonHovered] = ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f };
-	colors[ImGuiCol_ButtonActive] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
+	colors[ImGuiCol_Button] = palette[2];
+	colors[ImGuiCol_ButtonHovered] = palette[3];
+	colors[ImGuiCol_ButtonActive] = palette[1];
 
 	// Tab
-	colors[ImGuiCol_Tab] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
+	colors[ImGuiCol_Tab] = palette[1];
 	colors[ImGuiCol_TabHovered] = ImVec4{ 0.38f, 0.38f, 0.38f, 1.0f };
 	colors[ImGuiCol_TabActive] = ImVec4{ 0.28f, 0.28f, 0.28f, 1.0f };
-	colors[ImGuiCol_TabUnfocused] = ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f };
-	colors[ImGuiCol_TabUnfocusedActive] = ImVec4{ 0.2f, 0.2f, 0.2f, 1.0f };
+	colors[ImGuiCol_TabUnfocused] = palette[1];
+	colors[ImGuiCol_TabUnfocusedActive] = palette[2];
 }
 
 bool IsEnabled = false;
