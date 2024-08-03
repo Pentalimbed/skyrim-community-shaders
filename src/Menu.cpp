@@ -35,10 +35,11 @@ void SetupImGuiStyle()
 	style.GrabRounding = 12.0f;
 
 	ImVec4 palette[] = {
-		{ 0.118f, 0.118f, 0.118f, 1.0f },
-		{ 0.15f, 0.15f, 0.15f, 1.0f },
-		{ 0.2f, 0.2f, 0.2f, 1.0f },
-		{ 0.3f, 0.3f, 0.3f, 1.0f }
+		{ 22.f / 255.f, 38.f / 255.f, 46.f / 255.f, 1.0f },
+		{ 46.f / 255.f, 71.f / 255.f, 86.f / 255.f, 1.0f },
+		{ 60.f / 255.f, 122.f / 255.f, 137.f / 255.f, 1.0f },
+		{ 159.f / 255.f, 162.f / 255.f, 178.f / 255.f, 1.0f },
+		{ 64.f / 255.f, 98.f / 255.f, 119.f / 255.f, 1.0f }  // slightly brighter version of [1]
 	};
 
 	// Window
@@ -48,9 +49,9 @@ void SetupImGuiStyle()
 	colors[ImGuiCol_ResizeGripActive] = palette[1];
 
 	// Header
-	colors[ImGuiCol_Header] = palette[2];
+	colors[ImGuiCol_Header] = palette[4];
 	colors[ImGuiCol_HeaderHovered] = palette[3];
-	colors[ImGuiCol_HeaderActive] = palette[1];
+	colors[ImGuiCol_HeaderActive] = palette[2];
 
 	// Title
 	colors[ImGuiCol_TitleBg] = palette[1];
@@ -58,14 +59,14 @@ void SetupImGuiStyle()
 	colors[ImGuiCol_TitleBgCollapsed] = palette[1];
 
 	// Frame Background
-	colors[ImGuiCol_FrameBg] = palette[2];
+	colors[ImGuiCol_FrameBg] = palette[1];
 	colors[ImGuiCol_FrameBgHovered] = palette[3];
-	colors[ImGuiCol_FrameBgActive] = palette[1];
+	colors[ImGuiCol_FrameBgActive] = palette[2];
 
 	// Button
-	colors[ImGuiCol_Button] = palette[2];
+	colors[ImGuiCol_Button] = palette[1];
 	colors[ImGuiCol_ButtonHovered] = palette[3];
-	colors[ImGuiCol_ButtonActive] = palette[1];
+	colors[ImGuiCol_ButtonActive] = palette[2];
 
 	// Tab
 	colors[ImGuiCol_Tab] = palette[1];
@@ -467,7 +468,6 @@ void Menu::DrawSettings()
 
 			ImGui::TableNextColumn();
 			if (ImGui::BeginListBox("##FeatureList", { -FLT_MIN, -FLT_MIN })) {
-				ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));  // Selected feature header color
 				for (size_t i = 0; i < sortedList.size(); i++)
 					if (sortedList[i]->loaded) {
 						if (ImGui::Selectable(fmt::format(" {} ", sortedList[i]->GetName()).c_str(), selectedFeature == i, ImGuiSelectableFlags_SpanAllColumns))
@@ -480,7 +480,6 @@ void Menu::DrawSettings()
 							ImGui::Text(sortedList[i]->failedLoadedMessage.c_str());
 						}
 					}
-				ImGui::PopStyleColor();
 				ImGui::EndListBox();
 			}
 
