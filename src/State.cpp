@@ -12,6 +12,7 @@
 #include "Deferred.h"
 #include "Features/Skylighting.h"
 #include "Features/TerrainBlending.h"
+#include "TruePBR.h"
 
 #include "VariableRateShading.h"
 
@@ -23,9 +24,11 @@ void State::Draw()
 		if (terrainBlending->loaded)
 			terrainBlending->TerrainShaderHacks();
 
-		// auto skylighting = Skylighting::GetSingleton();
-		// if (skylighting->loaded)
-		// 	skylighting->SkylightingShaderHacks();
+		TruePBR::GetSingleton()->SetShaderResouces();
+
+		auto skylighting = Skylighting::GetSingleton();
+		if (skylighting->loaded)
+			skylighting->SkylightingShaderHacks();
 
 		if (currentShader && updateShader) {
 			auto type = currentShader->shaderType.get();
@@ -49,7 +52,12 @@ void State::Draw()
 
 						lastVertexDescriptor = currentVertexDescriptor;
 						lastPixelDescriptor = currentPixelDescriptor;
+					}
 
+					auto shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
+					GET_INSTANCE_MEMBER(cubeMapRenderTarget, shadowState)
+
+					if (cubeMapRenderTarget != RE::RENDER_TARGETS_CUBEMAP::kREFLECTIONS) {
 						static Util::FrameChecker frameChecker;
 						if (frameChecker.isNewFrame()) {
 							ID3D11Buffer* buffers[3] = { permutationCB->CB(), sharedDataCB->CB(), featureDataCB->CB() };
@@ -139,6 +147,7 @@ void State::Reset()
 
 void State::Setup()
 {
+	TruePBR::GetSingleton()->SetupResources();
 	SetupResources();
 	for (auto* feature : Feature::GetFeatureList())
 		if (feature->loaded)
@@ -244,6 +253,11 @@ void State::Load(ConfigMode a_configMode)
 		}
 	}
 
+	auto truePBR = TruePBR::GetSingleton();
+	auto& pbrJson = settings[truePBR->GetShortName()];
+	if (pbrJson.is_object())
+		truePBR->LoadSettings(pbrJson);
+
 	for (auto* feature : Feature::GetFeatureList())
 		feature->Load(settings);
 	i.close();
@@ -279,6 +293,10 @@ void State::Save(ConfigMode a_configMode)
 
 	settings["General"] = general;
 
+	auto truePBR = TruePBR::GetSingleton();
+	auto& pbrJson = settings[truePBR->GetShortName()];
+	truePBR->SaveSettings(pbrJson);
+
 	json originalShaders;
 	for (int classIndex = 0; classIndex < RE::BSShader::Type::Total - 1; ++classIndex) {
 		originalShaders[magic_enum::enum_name((RE::BSShader::Type)(classIndex + 1))] = enabledClasses[classIndex];
@@ -302,6 +320,7 @@ void State::PostPostLoad()
 	else
 		logger::info("Skyrim Upscaler not detected");
 	Deferred::Hooks::Install();
+	TruePBR::GetSingleton()->PostPostLoad();
 }
 
 bool State::ValidateCache(CSimpleIniA& a_ini)

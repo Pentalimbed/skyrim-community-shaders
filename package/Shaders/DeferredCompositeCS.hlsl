@@ -1,7 +1,7 @@
 
-#include "Common/Color.hlsl"
+#include "Common/Color.hlsli"
 #include "Common/DeferredShared.hlsli"
-#include "Common/FrameBuffer.hlsl"
+#include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
 #include "Common/VR.hlsli"
 
@@ -37,9 +37,13 @@ cbuffer SkylightingCB : register(b1)
 Texture3D<sh2> SkylightingProbeArray : register(t9);
 #endif
 
+#if defined(SSGI)
+Texture2D<half4> SpecularSSGITexture : register(t10);
+#endif
+
 [numthreads(8, 8, 1)] void main(uint3 dispatchID
 								: SV_DispatchThreadID) {
-	half2 uv = half2(dispatchID.xy + 0.5) * BufferDim.zw;
+	half2 uv = half2(dispatchID.xy + 0.5) * BufferDim.zw * DynamicResolutionParams2.xy;
 	uint eyeIndex = GetEyeIndexFromTexCoord(uv);
 	uv = ConvertFromStereoUV(uv, eyeIndex);
 
@@ -49,10 +53,14 @@ Texture3D<sh2> SkylightingProbeArray : register(t9);
 	half3 diffuseColor = MainRW[dispatchID.xy];
 	half3 specularColor = SpecularTexture[dispatchID.xy];
 	half3 albedo = AlbedoTexture[dispatchID.xy];
-	half2 snowParameters = Masks2Texture[dispatchID.xy].xy;
+	half3 masks2 = Masks2Texture[dispatchID.xy];
+
+	half2 snowParameters = masks2.xy;
+	half pbrWeight = masks2.z;
 
 	half glossiness = normalGlossiness.z;
-	half3 color = diffuseColor + specularColor;
+
+	half3 color = lerp(diffuseColor + specularColor, Lin2sRGB(sRGB2Lin(diffuseColor) + sRGB2Lin(specularColor)), pbrWeight);
 
 #if defined(DYNAMIC_CUBEMAPS)
 
@@ -81,24 +89,26 @@ Texture3D<sh2> SkylightingProbeArray : register(t9);
 		half roughness = 1.0 - glossiness;
 		half level = roughness * 7.0;
 
+		half3 directionalAmbientColor = sRGB2Lin(mul(DirectionalAmbient, half4(R, 1.0)));
+		half3 finalIrradiance = lerp(0, directionalAmbientColor, pbrWeight);
+
 #	if defined(INTERIOR)
 		half3 specularIrradiance = EnvTexture.SampleLevel(LinearSampler, R, level).xyz;
 		specularIrradiance = sRGB2Lin(specularIrradiance);
 
-		color += reflectance * specularIrradiance;
+		finalIrradiance += specularIrradiance;
 #	elif defined(SKYLIGHTING)
 #		if defined(VR)
-		float3 positionMS = positionWS + (eyeIndex == 1 ? CameraPosAdjust[1] - CameraPosAdjust[0] : 0);
+		float3 positionMS = positionWS + CameraPosAdjust[eyeIndex] - CameraPosAdjust[0];
 #		else
 		float3 positionMS = positionWS;
 #		endif
 
-		sh2 skylighting = sampleSkylighting(skylightingSettings, SkylightingProbeArray, positionWS.xyz, normalWS);
-		sh2 specularLobe = fauxSpecularLobeSH(normalWS, -V, roughness);
+		sh2 skylighting = Skylighting::sample(skylightingSettings, SkylightingProbeArray, positionMS.xyz, normalWS);
+		sh2 specularLobe = Skylighting::fauxSpecularLobeSH(normalWS, -V, roughness);
 
-		half skylightingSpecular = saturate(shFuncProductIntegral(skylighting, specularLobe));
-		skylightingSpecular = lerp(skylightingSettings.MixParams.z, 1, saturate(skylightingSpecular * skylightingSettings.MixParams.w));
-		skylightingSpecular = applySkylightingFadeout(skylightingSpecular, length(positionWS.xyz));
+		half skylightingSpecular = shFuncProductIntegral(skylighting, specularLobe);
+		skylightingSpecular = Skylighting::mixSpecular(skylightingSettings, skylightingSpecular);
 
 		half3 specularIrradiance = 1;
 
@@ -113,14 +123,20 @@ Texture3D<sh2> SkylightingProbeArray : register(t9);
 			specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
 			specularIrradianceReflections = sRGB2Lin(specularIrradianceReflections);
 		}
-
-		color += reflectance * lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
+		finalIrradiance = finalIrradiance * skylightingSpecular + lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
 #	else
 		half3 specularIrradianceReflections = EnvReflectionsTexture.SampleLevel(LinearSampler, R, level).xyz;
 		specularIrradianceReflections = sRGB2Lin(specularIrradianceReflections);
 
-		color += reflectance * specularIrradianceReflections;
+		finalIrradiance += specularIrradianceReflections;
 #	endif
+
+#	if defined(SSGI)
+		half4 ssgiSpecular = SpecularSSGITexture[dispatchID.xy];
+		finalIrradiance = finalIrradiance * (1 - ssgiSpecular.a) + ssgiSpecular.rgb;
+#	endif
+
+		color += reflectance * finalIrradiance;
 
 		color = Lin2sRGB(color);
 	}
