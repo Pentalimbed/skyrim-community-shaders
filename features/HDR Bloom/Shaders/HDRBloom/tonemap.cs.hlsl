@@ -2,8 +2,6 @@
 
 #include "common.hlsli"
 
-#include "TriDither.fxh"
-
 RWTexture2D<float4> RWTexOut : register(u0);
 
 Texture2D<float4> TexColor : register(t0);
@@ -87,8 +85,6 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 
 	if (DitherMode == 1)
 		color = DitherShift(color, tid);
-	else if (DitherMode == 2)
-		color += TriDither(color, uv, Timer, 8);
 
 	color = saturate(color);
 

@@ -158,17 +158,13 @@ void HDRBloom::DrawSettings()
 
 			ImGui::SeparatorText("Dither");
 			{
-				if (ImGui::BeginTable("Dither Mode Table", 3)) {
+				if (ImGui::BeginTable("Dither Mode Table", 2)) {
 					ImGui::TableNextColumn();
 					ImGui::RadioButton("Disabled", &settings.DitherMode, 0);
 					ImGui::TableNextColumn();
 					ImGui::RadioButton("Static", &settings.DitherMode, 1);
 					if (auto _tt = Util::HoverTooltipWrapper())
 						ImGui::Text("RGB shift by CeeJayDK");
-					ImGui::TableNextColumn();
-					ImGui::RadioButton("Temporal", &settings.DitherMode, 2);
-					if (auto _tt = Util::HoverTooltipWrapper())
-						ImGui::Text("Triangular dither by The Sandvich Maker & TreyM");
 
 					ImGui::EndTable();
 				}
