@@ -84,6 +84,8 @@ struct HDRBloom : public Feature
 		float pad[2];
 	};
 	std::unique_ptr<ConstantBuffer> autoExposureCB = nullptr;
+	std::unique_ptr<StructuredBuffer> histogramSB = nullptr;
+	std::unique_ptr<StructuredBuffer> adaptationSB = nullptr;
 
 	struct alignas(16) BloomCB
 	{
@@ -132,8 +134,6 @@ struct HDRBloom : public Feature
 	std::unique_ptr<ConstantBuffer> tonemapCB = nullptr;
 
 	// textures
-	std::unique_ptr<Texture1D> texHistogram = nullptr;
-	std::unique_ptr<Texture1D> texAdaptation = nullptr;
 	std::unique_ptr<Texture2D> texBloom = nullptr;
 	std::array<winrt::com_ptr<ID3D11ShaderResourceView>, s_BloomMips> texBloomMipSRVs = { nullptr };
 	std::array<winrt::com_ptr<ID3D11UnorderedAccessView>, s_BloomMips> texBloomMipUAVs = { nullptr };

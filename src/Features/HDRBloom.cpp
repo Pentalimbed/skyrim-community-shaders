@@ -215,42 +215,13 @@ void HDRBloom::SetupResources()
 
 		ghostsSB = std::make_unique<StructuredBuffer>(StructuredBufferDesc<GhostParameters>(7u), 7);
 		ghostsSB->CreateSRV();
-	}
-	logger::debug("Creating 1D textures...");
-	{
-		D3D11_TEXTURE1D_DESC texDesc = {
-			.Width = 256,
-			.MipLevels = 1,
-			.ArraySize = 1,
-			.Format = DXGI_FORMAT_R32_UINT,
-			.Usage = D3D11_USAGE_DEFAULT,
-			.BindFlags = D3D11_BIND_UNORDERED_ACCESS,
-			.CPUAccessFlags = 0,
-			.MiscFlags = 0
-		};
 
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
-			.Format = texDesc.Format,
-			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE1D,
-			.Texture1D = { .MostDetailedMip = 0, .MipLevels = 1 }
-		};
+		histogramSB = std::make_unique<StructuredBuffer>(StructuredBufferDesc<uint>(256u, false), 256);
+		histogramSB->CreateUAV();
 
-		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
-			.Format = texDesc.Format,
-			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE1D,
-			.Texture1D = { .MipSlice = 0 }
-		};
-
-		texHistogram = std::make_unique<Texture1D>(texDesc);
-		texHistogram->CreateUAV(uavDesc);
-
-		texDesc.Format = srvDesc.Format = uavDesc.Format = DXGI_FORMAT_R16_FLOAT;
-		texDesc.Width = 1;
-		texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-
-		texAdaptation = std::make_unique<Texture1D>(texDesc);
-		texAdaptation->CreateSRV(srvDesc);
-		texAdaptation->CreateUAV(uavDesc);
+		adaptationSB = std::make_unique<StructuredBuffer>(StructuredBufferDesc<float>(1u, false), 1);
+		adaptationSB->CreateSRV();
+		adaptationSB->CreateUAV();
 	}
 
 	logger::debug("Creating 2D textures...");
@@ -464,7 +435,7 @@ void HDRBloom::DrawAdaptation(ResourceInfo tex_input)
 
 	// Calculate histogram
 	ID3D11ShaderResourceView* srv = tex_input.srv;
-	std::array<ID3D11UnorderedAccessView*, 2> uavs = { texHistogram->uav.get(), texAdaptation->uav.get() };
+	std::array<ID3D11UnorderedAccessView*, 2> uavs = { histogramSB->UAV(), adaptationSB->UAV() };
 	ID3D11Buffer* cb = autoExposureCB->CB();
 	context->CSSetConstantBuffers(0, 1, &cb);
 	context->CSSetUnorderedAccessViews(0, (UINT)uavs.size(), uavs.data(), nullptr);
@@ -662,7 +633,7 @@ HDRBloom::ResourceInfo HDRBloom::DrawTonemapper(HDRBloom::ResourceInfo tex_input
 	};
 	tonemapCB->Update(cbData);
 
-	std::array<ID3D11ShaderResourceView*, 2> srvs = { tex_input.srv, texAdaptation->srv.get() };
+	std::array<ID3D11ShaderResourceView*, 2> srvs = { tex_input.srv, adaptationSB->SRV() };
 	ID3D11UnorderedAccessView* uav = texTonemap->uav.get();
 	ID3D11Buffer* cb = tonemapCB->CB();
 	context->CSSetConstantBuffers(0, 1, &cb);

@@ -5,8 +5,8 @@
 
 #include "common.hlsli"
 
-RWTexture1D<uint> RWTexHistogram : register(u0);
-RWTexture1D<float> RWTexAdaptation : register(u1);
+RWStructuredBuffer<uint> RWBufferHistogram : register(u0);
+RWStructuredBuffer<float> RWBufferAdaptation : register(u1);
 
 Texture2D<float4> TexColor : register(t0);
 
@@ -39,9 +39,9 @@ groupshared uint histogramShared[256];
 	uint numPixels = dims.x * dims.y * AdaptArea.x * AdaptArea.y;
 
 	// init
-	uint pixelsInBin = RWTexHistogram[gidx];
+	uint pixelsInBin = RWBufferHistogram[gidx];
 	histogramShared[gidx] = pixelsInBin * gidx;
-	RWTexHistogram[gidx] = 0;  // for next frame
+	RWBufferHistogram[gidx] = 0;  // for next frame
 
 	GroupMemoryBarrierWithGroupSync();
 
@@ -58,8 +58,8 @@ groupshared uint histogramShared[256];
 		// pixelsInBin here is number of zero value pixels
 		float logAvgLum = (float(histogramShared[0]) / max(numPixels, 1.0)) - 1.0;
 		float avgLum = exp2(((logAvgLum / 254.0) * LogLumRange) + MinLogLum);
-		float adaptedLum = lerp(max(1e-5, RWTexAdaptation.Load(0)), avgLum, AdaptLerp);
-		RWTexAdaptation[0] = adaptedLum;
+		float adaptedLum = lerp(max(1e-5, RWBufferAdaptation[0]), avgLum, AdaptLerp);
+		RWBufferAdaptation[0] = adaptedLum;
 	}
 }
 #else
@@ -95,6 +95,6 @@ groupshared uint histogramShared[256];
 	GroupMemoryBarrierWithGroupSync();
 
 	// save to texture
-	InterlockedAdd(RWTexHistogram[gidx], histogramShared[gidx]);
+	InterlockedAdd(RWBufferHistogram[gidx], histogramShared[gidx]);
 }
 #endif

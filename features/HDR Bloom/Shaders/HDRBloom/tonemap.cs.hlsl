@@ -5,7 +5,7 @@
 RWTexture2D<float4> RWTexOut : register(u0);
 
 Texture2D<float4> TexColor : register(t0);
-Texture1D<float> RWTexAdaptation : register(t1);
+StructuredBuffer<float> RWTexAdaptation : register(t1);
 
 cbuffer TonemapCB : register(b0)
 {
@@ -66,7 +66,7 @@ float3 DitherShift(float3 color, uint2 pxCoord)
 
 	// auto exposure
 	if (EnableAutoExposure) {
-		float avgLuma = RWTexAdaptation.Load(0);
+		float avgLuma = RWTexAdaptation[0];
 		color *= 0.18 * ExposureCompensation / clamp(avgLuma, AdaptationRange.x, AdaptationRange.y);
 
 		// purkinje shift
