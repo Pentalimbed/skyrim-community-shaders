@@ -94,14 +94,14 @@ StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t0);
 Texture2D<float4> TexTransmittance : register(t1);
 Texture2D<float4> TexMultiScatter : register(t2);
 #else
-StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t50);
-Texture2D<float4> TexTransmittance : register(t51);
-Texture2D<float4> TexMultiScatter : register(t52);
-Texture2D<float4> TexSkyView : register(t53);
-Texture3D<float4> TexAerialPerspective : register(t54);
-StructuredBuffer<SkyPerGeometrySB> SkyPerGeometryBuffer : register(t55);
-Texture2D<float4> TexMasser : register(t56);
-Texture2D<float4> TexSecunda : register(t57);
+StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t60);
+Texture2D<float4> TexTransmittance : register(t61);
+Texture2D<float4> TexMultiScatter : register(t62);
+Texture2D<float4> TexSkyView : register(t63);
+Texture3D<float4> TexAerialPerspective : register(t64);
+StructuredBuffer<SkyPerGeometrySB> SkyPerGeometryBuffer : register(t65);
+Texture2D<float4> TexMasser : register(t66);
+Texture2D<float4> TexSecunda : register(t67);
 #endif
 
 #ifndef PI

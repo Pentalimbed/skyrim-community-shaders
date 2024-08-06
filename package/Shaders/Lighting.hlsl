@@ -996,6 +996,10 @@ float3 ApplyFogAndClampColor(float3 srcColor, float4 fogParam, float3 clampColor
 #		include "Skylighting/Skylighting.hlsli"
 #	endif
 
+#	if defined(PHYS_SKY)
+#		include "PhysicalSky/PhysicalSky.hlsli"
+#	endif
+
 PS_OUTPUT main(PS_INPUT input, bool frontFace
 			   : SV_IsFrontFace)
 {
@@ -1792,6 +1796,17 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	endif
 
 	float3 dirLightColor = DirLightColor.xyz;
+
+#	if defined(PHYS_SKY)
+	float4 ap_sample = getLightingApSample(input.WorldPosition.xyz, SampColorSampler);
+
+	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
+		dirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
+
+	float3 transmit_sample = getLightingTransmitSample(input.WorldPosition.z, SampShadowMaskSampler);
+	dirLightColor *= transmit_sample;
+#	endif
+
 	float3 dirLightColorMultiplier = 1;
 
 #	if defined(WATER_LIGHTING)
@@ -1895,6 +1910,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	if defined(TRUE_PBR)
 	{
 		float3 pbrDirLightColor = PBR::AdjustDirectionalLightColor(DirLightColor.xyz);
+
+#		if defined(PHYS_SKY)
+		if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
+			pbrDirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
+		pbrDirLightColor *= transmit_sample;
+#		endif
+
 		float3 mainLayerFinalLightColor = fullShadowDirLightColorMultiplier * pbrDirLightColor;
 		float coatShadowDirLightColorMultiplier = fullShadowDirLightColorMultiplier;
 		[branch] if ((PBRFlags & TruePBR_InterlayerParallax) != 0)
