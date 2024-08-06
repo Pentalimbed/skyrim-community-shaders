@@ -1909,13 +1909,13 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #	if defined(TRUE_PBR)
 	{
-		float3 pbrDirLightColor = PBR::AdjustDirectionalLightColor(DirLightColor.xyz);
-
+		float3 pbrDirLightColor = DirLightColor.xyz;
 #		if defined(PHYS_SKY)
 		if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
 			pbrDirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
 		pbrDirLightColor *= transmit_sample;
 #		endif
+		pbrDirLightColor = PBR::AdjustDirectionalLightColor(pbrDirLightColor);
 
 		float3 mainLayerFinalLightColor = fullShadowDirLightColorMultiplier * pbrDirLightColor;
 		float coatShadowDirLightColorMultiplier = fullShadowDirLightColorMultiplier;
