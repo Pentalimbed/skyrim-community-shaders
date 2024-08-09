@@ -10,11 +10,13 @@
 #include "Features/ScreenSpaceGI.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/Skylighting.h"
+#include "Features/SnowSparkles.h"
 #include "Features/SubsurfaceScattering.h"
 #include "Features/TerrainBlending.h"
 #include "Features/TerrainOcclusion.h"
 #include "Features/WaterLighting.h"
 #include "Features/WetnessEffects.h"
+
 
 #include "State.h"
 
@@ -119,6 +121,7 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		LightLimitFix::GetSingleton(),
 		DynamicCubemaps::GetSingleton(),
 		CloudShadows::GetSingleton(),
+		SnowSparkles::GetSingleton(),
 		WaterLighting::GetSingleton(),
 		SubsurfaceScattering::GetSingleton(),
 		TerrainOcclusion::GetSingleton(),
