@@ -11,10 +11,10 @@ struct SnowSparkles : Feature
 		return &singleton;
 	}
 
-	virtual inline std::string GetName() { return "Snow Sparkles"; }
-	virtual inline std::string GetShortName() { return "SnowSparkles"; }
-	virtual inline std::string_view GetShaderDefineName() { return "SNOW_SPARKLES"; }
-	virtual inline bool HasShaderDefine(RE::BSShader::Type t) { return t == RE::BSShader::Type::Lighting; }
+	virtual inline std::string GetName() override { return "Snow Sparkles"; }
+	virtual inline std::string GetShortName() override { return "SnowSparkles"; }
+	virtual inline std::string_view GetShaderDefineName() override { return "SNOW_SPARKLES"; }
+	virtual inline bool HasShaderDefine(RE::BSShader::Type t) override { return t == RE::BSShader::Type::Lighting; }
 
 	constexpr static uint32_t c_noise_tex_size = 512;
 
@@ -39,19 +39,19 @@ struct SnowSparkles : Feature
 	};
 	std::unique_ptr<Buffer> glintSB = nullptr;
 
-	virtual void SetupResources();
+	virtual void SetupResources() override;
 	void CompileComputeShaders();
 	void GenerateNoise();
 
-	virtual inline void Reset(){};
-	virtual void ClearShaderCache();
+	virtual inline void Reset() override{};
+	virtual void ClearShaderCache() override;
 
-	virtual void DrawSettings();
+	virtual void DrawSettings() override;
 
-	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor);
+	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor) override;
 	void ModifyLighting(const RE::BSShader* shader, const uint32_t descriptor);
 
-	virtual void Load(json& o_json);
-	virtual void Save(json& o_json);
+	virtual void LoadSettings(json& o_json) override;
+	virtual void SaveSettings(json& o_json) override;
 	virtual inline void RestoreDefaultSettings() { settings = {}; }
 };

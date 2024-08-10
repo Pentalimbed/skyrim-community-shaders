@@ -83,17 +83,14 @@ void SnowSparkles::ModifyLighting(const RE::BSShader*, const uint32_t)
 	context->PSSetShaderResources(28, ARRAYSIZE(srv), srv);
 }
 
-void SnowSparkles::Load(json& o_json)
+void SnowSparkles::LoadSettings(json& o_json)
 {
-	if (o_json[GetName()].is_object())
-		settings = o_json[GetName()];
-
-	Feature::Load(o_json);
+	settings = o_json;
 }
 
-void SnowSparkles::Save(json& o_json)
+void SnowSparkles::SaveSettings(json& o_json)
 {
-	o_json[GetName()] = settings;
+	o_json = settings;
 }
 
 void SnowSparkles::SetupResources()
