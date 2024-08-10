@@ -22,6 +22,10 @@
 #define TruePBR_LandTile4HasDisplacement (1 << 10)
 #define TruePBR_LandTile5HasDisplacement (1 << 11)
 
+#ifdef SNOW_SPARKLES
+#	include "SnowSparkles/Glints2023.hlsli"
+#endif
+
 namespace PBR
 {
 	struct SurfaceProperties
@@ -110,9 +114,13 @@ namespace PBR
 		return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 	}
 
-	float3 GetSpecularDirectLightMultiplierMicrofacet(float roughness, float3 specularColor, float NdotL, float NdotV, float NdotH, float VdotH, out float3 F)
+	float3 GetSpecularDirectLightMultiplierMicrofacet(float roughness, float3 specularColor, float3 H, float NdotL, float NdotV, float NdotH, float VdotH, float2 uv, out float3 F)
 	{
 		float D = GetNormalDistributionFunctionGGX(roughness, NdotH);
+#if defined(SNOW_SPARKLES)
+		float D_max = GetNormalDistributionFunctionGGX(roughness, 1);
+		D = SampleGlints2023NDF(H, D, D_max, uv, ddx(uv), ddy(uv));
+#endif
 		float G = GetVisibilityFunctionSmithJointApprox(roughness, NdotV, NdotL);
 		F = GetFresnelFactorSchlick(specularColor, VdotH);
 
@@ -312,7 +320,8 @@ namespace PBR
 		return color;
 	}
 
-	void GetDirectLightInput(out float3 diffuse, out float3 coatDiffuse, out float3 transmission, out float3 specular, float3 N, float3 coatN, float3 V, float3 coatV, float3 L, float3 coatL, float3 lightColor, float3 coatLightColor, SurfaceProperties surfaceProperties)
+	void GetDirectLightInput(out float3 diffuse, out float3 coatDiffuse, out float3 transmission, out float3 specular, float3 N, float3 coatN, float3 V, float3 coatV, float3 L, float3 coatL, float3 lightColor, float3 coatLightColor, SurfaceProperties surfaceProperties,
+		float3x3 tbn, float2 uv)
 	{
 		diffuse = 0;
 		coatDiffuse = 0;
@@ -320,6 +329,7 @@ namespace PBR
 		specular = 0;
 
 		float3 H = normalize(V + L);
+		float3 localH = mul(H, tbn);
 
 		float NdotL = dot(N, L);
 		float NdotV = dot(N, V);
@@ -344,7 +354,7 @@ namespace PBR
 			diffuse += lightColor * satNdotL;
 
 			float3 F;
-			specular += PI * GetSpecularDirectLightMultiplierMicrofacet(surfaceProperties.Roughness, surfaceProperties.F0, satNdotL, satNdotV, satNdotH, satVdotH, F) * lightColor * satNdotL;
+			specular += PI * GetSpecularDirectLightMultiplierMicrofacet(surfaceProperties.Roughness, surfaceProperties.F0, H, satNdotL, satNdotV, satNdotH, satVdotH, uv, F) * lightColor * satNdotL;
 
 			float2 specularBRDF = 0;
 			[branch] if (pbrSettings.UseMultipleScattering)
@@ -390,7 +400,7 @@ namespace PBR
 				}
 
 				float3 coatF;
-				float3 coatSpecular = PI * GetSpecularDirectLightMultiplierMicrofacet(surfaceProperties.CoatRoughness, surfaceProperties.CoatF0, coatNdotL, coatNdotV, coatNdotH, coatVdotH, coatF) * coatLightColor * coatNdotL;
+				float3 coatSpecular = PI * GetSpecularDirectLightMultiplierMicrofacet(surfaceProperties.CoatRoughness, surfaceProperties.CoatF0, H, coatNdotL, coatNdotV, coatNdotH, coatVdotH, uv, coatF) * coatLightColor * coatNdotL;
 
 				float3 layerAttenuation = 1 - coatF * surfaceProperties.CoatStrength;
 				diffuse *= layerAttenuation;
@@ -415,7 +425,7 @@ namespace PBR
 		float VdotH = saturate(dot(V, H));
 
 		float3 wetnessF;
-		float3 wetnessSpecular = PI * GetSpecularDirectLightMultiplierMicrofacet(roughness, wetnessF0, NdotL, NdotV, NdotH, VdotH, wetnessF) * lightColor * NdotL;
+		float3 wetnessSpecular = PI * GetSpecularDirectLightMultiplierMicrofacet(roughness, wetnessF0, H, NdotL, NdotV, NdotH, VdotH, 0, wetnessF) * lightColor * NdotL;
 
 		return wetnessSpecular * wetnessStrength;
 	}

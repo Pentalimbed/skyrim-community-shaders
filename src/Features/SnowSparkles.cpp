@@ -1,21 +1,7 @@
 #include "SnowSparkles.h"
 
+#include "State.h"
 #include "Util.h"
-
-class FrameChecker
-{
-private:
-	uint32_t last_frame = UINT32_MAX;
-
-public:
-	inline bool isNewFrame(uint32_t frame)
-	{
-		bool retval = last_frame != frame;
-		last_frame = frame;
-		return retval;
-	}
-	inline bool isNewFrame() { return isNewFrame(RE::BSGraphics::State::GetSingleton()->uiFrameCount); }
-};
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	SnowSparkles::Settings,
@@ -45,42 +31,11 @@ void SnowSparkles::DrawSettings()
 	}
 }
 
-void SnowSparkles::Draw(const RE::BSShader* shader, const uint32_t descriptor)
+void SnowSparkles::Prepass()
 {
-	if (!loaded)
-		return;
-	;
-
-	switch (shader->shaderType.get()) {
-	case RE::BSShader::Type::Lighting:
-		ModifyLighting(shader, descriptor);
-		break;
-	}
-}
-
-void SnowSparkles::ModifyLighting(const RE::BSShader*, const uint32_t)
-{
-	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
-
-	static FrameChecker frame_checker;
-	if (frame_checker.isNewFrame()) {
-		// update sb
-		GlintParameters glint_params = {
-			._Glint2023NoiseMapSize = c_noise_tex_size,
-			._ScreenSpaceScale = settings.screen_space_scale,
-			._LogMicrofacetDensity = settings.log_microfacet_density,
-			._MicrofacetRoughness = settings.microfacet_roughness,
-			._DensityRandomization = settings.density_randomization
-		};
-
-		D3D11_MAPPED_SUBRESOURCE mapped;
-		DX::ThrowIfFailed(context->Map(glintSB->resource.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
-		memcpy_s(mapped.pData, sizeof(GlintParameters), &glint_params, sizeof(GlintParameters));
-		context->Unmap(glintSB->resource.get(), 0);
-	}
-
-	ID3D11ShaderResourceView* srv[2] = { noiseTexture->srv.get(), glintSB->srv.get() };
-	context->PSSetShaderResources(28, ARRAYSIZE(srv), srv);
+	auto context = State::GetSingleton()->context;
+	ID3D11ShaderResourceView* srv = noiseTexture->srv.get();
+	context->PSSetShaderResources(28, 1, &srv);
 }
 
 void SnowSparkles::LoadSettings(json& o_json)
@@ -91,6 +46,17 @@ void SnowSparkles::LoadSettings(json& o_json)
 void SnowSparkles::SaveSettings(json& o_json)
 {
 	o_json = settings;
+}
+
+SnowSparkles::GlintParameters SnowSparkles::GetCommonBufferData()
+{
+	return {
+		._ScreenSpaceScale = settings.screen_space_scale,
+		._LogMicrofacetDensity = settings.log_microfacet_density,
+		._MicrofacetRoughness = settings.microfacet_roughness,
+		._DensityRandomization = settings.density_randomization,
+		._Glint2023NoiseMapSize = c_noise_tex_size,
+	};
 }
 
 void SnowSparkles::SetupResources()
@@ -127,26 +93,6 @@ void SnowSparkles::SetupResources()
 		noiseTexture->CreateUAV(uav_desc);
 	}
 
-	logger::debug("Creating structured buffer...");
-	{
-		D3D11_BUFFER_DESC sb_desc{
-			.ByteWidth = sizeof(GlintParameters),
-			.Usage = D3D11_USAGE_DYNAMIC,
-			.BindFlags = D3D11_BIND_SHADER_RESOURCE,
-			.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-			.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-			.StructureByteStride = sizeof(GlintParameters)
-		};
-		D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc{
-			.Format = DXGI_FORMAT_UNKNOWN,
-			.ViewDimension = D3D11_SRV_DIMENSION_BUFFER,
-			.Buffer = { .FirstElement = 0, .NumElements = 1 }
-		};
-
-		glintSB = std::make_unique<Buffer>(sb_desc);
-		glintSB->CreateSRV(srv_desc);
-	}
-
 	CompileComputeShaders();
 }
 
@@ -162,7 +108,7 @@ void SnowSparkles::CompileComputeShaders()
 
 void SnowSparkles::GenerateNoise()
 {
-	auto context = RE::BSGraphics::Renderer::GetSingleton()->GetRuntimeData().context;
+	auto context = State::GetSingleton()->context;
 
 	struct OldState
 	{

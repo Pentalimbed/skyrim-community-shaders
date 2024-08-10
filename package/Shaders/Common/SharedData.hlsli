@@ -138,6 +138,17 @@ struct PBRSettings
 	float AmbientLightColorMultiplier;
 	bool UseMultipleScattering;
 	bool UseMultiBounceAO;
+	float3 pad;
+};
+
+struct SparklySnowSettings
+{
+	float ScreenSpaceScale;
+	float LogMicrofacetDensity;
+	float MicrofacetRoughness;
+	float DensityRandomization;
+
+	int4 Glint2023NoiseMapSize;
 };
 
 cbuffer FeatureData : register(b6)
@@ -150,6 +161,7 @@ cbuffer FeatureData : register(b6)
 	LightLimitFixSettings lightLimitFixSettings;
 	SkylightingSettings skylightingSettings;
 	PBRSettings pbrSettings;
+	SparklySnowSettings snowSettings;
 };
 
 Texture2D<float4> TexDepthSampler : register(t20);

@@ -3,16 +3,6 @@ static const float RAD2DEG = 57.2957795131;
 
 Texture2D<float4> _Glint2023NoiseMap : register(t28);
 
-struct GlintParameters
-{
-	int _Glint2023NoiseMapSize;
-	float _ScreenSpaceScale;
-	float _LogMicrofacetDensity;
-	float _MicrofacetRoughness;
-	float _DensityRandomization;
-};
-StructuredBuffer<GlintParameters> glint : register(t29);
-
 //=======================================================================================
 // TOOLS
 //=======================================================================================
@@ -238,8 +228,8 @@ void UnpackFloatParallel4(float4 input, out float4 a, out float4 b)
 //=======================================================================================
 void CustomRand4Texture(float2 slope, float2 slopeRandOffset, out float4 outUniform, out float4 outGaussian, out float2 slopeLerp)
 {
-	int2 size = glint[0]._Glint2023NoiseMapSize.rr;
-	float2 slope2 = abs(slope) / glint[0]._MicrofacetRoughness;
+	int2 size = snowSettings.Glint2023NoiseMapSize.rr;
+	float2 slope2 = abs(slope) / snowSettings.MicrofacetRoughness;
 	slope2 = slope2 + (slopeRandOffset * size);
 	slopeLerp = frac(slope2);
 	int2 slopeCoord = int2(floor(slope2)) % size;
@@ -291,12 +281,12 @@ float SampleGlintGridSimplex(float2 uv, uint gridSeed, float2 slope, float footp
 	CustomRand4Texture(slope, rand2.yz, rand2SlopesB, rand2SlopesG, slopeLerp2);
 
 	// Compute microfacet count with randomization
-	float3 logDensityRand = clamp(sampleNormalDistribution(float3(rand0.x, rand1.x, rand2.x), glint[0]._LogMicrofacetDensity.r, glint[0]._DensityRandomization), 0.0, 50.0);  // TODO : optimize sampleNormalDist
+	float3 logDensityRand = clamp(sampleNormalDistribution(float3(rand0.x, rand1.x, rand2.x), snowSettings.LogMicrofacetDensity.r, snowSettings.DensityRandomization), 0.0, 50.0);  // TODO : optimize sampleNormalDist
 	float3 microfacetCount = max(0.0.rrr, footprintArea.rrr * exp(logDensityRand));
 	float3 microfacetCountBlended = microfacetCount * gridWeight;
 
 	// Compute binomial properties
-	float hitProba = glint[0]._MicrofacetRoughness * targetNDF;                                        // probability of hitting desired half vector in NDF distribution
+	float hitProba = snowSettings.MicrofacetRoughness * targetNDF;                                     // probability of hitting desired half vector in NDF distribution
 	float3 footprintOneHitProba = (1.0 - pow(1.0 - hitProba.rrr, microfacetCountBlended));             // probability of hitting at least one microfacet in footprint
 	float3 footprintMean = (microfacetCountBlended - 1.0) * hitProba.rrr;                              // Expected value of number of hits in the footprint given already one hit
 	float3 footprintSTD = sqrt((microfacetCountBlended - 1.0) * hitProba.rrr * (1.0 - hitProba.rrr));  // Standard deviation of number of hits in the footprint given already one hit
@@ -455,7 +445,7 @@ float4 SampleGlints2023NDF(float3 localHalfVector, float targetNDF, float maxNDF
 	float ellipseRatio = length(ellipseMajor) / length(ellipseMinor);
 
 	// SHARED GLINT NDF VALUES
-	float halfScreenSpaceScaler = glint[0]._ScreenSpaceScale * 0.5;
+	float halfScreenSpaceScaler = snowSettings.ScreenSpaceScale * 0.5;
 	float footprintArea = length(ellipseMajor) * halfScreenSpaceScaler * length(ellipseMinor) * halfScreenSpaceScaler * 4.0;
 	float2 slope = localHalfVector.xy;  // Orthogrtaphic slope projected grid
 	float rescaledTargetNDF = targetNDF / maxNDF;
@@ -526,42 +516,5 @@ float4 SampleGlints2023NDF(float3 localHalfVector, float targetNDF, float maxNDF
 	float sampleB = SampleGlintGridSimplex(uvRotB / divLods[tetraB.z] / float2(1.0, ratios[tetraB.y]), gridSeedB, slope, ratios[tetraB.y] * footprintAreas[tetraB.z], rescaledTargetNDF, tetraBarycentricWeights.y);
 	float sampleC = SampleGlintGridSimplex(uvRotC / divLods[tetraC.z] / float2(1.0, ratios[tetraC.y]), gridSeedC, slope, ratios[tetraC.y] * footprintAreas[tetraC.z], rescaledTargetNDF, tetraBarycentricWeights.z);
 	float sampleD = SampleGlintGridSimplex(uvRotD / divLods[tetraD.z] / float2(1.0, ratios[tetraD.y]), gridSeedD, slope, ratios[tetraD.y] * footprintAreas[tetraD.z], rescaledTargetNDF, tetraBarycentricWeights.w);
-	return (sampleA + sampleB + sampleC + sampleD) * (1.0 / glint[0]._MicrofacetRoughness) * maxNDF;
-}
-
-#if !defined(WETNESS_EFFECTS)
-#	include "WetnessEffects/optimized-ggx.hlsl"
-#endif
-
-float LightingFuncGGX_OPT3_Sparkles(float3 N, float3 V, float3 L, float roughness, float F0, float2 uv, float2 duvdx, float2 duvdy)
-{
-	float3 H = normalize(V + L);
-
-	float dotNL = saturate(dot(N, L));
-	float dotLH = saturate(dot(L, H));
-	float dotNH = saturate(dot(N, H));
-
-	float D_target = LightingFuncGGX_D(dotNH, roughness);
-	float D_max = LightingFuncGGX_D(1, roughness);
-	float D = SampleGlints2023NDF(H, D_target, D_max, uv, duvdx, duvdy);
-	// float D = LightingFuncGGX_D(dotNH, roughness);
-	float2 FV_helper = LightingFuncGGX_FV(dotLH, roughness);
-
-	float FV = F0 * FV_helper.x + FV_helper.y;
-	float specular = dotNL * D * FV;
-
-	return specular;
-}
-
-float3 GetLightSpecularInputGGX(PS_INPUT input, float3 L, float3 V, float3 N, float3 lightColor, float shininess, float2 uv)
-{
-	// http://simonstechblog.blogspot.com/2011/12/microfacet-brdf.html
-	float convertedRoughness = sqrt(2 / (shininess + 2));
-	float lightColorMultiplier = LightingFuncGGX_OPT3(N, V, L, convertedRoughness, 1 - convertedRoughness);
-
-#if defined(ANISO_LIGHTING)
-	lightColorMultiplier *= 0.7 * max(0, L.z);
-#endif
-
-	return Lin2sRGB(lightColor * lightColorMultiplier.xxx * .3);
+	return (sampleA + sampleB + sampleC + sampleD) * (1.0 / snowSettings.MicrofacetRoughness) * maxNDF;
 }

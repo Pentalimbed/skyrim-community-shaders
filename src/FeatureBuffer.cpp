@@ -5,6 +5,7 @@
 #include "Features/GrassLighting.h"
 #include "Features/LightLimitFix.h"
 #include "Features/Skylighting.h"
+#include "Features/SnowSparkles.h"
 #include "Features/TerrainOcclusion.h"
 #include "Features/WetnessEffects.h"
 
@@ -36,5 +37,6 @@ std::pair<unsigned char*, size_t> GetFeatureBufferData()
 		WetnessEffects::GetSingleton()->GetCommonBufferData(),
 		LightLimitFix::GetSingleton()->GetCommonBufferData(),
 		Skylighting::GetSingleton()->cbData,
-		TruePBR::GetSingleton()->settings);
+		TruePBR::GetSingleton()->settings,
+		SnowSparkles::GetSingleton()->GetCommonBufferData());
 }

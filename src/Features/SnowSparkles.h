@@ -31,13 +31,15 @@ struct SnowSparkles : Feature
 
 	struct GlintParameters
 	{
-		int _Glint2023NoiseMapSize;
 		float _ScreenSpaceScale;
 		float _LogMicrofacetDensity;
 		float _MicrofacetRoughness;
 		float _DensityRandomization;
+
+		int _Glint2023NoiseMapSize;
+		float pad[3];
 	};
-	std::unique_ptr<Buffer> glintSB = nullptr;
+	GlintParameters GetCommonBufferData();
 
 	virtual void SetupResources() override;
 	void CompileComputeShaders();
@@ -48,8 +50,7 @@ struct SnowSparkles : Feature
 
 	virtual void DrawSettings() override;
 
-	virtual void Draw(const RE::BSShader* shader, const uint32_t descriptor) override;
-	void ModifyLighting(const RE::BSShader* shader, const uint32_t descriptor);
+	virtual void Prepass() override;
 
 	virtual void LoadSettings(json& o_json) override;
 	virtual void SaveSettings(json& o_json) override;
