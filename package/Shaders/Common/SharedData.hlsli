@@ -131,16 +131,6 @@ struct SkylightingSettings
 	float3 _pad1;
 };
 
-struct PBRSettings
-{
-	float DirectionalLightColorMultiplier;
-	float PointLightColorMultiplier;
-	float AmbientLightColorMultiplier;
-	bool UseMultipleScattering;
-	bool UseMultiBounceAO;
-	float3 pad;
-};
-
 struct SparklySnowSettings
 {
 	float ScreenSpaceScale;
@@ -149,6 +139,16 @@ struct SparklySnowSettings
 	float DensityRandomization;
 
 	int4 Glint2023NoiseMapSize;
+};
+
+struct PBRSettings
+{
+	float DirectionalLightColorMultiplier;
+	float PointLightColorMultiplier;
+	float AmbientLightColorMultiplier;
+	bool UseMultipleScattering;
+	bool UseMultiBounceAO;
+	float3 pad;
 };
 
 cbuffer FeatureData : register(b6)
@@ -160,8 +160,8 @@ cbuffer FeatureData : register(b6)
 	WetnessEffects wetnessEffects;
 	LightLimitFixSettings lightLimitFixSettings;
 	SkylightingSettings skylightingSettings;
-	PBRSettings pbrSettings;
 	SparklySnowSettings snowSettings;
+	PBRSettings pbrSettings;
 };
 
 Texture2D<float4> TexDepthSampler : register(t20);
