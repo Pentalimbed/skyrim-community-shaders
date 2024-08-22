@@ -543,7 +543,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 
 #			if defined(TRUE_PBR)
 	{
-		float3 pbrDirLightColor = PBR::AdjustDirectionalLightColor(DirLightColorShared.xyz) * dirLightColorMultiplier * dirShadow;
+		float3 pbrDirLightColor = PBR::VanillaLightToPbr(DirLightColorShared.xyz) * dirLightColorMultiplier * dirShadow;
 
 		float3 dirDiffuseColor, coatDirDiffuseColor, dirTransmissionColor, dirSpecularColor;
 		PBR::GetDirectLightInput(dirDiffuseColor, coatDirDiffuseColor, dirTransmissionColor, dirSpecularColor, normal, normal, viewDirection, viewDirection, DirLightDirection, DirLightDirection, pbrDirLightColor, pbrDirLightColor, pbrSurfaceProperties, tbn, input.TexCoord.xy);
@@ -593,7 +593,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #				if defined(TRUE_PBR)
 				{
 					float3 pointDiffuseColor, coatDirDiffuseColor, pointTransmissionColor, pointSpecularColor;
-					float3 pbrLightColor = PBR::AdjustPointLightColor(lightColor * intensityMultiplier);
+					float3 pbrLightColor = PBR::VanillaLightToPbr(lightColor * intensityMultiplier);
 					PBR::GetDirectLightInput(pointDiffuseColor, coatDirDiffuseColor, pointTransmissionColor, pointSpecularColor, normal, normal, viewDirection, viewDirection, normalizedLightDirection, normalizedLightDirection, pbrLightColor, pbrLightColor, pbrSurfaceProperties, tbn, input.TexCoord.xy);
 					lightsDiffuseColor += pointDiffuseColor;
 					transmissionColor += pointTransmissionColor;
@@ -640,9 +640,9 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float skylighting = shFuncProductIntegral(skylightingSH, shEvaluateCosineLobe(skylightingSettings.DirectionalDiffuse ? normal : float3(0, 0, 1))) / shPI;
 	skylighting = Skylighting::mixDiffuse(skylightingSettings, skylighting);
 
-	directionalAmbientColor = sRGB2Lin(directionalAmbientColor);
+	directionalAmbientColor = PBR::VanillaLightToPbr(directionalAmbientColor);
 	directionalAmbientColor *= skylighting;
-	directionalAmbientColor = Lin2sRGB(directionalAmbientColor);
+	directionalAmbientColor = PBR::PbrLightToVanilla(directionalAmbientColor);
 #					endif  // SKYLIGHTING
 
 	diffuseColor += directionalAmbientColor;

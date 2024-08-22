@@ -2402,6 +2402,7 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	if (waterRoughnessSpecular < 1.0)
 		indirectSpecularLobeWeight += PBR::GetWetnessIndirectSpecularLobeWeight(wetnessNormal, worldSpaceViewDirection, worldSpaceVertexNormal, waterRoughnessSpecular);
 #		endif
+	indirectSpecularLobeWeight *= PI;
 
 #		if !(defined(DEFERRED) && defined(SSGI))
 	color.xyz += indirectDiffuseLobeWeight * PBR::VanillaLightToPbr(directionalAmbientColor);
