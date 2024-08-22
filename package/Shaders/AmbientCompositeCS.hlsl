@@ -2,20 +2,15 @@
 #include "Common/DeferredShared.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
+#include "Common/SharedData.hlsli"
 #include "Common/VR.hlsli"
 
 Texture2D<unorm half3> AlbedoTexture : register(t0);
 Texture2D<unorm half3> NormalRoughnessTexture : register(t1);
 
 #if defined(SKYLIGHTING)
-#	define SL_INCL_STRUCT
 #	define SL_INCL_METHODS
 #	include "Skylighting/Skylighting.hlsli"
-
-cbuffer SkylightingCB : register(b1)
-{
-	SkylightingSettings skylightingSettings;
-};
 
 Texture2D<unorm float> DepthTexture : register(t2);
 Texture3D<sh2> SkylightingProbeArray : register(t3);
@@ -51,8 +46,8 @@ RWTexture2D<half3> DiffuseAmbientRW : register(u1);
 
 	half3 directionalAmbientColor = mul(DirectionalAmbient, half4(normalWS, 1.0));
 
-	half3 linAlbedo = sRGB2Lin(albedo);
-	half3 linDirectionalAmbientColor = sRGB2Lin(directionalAmbientColor);
+	half3 linAlbedo = PBR::VanillaAlbedoToPbr(albedo);
+	half3 linDirectionalAmbientColor = PBR::VanillaLightToPbr(directionalAmbientColor);
 	half3 linDiffuseColor = sRGB2Lin(diffuseColor);
 
 	half3 linAmbient = lerp(sRGB2Lin(albedo * directionalAmbientColor), linAlbedo * linDirectionalAmbientColor, pbrWeight);

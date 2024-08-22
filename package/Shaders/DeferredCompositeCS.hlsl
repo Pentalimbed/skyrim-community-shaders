@@ -3,6 +3,7 @@
 #include "Common/DeferredShared.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/GBuffer.hlsli"
+#include "Common/SharedData.hlsli"
 #include "Common/VR.hlsli"
 
 Texture2D<half3> SpecularTexture : register(t0);
@@ -25,14 +26,8 @@ SamplerState LinearSampler : register(s0);
 #endif
 
 #if defined(SKYLIGHTING)
-#	define SL_INCL_STRUCT
 #	define SL_INCL_METHODS
 #	include "Skylighting/Skylighting.hlsli"
-
-cbuffer SkylightingCB : register(b1)
-{
-	SkylightingSettings skylightingSettings;
-};
 
 Texture3D<sh2> SkylightingProbeArray : register(t9);
 #endif
@@ -89,7 +84,7 @@ Texture2D<half4> SpecularSSGITexture : register(t10);
 		half roughness = 1.0 - glossiness;
 		half level = roughness * 7.0;
 
-		half3 directionalAmbientColor = sRGB2Lin(mul(DirectionalAmbient, half4(R, 1.0)));
+		half3 directionalAmbientColor = PBR::VanillaLightToPbr(mul(DirectionalAmbient, half4(R, 1.0)));
 		half3 finalIrradiance = 0;
 
 #	if defined(INTERIOR)

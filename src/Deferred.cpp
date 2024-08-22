@@ -358,6 +358,9 @@ void Deferred::DeferredPasses()
 		ID3D11Buffer* buffers[2] = { deferredCB->CB(), *perFrame.get() };
 
 		context->CSSetConstantBuffers(11, 2, buffers);
+
+		buffers[0] = State::GetSingleton()->featureDataCB->CB();
+		context->CSSetConstantBuffers(6, 1, buffers);
 	}
 
 	auto specular = renderer->GetRuntimeData().renderTargets[SPECULAR];
@@ -477,6 +480,9 @@ void Deferred::DeferredPasses()
 
 		ID3D11Buffer* buffer = nullptr;
 		context->CSSetConstantBuffers(0, 1, &buffer);
+		context->CSSetConstantBuffers(6, 1, &buffer);
+		context->CSSetConstantBuffers(11, 1, &buffer);
+		context->CSSetConstantBuffers(12, 1, &buffer);
 
 		context->CSSetShader(nullptr, nullptr, 0);
 	}

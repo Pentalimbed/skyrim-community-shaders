@@ -1,11 +1,13 @@
 #ifndef SHARED_DATA
 #define SHARED_DATA
 
+#include "Common/Color.hlsli"
 #include "Common/Constants.hlsli"
 #include "Common/VR.hlsli"
 
-#if defined(PSHADER)
+#if defined(PSHADER) || defined(COMPUTESHADER)
 
+#	if !defined(COMPUTESHADER)
 cbuffer SharedData : register(b5)
 {
 	float4 WaterData[25];
@@ -19,6 +21,7 @@ cbuffer SharedData : register(b5)
 	bool InInterior;  // If the area lacks a directional shadow light e.g. the sun or moon
 	bool InMapMenu;   // If the world/local map is open (note that the renderer is still deferred here)
 };
+#	endif
 
 struct GrassLightingSettings
 {
@@ -139,9 +142,10 @@ struct PBRSettings
 	float DirectionalLightColorMultiplier;
 	float PointLightColorMultiplier;
 	float AmbientLightColorMultiplier;
+	float LightColorContribution;
 	uint UseMultipleScattering;
 	uint UseMultiBounceAO;
-	uint3 pad0;
+	uint2 pad0;
 };
 
 cbuffer FeatureData : register(b6)
@@ -156,6 +160,30 @@ cbuffer FeatureData : register(b6)
 	PBRSettings pbrSettings;
 };
 
+namespace PBR
+{
+	float3 VanillaAlbedoToPbr(float3 albedo)
+	{
+		return 3.1415926535 / pbrSettings.LightColorContribution * sRGB2Lin(albedo);
+	}
+
+	float3 PbrAlbedoToVanilla(float3 albedo)
+	{
+		return Lin2sRGB(pbrSettings.LightColorContribution / 3.1415926535 * albedo);
+	}
+
+	float3 VanillaLightToPbr(float3 lightColor)
+	{
+		return pbrSettings.LightColorContribution * sRGB2Lin(lightColor);
+	}
+
+	float3 PbrLightToVanilla(float3 lightColor)
+	{
+		return Lin2sRGB(lightColor / pbrSettings.LightColorContribution);
+	}
+};
+
+#	if !defined(COMPUTESHADER)
 Texture2D<float4> TexDepthSampler : register(t20);
 
 // Get a int3 to be used as texture sample coord. [0,1] in uv space
@@ -202,6 +230,7 @@ float4 GetWaterData(float3 worldPosition)
 		waterData = WaterData[waterTile];
 	return waterData;
 }
+#	endif
 
 #endif
 

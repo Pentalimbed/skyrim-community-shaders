@@ -1,3 +1,6 @@
+#ifndef COMMON_COLOR
+#define COMMON_COLOR
+
 static float GammaCorrectionValue = 2.2;
 
 float RGBToLuminance(float3 color)
@@ -24,3 +27,5 @@ float3 Lin2sRGB(float3 color)
 {
 	return pow(abs(color), 1.0 / 2.2);
 }
+
+#endif
