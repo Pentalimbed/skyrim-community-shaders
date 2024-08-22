@@ -141,8 +141,6 @@ void TruePBR::DrawSettings()
 			settings.useMultiBounceAO = useMultiBounceAO;
 		}
 
-		ImGui::SliderFloat("Base Color Gamma", &settings.baseColorGamma, 1.f, 3.f, "%.3f");
-
 		ImGui::SliderFloat("Direct Light Color Multiplier", &globalPBRDirectLightColorMultiplier, 1e-3f, 1e2f, "%.3f", ImGuiSliderFlags_Logarithmic);
 		ImGui::SliderFloat("Ambient Light Color Multiplier", &globalPBRAmbientLightColorMultiplier, 1e-3f, 1e2f, "%.3f", ImGuiSliderFlags_Logarithmic);
 		ImGui::TreePop();
@@ -166,9 +164,6 @@ void TruePBR::LoadSettings(json& o_json)
 		settings.useMultiBounceAO = o_json["Use Multi-bounce AO"];
 	}
 
-	if (o_json["Base Color Gamma"].is_number_float()) {
-		settings.baseColorGamma = o_json["Base Color Gamma"];
-	}
 	if (o_json["Direct Light Color Multiplier"].is_number_float()) {
 		globalPBRDirectLightColorMultiplier = o_json["Direct Light Color Multiplier"];
 	}
@@ -182,7 +177,6 @@ void TruePBR::SaveSettings(json& o_json)
 	o_json["Use Multiple Scattering"] = (bool)settings.useMultipleScattering;
 	o_json["Use Multi-bounce AO"] = (bool)settings.useMultiBounceAO;
 
-	o_json["Base Color Gamma"] = settings.baseColorGamma;
 	o_json["Direct Light Color Multiplier"] = globalPBRDirectLightColorMultiplier;
 	o_json["Ambient Light Color Multiplier"] = globalPBRAmbientLightColorMultiplier;
 }
