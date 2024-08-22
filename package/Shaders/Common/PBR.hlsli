@@ -552,7 +552,7 @@ namespace PBR
 		// https://marmosetco.tumblr.com/post/81245981087
 		float3 R = reflect(-V, N);
 		float horizon = min(1.0 + dot(R, VN), 1.0);
-		horizon *= horizon * horizon;
+		horizon = horizon * horizon;
 		specularLobeWeight *= horizon;
 
 		float3 diffuseAO = surfaceProperties.AO;
