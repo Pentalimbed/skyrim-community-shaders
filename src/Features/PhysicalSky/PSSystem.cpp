@@ -122,17 +122,14 @@ RE::NiPoint3 Trajectory::getTangent(float gameDaysPassed)
 	return getMixedOrbit(gameDaysPassed).getTangent(t);
 }
 
-void PhysicalSky::Load(json& o_json)
+void PhysicalSky::LoadSettings(json& o_json)
 {
-	if (o_json[GetName()].is_object())
-		settings = o_json[GetName()];
-
-	Feature::Load(o_json);
+	settings = o_json;
 }
 
-void PhysicalSky::Save(json& o_json)
+void PhysicalSky::SaveSettings(json& o_json)
 {
-	o_json[GetName()] = settings;
+	o_json = settings;
 }
 
 void PhysicalSky::UpdateBuffer()
@@ -314,12 +311,12 @@ void PhysicalSky::Hooks::BSSkyShader_SetupGeometry::thunk(RE::BSShader* a_this, 
 
 	if (feat->current_sky_obj_type == 2 || feat->current_sky_obj_type == 3)
 		if (auto shaderProperty = netimmerse_cast<RE::BSSkyShaderProperty*>(a_pass->shaderProperty))
-			if (auto tex = shaderProperty->baseTexture) {
+			if (auto tex = shaderProperty->pBaseTexture) {
 				if (feat->current_sky_obj_type == 2) {
 					for (uint i = 0; i < RE::Moon::Phase::kTotal; i++) {
 						RE::NiTexturePtr phase_tex = nullptr;
 						RE::BSShaderManager::GetTexture(masser->stateTextures[i].c_str(), true, phase_tex, false);
-						if (phase_tex == tex) {
+						if (phase_tex.get() == tex) {
 							feat->current_moon_phases[0] = i;
 							break;
 						}
@@ -328,7 +325,7 @@ void PhysicalSky::Hooks::BSSkyShader_SetupGeometry::thunk(RE::BSShader* a_this, 
 					for (uint i = 0; i < RE::Moon::Phase::kTotal; i++) {
 						RE::NiTexturePtr phase_tex = nullptr;
 						RE::BSShaderManager::GetTexture(secunda->stateTextures[i].c_str(), true, phase_tex, false);
-						if (phase_tex == tex) {
+						if (phase_tex.get() == tex) {
 							feat->current_moon_phases[1] = i;
 							break;
 						}

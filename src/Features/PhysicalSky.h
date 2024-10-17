@@ -3,40 +3,6 @@
 #include "Buffer.h"
 #include "Feature.h"
 
-namespace RE
-{
-	class BSSkyShaderProperty : public BSShaderProperty
-	{
-	public:
-		inline static constexpr auto RTTI = RTTI_BSSkyShaderProperty;
-		inline static constexpr auto Ni_RTTI = NiRTTI_BSSkyShaderProperty;
-
-		enum class SkyObjectType
-		{
-			Sun = 0x0,
-			SunGlare = 0x1,
-			Atmosphere = 0x2,
-			Clouds = 0x3,
-			SkyQuad = 0x4,
-			Stars = 0x5,
-			Moon = 0x6,
-			MoonShadow = 0x7,
-		};
-
-		// members
-		NiColorA color;                                        // 88
-		NiPointer<NiSourceTexture> baseTexture;                // 98
-		NiPointer<NiSourceTexture> blendTexture;               // A0
-		NiPointer<NiSourceTexture> noiseGradTexture;           // A8
-		BSFixedString baseTexturePath;                         // B0
-		float blendValue;                                      // B8
-		uint16_t cloudLayer;                                   // BC
-		bool fadeSecondTexture;                                // BE
-		stl::enumeration<SkyObjectType, uint32_t> objectType;  // C0
-	};
-	static_assert(sizeof(BSSkyShaderProperty) == 0xC8);
-}  // namespace RE
-
 //////////////////////////////////////////////////////////////////////////
 
 struct Orbit
@@ -297,8 +263,8 @@ struct PhysicalSky : public Feature
 	winrt::com_ptr<ID3D11SamplerState> transmittance_sampler = nullptr;
 	winrt::com_ptr<ID3D11SamplerState> sky_view_sampler = nullptr;
 
-	virtual void Load(json& o_json) override;
-	virtual void Save(json& o_json) override;
+	virtual void LoadSettings(json& o_json) override;
+	virtual void SaveSettings(json& o_json) override;
 
 	virtual void SetupResources() override;
 	void CompileComputeShaders();
@@ -325,10 +291,8 @@ struct PhysicalSky : public Feature
 	void SettingsAtmosphere();
 	void SettingsDebug();
 
-	virtual void Draw(const RE::BSShader* shader, const uint descriptor) override;
+	virtual void Prepass() override;
 	void GenerateLuts();
-	void ModifyLighting();
-	void ModifySky(const RE::BSShader* shader, const uint descriptor);
 
 	virtual inline void RestoreDefaultSettings() override { settings = {}; };
 	virtual void ClearShaderCache() override;
@@ -353,7 +317,7 @@ struct PhysicalSky : public Feature
 		static void Install()
 		{
 			stl::write_thunk_call<NiPoint3_Normalize>(REL::RelocationID(25798, 26352).address() + REL::Relocate(0x6A8, 0x753));
-			stl::write_vfunc<0x6, BSSkyShader_SetupGeometry>(RE::VTABLE_BSSkyShader[0]);
+			// stl::write_vfunc<0x6, BSSkyShader_SetupGeometry>(RE::VTABLE_BSSkyShader[0]);
 		}
 	};
 };
