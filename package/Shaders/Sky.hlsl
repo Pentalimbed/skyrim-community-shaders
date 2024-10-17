@@ -1,3 +1,4 @@
+#include "Common/Color.hlsli"
 #include "Common/Constants.hlsli"
 #include "Common/FrameBuffer.hlsli"
 #include "Common/VR.hlsli"
@@ -265,8 +266,10 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 
 #	if defined(PHYS_SKY)
-	if (PhysSkyBuffer[0].enable_sky)
+	if (PhysSkyBuffer[0].enable_sky) {
 		DrawPhysicalSky(psout.Color, input);
+		psout.Color.rgb = Color::LinearToGamma(psout.Color.rgb);
+	}
 #	endif
 
 	return psout;

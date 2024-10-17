@@ -208,7 +208,7 @@ void PhysicalSky::Prepass()
 			srvs[7] = reinterpret_cast<RE::NiSourceTexture*>(secunda_tex.get())->rendererTexture->resourceView;
 	}
 
-	context->PSSetShaderResources(60, ARRAYSIZE(srvs), srvs);
+	context->PSSetShaderResources(100, ARRAYSIZE(srvs), srvs);
 }
 
 void PhysicalSky::GenerateLuts()
