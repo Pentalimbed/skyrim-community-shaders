@@ -55,7 +55,7 @@ void rayMarch(
 
 #if LUTGEN != 0
 	float cos_theta = dot(ray_dir, sun_dir);
-	float aerosol_phase = miePhaseHenyeyGreenstein(cos_theta, PhysSkyBuffer[0].aerosol_phase_func_g);
+	float aerosol_phase = miePhaseCornetteShanks(cos_theta, PhysSkyBuffer[0].aerosol_phase_func_g);
 	float rayleigh_phase = rayleighPhase(cos_theta);
 #endif
 
