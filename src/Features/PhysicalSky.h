@@ -158,6 +158,11 @@ struct PhysicalSky : public Feature
 		float ozone_altitude = 22.3499f + 35.66071f * .5f;  // in km
 		float ozone_thickness = 35.66071f;
 
+		// OTHER VOLUMETRICS
+		float3 fog_scatter = { 1.f, 1.f, 1.f };  // in km^-1
+		float3 fog_absorption = { 0.1f, 0.1f, 0.1f };
+		float fog_decay = 1.f;
+		float fog_h_max_km = .5f;
 	} settings;
 
 	struct PhysSkySB
@@ -225,7 +230,19 @@ struct PhysicalSky : public Feature
 		float ozone_altitude;
 		float ozone_thickness;
 
+		// OTHER VOLUMETRICS
+		float3 fog_scatter;
+		float3 fog_absorption;
+		float fog_decay;
+		float fog_h_max_km;
+
 		// DYNAMIC
+		float2 tex_dim;
+		float2 rcp_tex_dim;
+		float2 frame_dim;
+		float2 rcp_frame_dim;
+		uint frame_index;
+
 		float3 dirlight_dir;
 		float3 dirlight_color;
 		float3 sun_dir;
@@ -239,17 +256,20 @@ struct PhysicalSky : public Feature
 		float cam_height_km;  // in km
 
 	} phys_sky_sb_data;
-	std::unique_ptr<StructuredBuffer> phys_sky_sb = nullptr;
+	eastl::unique_ptr<StructuredBuffer> phys_sky_sb = nullptr;
 
-	std::unique_ptr<Texture2D> transmittance_lut = nullptr;
-	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
-	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
-	std::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
+	eastl::unique_ptr<Texture2D> transmittance_lut = nullptr;
+	eastl::unique_ptr<Texture2D> multiscatter_lut = nullptr;
+	eastl::unique_ptr<Texture2D> sky_view_lut = nullptr;
+	eastl::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
+	eastl::unique_ptr<Texture2D> main_view_tr_tex = nullptr;
+	eastl::unique_ptr<Texture2D> main_view_lum_tex = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> transmittance_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> multiscatter_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> sky_view_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> aerial_perspective_program = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> main_view_program = nullptr;
 
 	winrt::com_ptr<ID3D11SamplerState> transmittance_sampler = nullptr;
 	winrt::com_ptr<ID3D11SamplerState> sky_view_sampler = nullptr;
@@ -280,10 +300,12 @@ struct PhysicalSky : public Feature
 	void SettingsClouds();
 	void SettingsCelestials();
 	void SettingsAtmosphere();
+	void SettingsFog();
 	void SettingsDebug();
 
 	virtual void Prepass() override;
 	void GenerateLuts();
+	void RenderMainView();
 
 	virtual inline void RestoreDefaultSettings() override { settings = {}; };
 	virtual void ClearShaderCache() override;

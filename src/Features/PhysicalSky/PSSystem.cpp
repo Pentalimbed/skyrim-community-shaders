@@ -2,6 +2,7 @@
 
 #include "PSCommon.h"
 
+#include "State.h"
 #include "Util.h"
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Orbit, azimuth, zenith, drift)
@@ -136,6 +137,10 @@ void PhysicalSky::UpdateBuffer()
 	float sun_aperture_cos = cos(settings.sun_angular_radius);
 	float sun_aperture_rcp_sin = 1.f / sqrt(1 - sun_aperture_cos * sun_aperture_cos);  // I trust u compiler
 
+	float2 res = State::GetSingleton()->screenSize;
+	float2 dynres = Util::ConvertToDynamic(res);
+	dynres = { floor(dynres.x), floor(dynres.y) };
+
 	phys_sky_sb_data = {
 		.enable_sky = settings.enable_sky && NeedLutsUpdate(),
 		.enable_aerial = settings.enable_aerial,
@@ -181,7 +186,17 @@ void PhysicalSky::UpdateBuffer()
 		.aerosol_decay = settings.aerosol_decay,
 		.ozone_absorption = settings.ozone_absorption * 1e-3f,
 		.ozone_altitude = settings.ozone_altitude,
-		.ozone_thickness = settings.ozone_thickness
+		.ozone_thickness = settings.ozone_thickness,
+		.fog_scatter = settings.fog_scatter,
+		.fog_absorption = settings.fog_absorption,
+		.fog_decay = settings.fog_decay,
+		.fog_h_max_km = settings.fog_h_max_km,
+
+		.tex_dim = res,
+		.rcp_tex_dim = float2(1.0f) / res,
+		.frame_dim = dynres,
+		.rcp_frame_dim = float2(1.0f) / dynres,
+		.frame_index = RE::BSGraphics::State::GetSingleton()->frameCount,
 	};
 
 	// DYNAMIC STUFF

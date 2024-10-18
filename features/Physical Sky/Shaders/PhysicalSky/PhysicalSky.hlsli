@@ -63,7 +63,19 @@ struct PhySkyBufferContent
 	float ozone_altitude;
 	float ozone_thickness;
 
+	// OTHER VOLUMETRICS
+	float3 fog_scatter;
+	float3 fog_absorption;
+	float fog_decay;
+	float fog_h_max_km;
+
 	// DYNAMIC
+	float2 tex_dim;
+	float2 rcp_tex_dim;
+	float2 frame_dim;
+	float2 rcp_frame_dim;
+	uint frame_index;
+
 	float3 dirlight_dir;
 	float3 dirlight_color;
 	float3 sun_dir;
@@ -82,10 +94,11 @@ SamplerState TransmittanceSampler : register(s3);  // in lighting, use shadow
 SamplerState SkyViewSampler : register(s4);        // in lighting, use color
 #endif
 
-#ifdef LUTGEN
+#if defined(LUTGEN) || defined(PHYS_VOLS)
 StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t0);
 Texture2D<float4> TexTransmittance : register(t1);
 Texture2D<float4> TexMultiScatter : register(t2);
+Texture3D<float4> TexAerialPerspective : register(t3);
 #else
 StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t100);
 Texture2D<float4> TexTransmittance : register(t101);
@@ -112,6 +125,11 @@ float convertGameUnit(float x)
 float convertGameHeight(float h)
 {
 	return convertGameUnit(max(0, h - PhysSkyBuffer[0].bottom_z)) + PhysSkyBuffer[0].planet_radius;
+}
+
+float3 convertGamePosition(float3 pos)
+{
+	return float3(convertGameUnit(pos.x), convertGameUnit(pos.y), convertGameUnit(max(0, pos.z - PhysSkyBuffer[0].bottom_z)));
 }
 
 // return distance to sphere surface
@@ -186,7 +204,7 @@ float3 invCylinderMapAdjusted(float2 uv)
 	return sphericalDir(azimuth, zenith);
 }
 
-/*-------- VOLUMETRIC --------*/
+/*-------- VOLUMES --------*/
 void sampleAtmostphere(
 	float altitude_km,
 	out float3 rayleigh_scatter,
@@ -194,20 +212,35 @@ void sampleAtmostphere(
 	out float3 extinction)
 {
 	float rayleigh_density = exp(-altitude_km * PhysSkyBuffer[0].rayleigh_decay);
-	float aerosol_density = exp(-altitude_km * PhysSkyBuffer[0].aerosol_decay);
-	float ozone_density = max(0, 1 - abs(altitude_km - PhysSkyBuffer[0].ozone_altitude) / (PhysSkyBuffer[0].ozone_thickness * 0.5));
-
 	rayleigh_scatter = PhysSkyBuffer[0].rayleigh_scatter * rayleigh_density;
 	float3 rayleigh_absorp = PhysSkyBuffer[0].rayleigh_absorption * rayleigh_density;
 
+	float aerosol_density = exp(-altitude_km * PhysSkyBuffer[0].aerosol_decay);
 	aerosol_scatter = PhysSkyBuffer[0].aerosol_scatter * aerosol_density;
 	float3 aerosol_absorp = PhysSkyBuffer[0].aerosol_absorption * aerosol_density;
 
+	float ozone_density = max(0, 1 - abs(altitude_km - PhysSkyBuffer[0].ozone_altitude) / (PhysSkyBuffer[0].ozone_thickness * 0.5));
 	float3 ozone_absorp = PhysSkyBuffer[0].ozone_absorption * ozone_density;
 
 	extinction = rayleigh_scatter + rayleigh_absorp + aerosol_scatter + aerosol_absorp + ozone_absorp;
 }
 
+void sampleExponentialFog(
+	float altitude_km,
+	out float3 scatter,
+	out float3 extinction)
+{
+	if (altitude_km > PhysSkyBuffer[0].fog_h_max_km) {
+		scatter = extinction = 0;
+		return;
+	}
+	float density = exp(-altitude_km * PhysSkyBuffer[0].fog_decay);
+	scatter = PhysSkyBuffer[0].fog_scatter * density;
+	float3 absorp = PhysSkyBuffer[0].fog_absorption * density;
+	extinction = scatter + absorp;
+}
+
+/*-------- PHASE FUNCS --------*/
 float miePhaseHenyeyGreenstein(float cos_theta, float g)
 {
 	static const float scale = .25 * RCP_PI;

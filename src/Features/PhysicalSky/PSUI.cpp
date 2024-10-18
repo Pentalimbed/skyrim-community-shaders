@@ -78,6 +78,11 @@ void PhysicalSky::DrawSettings()
 			ImGui::EndTabItem();
 		}
 
+		if (ImGui::BeginTabItem("Fog")) {
+			SettingsFog();
+			ImGui::EndTabItem();
+		}
+
 		if (ImGui::BeginTabItem("Debug")) {
 			SettingsDebug();
 			ImGui::EndTabItem();
@@ -431,6 +436,20 @@ void PhysicalSky::SettingsAtmosphere()
 	ImGui::PopID();
 }
 
+void PhysicalSky::SettingsFog()
+{
+	ImGui::TextWrapped("Fog, mist, smog, toxic volcanic ash cloud, etc.");
+
+	ImGui::SeparatorText("Settings");
+
+	ImGui::SliderFloat3("Scatter", &settings.fog_scatter.x, 0.f, 3.f, "%.3f km^-1");
+	ImGui::SliderFloat3("Absorption", &settings.fog_absorption.x, 0.f, 3.f, "%.3f km^-1");
+	ImGui::SliderFloat("Height Decay", &settings.fog_decay, 0.f, 20.f);
+	ImGui::SliderFloat("Layer Ceiling", &settings.fog_h_max_km, 0.f, 1.f, "%.3f km");
+	if (auto _tt = Util::HoverTooltipWrapper())
+		ImGui::Text("For optimization purposes.");
+}
+
 void PhysicalSky::SettingsDebug()
 {
 	ImGui::TextWrapped("Beep Boop.");
@@ -512,5 +531,11 @@ void PhysicalSky::SettingsDebug()
 
 		ImGui::BulletText("Sky-View LUT");
 		ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
+
+		ImGui::BulletText("Main View Transmittance");
+		ImGui::Image((void*)(main_view_tr_tex->srv.get()), { main_view_tr_tex->desc.Width * 0.2f, main_view_tr_tex->desc.Height * 0.2f });
+
+		ImGui::BulletText("Main View Luminance");
+		ImGui::Image((void*)(main_view_lum_tex->srv.get()), { main_view_lum_tex->desc.Width * 0.2f, main_view_lum_tex->desc.Height * 0.2f });
 	}
 }
