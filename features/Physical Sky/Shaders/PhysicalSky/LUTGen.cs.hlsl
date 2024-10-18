@@ -24,17 +24,15 @@ void rayMarch(
 #endif
 )
 {
-	const uint nsteps =
 #if LUTGEN == 0
-		PhysSkyBuffer[0].transmittance_step
+	const uint nsteps = PhysSkyBuffer[0].transmittance_step;
 #elif LUTGEN == 1
-		PhysSkyBuffer[0].multiscatter_step
+	const uint nsteps = PhysSkyBuffer[0].multiscatter_step;
 #elif LUTGEN == 2
-		PhysSkyBuffer[0].skyview_step
+	const uint nsteps = PhysSkyBuffer[0].skyview_step;
 #else
-		depth - 1
+	const uint nsteps = depth - 1;
 #endif
-		;
 
 	float ground_dist = rayIntersectSphere(pos, ray_dir, PhysSkyBuffer[0].planet_radius);
 #if LUTGEN == 0
@@ -64,7 +62,9 @@ void rayMarch(
 		curr_pos += v_step;
 
 		float3 rayleigh_scatter, aerosol_scatter, extinction;
-		getScatterValues(length(curr_pos), rayleigh_scatter, aerosol_scatter, extinction);
+		sampleAtmostphere(
+			max(0, (length(curr_pos) - PhysSkyBuffer[0].planet_radius)),
+			rayleigh_scatter, aerosol_scatter, extinction);
 
 		float3 sample_transmittance = exp(-dt * extinction);
 

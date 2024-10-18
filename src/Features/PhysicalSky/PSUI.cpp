@@ -234,9 +234,9 @@ void PhysicalSky::SettingsLighting()
 		ImGui::Indent();
 		{
 			ImGui::ColorEdit3("Masser", &settings.masser_moonlight_color.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-			ImGui::SliderFloat("Masser Min Brightness", &settings.masser_moonlight_min, 0.f, 1.f, "%.2f");
+			Util::PercentageSlider("Masser Min Brightness", &settings.masser_moonlight_min);
 			ImGui::ColorEdit3("Secunda", &settings.secunda_moonlight_color.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-			ImGui::SliderFloat("Secunda Min Brightness", &settings.secunda_moonlight_min, 0.f, 1.f, "%.2f");
+			Util::PercentageSlider("Secunda Min Brightness", &settings.secunda_moonlight_min);
 		}
 		ImGui::Unindent();
 		ImGui::EndDisabled();
@@ -310,12 +310,8 @@ void PhysicalSky::SettingsCelestials()
 
 	ImGui::SeparatorText("General");
 
-	ImGui::Checkbox("Custom Celestials", &settings.override_vanilla_celestials);
-
-	if (!settings.override_vanilla_celestials)
-		ImGui::BeginDisabled();
-
 	ImGui::SeparatorText("Sun Disc");
+	ImGui::PushID("Sun");
 	{
 		ImGui::ColorEdit3("Color", &settings.sun_disc_color.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
 		ImGui::SliderAngle("Angular Radius", &settings.sun_angular_radius, 0.05, 5, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
@@ -335,6 +331,7 @@ void PhysicalSky::SettingsCelestials()
 			ImGui::TreePop();
 		}
 	}
+	ImGui::PopID();
 
 	ImGui::SeparatorText("Masser");
 	ImGui::PushID("Masser");
@@ -377,9 +374,6 @@ void PhysicalSky::SettingsCelestials()
 		}
 	}
 	ImGui::PopID();
-
-	if (!settings.override_vanilla_celestials)
-		ImGui::EndDisabled();
 }
 
 void PhysicalSky::SettingsAtmosphere()
