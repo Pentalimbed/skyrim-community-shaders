@@ -36,8 +36,6 @@ struct PhySkyBufferContent
 	float cloud_color_heuristics;
 
 	// CELESTIAL
-	uint override_vanilla_celestials;
-
 	float3 sun_disc_color;
 	float sun_aperture_cos;
 	float sun_aperture_rcp_sin;
@@ -79,11 +77,6 @@ struct PhySkyBufferContent
 	float cam_height_km;
 };
 
-struct SkyPerGeometrySB
-{
-	uint sky_object_type;
-};
-
 #ifdef SKY_SAMPLERS
 SamplerState TransmittanceSampler : register(s3);  // in lighting, use shadow
 SamplerState SkyViewSampler : register(s4);        // in lighting, use color
@@ -99,9 +92,8 @@ Texture2D<float4> TexTransmittance : register(t101);
 Texture2D<float4> TexMultiScatter : register(t102);
 Texture2D<float4> TexSkyView : register(t103);
 Texture3D<float4> TexAerialPerspective : register(t104);
-StructuredBuffer<SkyPerGeometrySB> SkyPerGeometryBuffer : register(t105);
-Texture2D<float4> TexMasser : register(t106);
-Texture2D<float4> TexSecunda : register(t107);
+Texture2D<float4> TexMasser : register(t105);
+Texture2D<float4> TexSecunda : register(t106);
 #endif
 
 #ifndef PI
@@ -195,13 +187,12 @@ float3 invCylinderMapAdjusted(float2 uv)
 }
 
 /*-------- VOLUMETRIC --------*/
-void getScatterValues(
-	float height,  // relative to the center of the planet, in megameter
+void sampleAtmostphere(
+	float altitude_km,
 	out float3 rayleigh_scatter,
 	out float3 aerosol_scatter,
 	out float3 extinction)
 {
-	float altitude_km = max(0, (height - PhysSkyBuffer[0].planet_radius));
 	float rayleigh_density = exp(-altitude_km * PhysSkyBuffer[0].rayleigh_decay);
 	float aerosol_density = exp(-altitude_km * PhysSkyBuffer[0].aerosol_decay);
 	float ozone_density = max(0, 1 - abs(altitude_km - PhysSkyBuffer[0].ozone_altitude) / (PhysSkyBuffer[0].ozone_thickness * 0.5));
@@ -405,60 +396,57 @@ void DrawPhysicalSky(inout float4 color, PS_INPUT input)
 
 	bool is_sky = rayIntersectSphere(cam_pos_km, view_dir, PhysSkyBuffer[0].planet_radius) < 0;
 	if (is_sky) {
-		if (PhysSkyBuffer[0].override_vanilla_celestials) {
-			float cos_sun_view = clamp(dot(PhysSkyBuffer[0].sun_dir, view_dir), -1, 1);
-			float cos_masser_view = clamp(dot(PhysSkyBuffer[0].masser_dir, view_dir), -1, 1);
-			float cos_secunda_view = clamp(dot(PhysSkyBuffer[0].secunda_dir, view_dir), -1, 1);
+		// celestials
+		float cos_sun_view = clamp(dot(PhysSkyBuffer[0].sun_dir, view_dir), -1, 1);
+		float cos_masser_view = clamp(dot(PhysSkyBuffer[0].masser_dir, view_dir), -1, 1);
+		float cos_secunda_view = clamp(dot(PhysSkyBuffer[0].secunda_dir, view_dir), -1, 1);
 
-			bool is_sun = cos_sun_view > PhysSkyBuffer[0].sun_aperture_cos;
-			bool is_masser = cos_masser_view > PhysSkyBuffer[0].masser_aperture_cos;
-			bool is_secunda = cos_secunda_view > PhysSkyBuffer[0].secunda_aperture_cos;
+		bool is_sun = cos_sun_view > PhysSkyBuffer[0].sun_aperture_cos;
+		bool is_masser = cos_masser_view > PhysSkyBuffer[0].masser_aperture_cos;
+		bool is_secunda = cos_secunda_view > PhysSkyBuffer[0].secunda_aperture_cos;
 
-			if (is_sun) {
-				color.rgb = PhysSkyBuffer[0].sun_disc_color;
+		if (is_sun) {
+			color.rgb = PhysSkyBuffer[0].sun_disc_color;
 
-				float tan_sun_view = sqrt(1 - cos_sun_view * cos_sun_view) / cos_sun_view;
-				float norm_dist = tan_sun_view * PhysSkyBuffer[0].sun_aperture_cos * PhysSkyBuffer[0].sun_aperture_rcp_sin;
-				float3 darken_factor = limbDarkenHestroffer(norm_dist);
-				color.rgb *= darken_factor;
-			}
-			if (is_masser) {
-				float3 rightvec = cross(PhysSkyBuffer[0].masser_dir, PhysSkyBuffer[0].masser_upvec);
-				float3 disp = normalize(view_dir - PhysSkyBuffer[0].masser_dir);
-				float2 uv = normalize(float2(dot(rightvec, disp), dot(-PhysSkyBuffer[0].masser_upvec, disp)));
-				uv *= sqrt(1 - cos_masser_view * cos_masser_view) * rsqrt(1 - PhysSkyBuffer[0].masser_aperture_cos * PhysSkyBuffer[0].masser_aperture_cos);  // todo: put it in cpu
-				uv = uv * .5 + .5;
+			float tan_sun_view = sqrt(1 - cos_sun_view * cos_sun_view) / cos_sun_view;
+			float norm_dist = tan_sun_view * PhysSkyBuffer[0].sun_aperture_cos * PhysSkyBuffer[0].sun_aperture_rcp_sin;
+			float3 darken_factor = limbDarkenHestroffer(norm_dist);
+			color.rgb *= darken_factor;
+		}
+		if (is_masser) {
+			float3 rightvec = cross(PhysSkyBuffer[0].masser_dir, PhysSkyBuffer[0].masser_upvec);
+			float3 disp = normalize(view_dir - PhysSkyBuffer[0].masser_dir);
+			float2 uv = normalize(float2(dot(rightvec, disp), dot(-PhysSkyBuffer[0].masser_upvec, disp)));
+			uv *= sqrt(1 - cos_masser_view * cos_masser_view) * rsqrt(1 - PhysSkyBuffer[0].masser_aperture_cos * PhysSkyBuffer[0].masser_aperture_cos);  // todo: put it in cpu
+			uv = uv * .5 + .5;
 
-				float4 samp = TexMasser.Sample(SampBaseSampler, uv);
-				color.rgb = lerp(color.rgb, samp.rgb * PhysSkyBuffer[0].masser_brightness, samp.w);
-			}
-			if (is_secunda) {
-				float3 rightvec = cross(PhysSkyBuffer[0].secunda_dir, PhysSkyBuffer[0].secunda_upvec);
-				float3 disp = normalize(view_dir - PhysSkyBuffer[0].secunda_dir);
-				float2 uv = normalize(float2(dot(rightvec, disp), dot(-PhysSkyBuffer[0].secunda_upvec, disp)));
-				uv *= sqrt(1 - cos_secunda_view * cos_secunda_view) * rsqrt(1 - PhysSkyBuffer[0].secunda_aperture_cos * PhysSkyBuffer[0].secunda_aperture_cos);
-				uv = uv * .5 + .5;
+			float4 samp = TexMasser.Sample(SampBaseSampler, uv);
+			color.rgb = lerp(color.rgb, samp.rgb * PhysSkyBuffer[0].masser_brightness, samp.w);
+		}
+		if (is_secunda) {
+			float3 rightvec = cross(PhysSkyBuffer[0].secunda_dir, PhysSkyBuffer[0].secunda_upvec);
+			float3 disp = normalize(view_dir - PhysSkyBuffer[0].secunda_dir);
+			float2 uv = normalize(float2(dot(rightvec, disp), dot(-PhysSkyBuffer[0].secunda_upvec, disp)));
+			uv *= sqrt(1 - cos_secunda_view * cos_secunda_view) * rsqrt(1 - PhysSkyBuffer[0].secunda_aperture_cos * PhysSkyBuffer[0].secunda_aperture_cos);
+			uv = uv * .5 + .5;
 
-				float4 samp = TexSecunda.Sample(SampBaseSampler, uv);
-				color.rgb = lerp(color.rgb, samp.rgb * PhysSkyBuffer[0].secunda_brightness, samp.w);
-			}
+			float4 samp = TexSecunda.Sample(SampBaseSampler, uv);
+			color.rgb = lerp(color.rgb, samp.rgb * PhysSkyBuffer[0].secunda_brightness, samp.w);
 		}
 	}
 
 	if (any(color.rgb > 0))
-		color.rgb *= TexTransmittance.SampleLevel(TransmittanceSampler, transmit_uv, 0).rgb;  // may cause nan? need investigation
+		color.rgb *= TexTransmittance.SampleLevel(TransmittanceSampler, transmit_uv, 0).rgb;
 	color.rgb += PhysSkyBuffer[0].dirlight_color * TexSkyView.SampleLevel(SkyViewSampler, sky_lut_uv, 0).rgb;
 #	endif
 
 	// Other vanilla meshes
 #	if defined(MOONMASK)
-	if (PhysSkyBuffer[0].override_vanilla_celestials)
-		discard;
+	discard;
 #	endif
 
 #	if defined(TEX)
 #		if defined(CLOUDS)  // cloud
-
 	if (!PhysSkyBuffer[0].enable_vanilla_clouds)
 		discard;
 	if (PhysSkyBuffer[0].override_dirlight_color) {
@@ -510,25 +498,10 @@ void DrawPhysicalSky(inout float4 color, PS_INPUT input)
 		}
 	}
 
-#		elif defined(DITHER)  //  glare
-
-	if (PhysSkyBuffer[0].override_vanilla_celestials)
-		discard;
-
-#		else  // Texture
-
-	uint obj_type = SkyPerGeometryBuffer[0].sky_object_type;
-
-	if (obj_type != 0)
-		if (PhysSkyBuffer[0].override_vanilla_celestials)
-			discard;
-
-			// if (obj_type == 2 || obj_type == 3) {  // moons
-			// 	float mult = obj_type == 2 ? PhysSkyBuffer[0].masser_brightness : PhysSkyBuffer[0].secunda_brightness;
-			// 	color.rgb *= mult * TexTransmittance.Sample(SkyViewSampler, transmit_uv).rgb;
-			// 	// color.rgb += PhysSkyBuffer[0].dirlight_color * TexSkyView.Sample(SkyViewSampler, sky_lut_uv); // blending mode does it
-			// }
-
+#		elif defined(DITHER)      //  glare
+	discard;
+#		elif !defined(HORIZFADE)  // not stars
+	discard;
 #		endif
 #	endif
 }

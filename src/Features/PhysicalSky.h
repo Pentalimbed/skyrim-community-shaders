@@ -54,13 +54,12 @@ struct PhysicalSky : public Feature
 	virtual inline std::string_view GetShaderDefineName() override { return "PHYS_SKY"; }
 	virtual bool HasShaderDefine(RE::BSShader::Type) override;
 
-	uint32_t current_sky_obj_type = 0;  // 1-sun, 2-masser, 3-secunda
 	uint32_t current_moon_phases[2];
 
 	struct Settings
 	{
 		// GENRERAL
-		bool enable_sky = false;
+		bool enable_sky = true;
 		bool enable_aerial = true;
 
 		// PERFORMANCE
@@ -78,18 +77,18 @@ struct PhysicalSky : public Feature
 		float3 ground_albedo = { .2f, .2f, .2f };
 
 		// LIGHTING
-		float3 sunlight_color = float3{ 1.0f, 0.949f, 0.937f } * 15.f;
+		float3 sunlight_color = float3{ 1.0f, 0.949f, 0.937f } * 3.f;
 
 		float3 moonlight_color = float3{ .9f, .9f, 1.f } * .1f;
 		bool phase_dep_moonlight = false;
 		float masser_moonlight_min = 0.1f;
-		float3 masser_moonlight_color = float3{ .1f, .07f, .07f };
+		float3 masser_moonlight_color = float3{ 1.f, .7f, .7f } * .01f;
 		float secunda_moonlight_min = 0.1f;
-		float3 secunda_moonlight_color = float3{ .9f, .9f, 1.f } * .2f;
+		float3 secunda_moonlight_color = float3{ .9f, .9f, 1.f } * .03f;
 
 		float2 light_transition_angles = float2{ -10.f, -14.f } * RE::NI_PI / 180.0;
 
-		bool enable_vanilla_clouds = true;
+		bool enable_vanilla_clouds = false;
 		float cloud_height = 4.f;  // km
 		float cloud_saturation = .7f;
 		float cloud_mult = 1.f;
@@ -101,27 +100,26 @@ struct PhysicalSky : public Feature
 		float cloud_alpha_heuristics = 0.3f;
 		float cloud_color_heuristics = 0.1f;
 
-		bool override_dirlight_color = false;
-		bool override_dirlight_dir = false;
+		bool override_dirlight_color = true;
+		bool override_dirlight_dir = true;
 		bool moonlight_follows_secunda = true;
 		float dirlight_transmittance_mix = 0;
 		float treelod_saturation = .1f;
 		float treelod_mult = .25f;
 
 		// CELESTIALS
-		bool override_vanilla_celestials = true;
 		// - Sun
 		float3 sun_disc_color = float3{ 1.f, 0.949f, 0.937f } * 50.f;
 		float sun_angular_radius = .5f * RE::NI_PI / 180.0f;  // in rad
 
-		bool override_sun_traj = false;
+		bool override_sun_traj = true;
 		Trajectory sun_trajectory{
 			.minima = { .zenith = -40 * RE::NI_PI / 180.0f, .drift = -23.5f * RE::NI_PI / 180.0f },
 			.maxima = { .zenith = -40 * RE::NI_PI / 180.0f, .drift = 23.5f * RE::NI_PI / 180.0f }
 		};
 
 		// - Moons
-		bool override_masser_traj = false;
+		bool override_masser_traj = true;
 		Trajectory masser_trajectory = {
 			.minima = { .zenith = 0, .drift = -.174f },
 			.maxima = { .zenith = 0, .drift = -.174f },
@@ -131,7 +129,7 @@ struct PhysicalSky : public Feature
 		float masser_angular_radius = 10.f * RE::NI_PI / 180.0f;
 		float masser_brightness = .7f;
 
-		bool override_secunda_traj = false;
+		bool override_secunda_traj = true;
 		Trajectory secunda_trajectory = {
 			.minima = { .zenith = 0, .drift = -.423f },
 			.maxima = { .zenith = 0, .drift = -.423f },
@@ -200,7 +198,6 @@ struct PhysicalSky : public Feature
 		float cloud_color_heuristics;
 
 		// CELESTIAL
-		uint override_vanilla_celestials;
 		float3 sun_disc_color;
 		float sun_aperture_cos;
 		float sun_aperture_rcp_sin;
@@ -243,12 +240,6 @@ struct PhysicalSky : public Feature
 
 	} phys_sky_sb_data;
 	std::unique_ptr<StructuredBuffer> phys_sky_sb = nullptr;
-
-	struct SkyPerGeometrySB
-	{
-		uint sky_object_type;
-	};
-	std::unique_ptr<StructuredBuffer> sky_per_geo_sb = nullptr;
 
 	std::unique_ptr<Texture2D> transmittance_lut = nullptr;
 	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
@@ -301,12 +292,6 @@ struct PhysicalSky : public Feature
 
 	struct Hooks
 	{
-		struct BSSkyShader_SetupGeometry
-		{
-			static void thunk(RE::BSShader* a_this, RE::BSRenderPass* a_pass, uint32_t a_renderFlags);
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
 		struct NiPoint3_Normalize
 		{
 			// at Sun::Update
@@ -317,7 +302,6 @@ struct PhysicalSky : public Feature
 		static void Install()
 		{
 			stl::write_thunk_call<NiPoint3_Normalize>(REL::RelocationID(25798, 26352).address() + REL::Relocate(0x6A8, 0x753));
-			// stl::write_vfunc<0x6, BSSkyShader_SetupGeometry>(RE::VTABLE_BSSkyShader[0]);
 		}
 	};
 };

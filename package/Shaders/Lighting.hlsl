@@ -1856,8 +1856,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float3 dirLightColor = DirLightColor.xyz;
 
 #	if defined(PHYS_SKY)
-	float4 ap_sample = getLightingApSample(input.WorldPosition.xyz, SampColorSampler);
-
 	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
 		dirLightColor = Color::LinearToGamma(PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra) / Color::LightPreMult;
 
@@ -2630,10 +2628,6 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #	else
 	psout.Diffuse.xyz = color.xyz;
 #	endif  // defined(LIGHT_LIMIT_FIX)
-
-#	if defined(PHYS_SKY)
-	psout.Diffuse.xyz = Color::GammaToLinear(Color::LinearToGamma(psout.Diffuse.xyz) * ap_sample.a + ap_sample.rgb);
-#	endif
 
 #	if defined(SNOW)
 #		if defined(TRUE_PBR)

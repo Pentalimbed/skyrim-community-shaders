@@ -43,9 +43,6 @@ void PhysicalSky::SetupResources()
 	{
 		phys_sky_sb = std::make_unique<StructuredBuffer>(StructuredBufferDesc<PhysSkySB>(), 1);
 		phys_sky_sb->CreateSRV();
-
-		sky_per_geo_sb = std::make_unique<StructuredBuffer>(StructuredBufferDesc<SkyPerGeometrySB>(), 1);
-		sky_per_geo_sb->CreateSRV();
 	}
 
 	logger::debug("Creating LUT textures...");
@@ -177,38 +174,41 @@ void PhysicalSky::Prepass()
 
 	auto context = State::GetSingleton()->context;
 
-	ID3D11SamplerState* samplers[2] = {
-		transmittance_sampler.get(),
-		sky_view_sampler.get()
-	};
-	context->PSSetSamplers(3, ARRAYSIZE(samplers), samplers);
-
-	ID3D11ShaderResourceView* srvs[8] = {
+	std::array<ID3D11ShaderResourceView*, 7> srvs = {
 		phys_sky_sb->SRV(0),
 		transmittance_lut->srv.get(),
 		multiscatter_lut->srv.get(),
 		sky_view_lut->srv.get(),
 		aerial_perspective_lut->srv.get(),
 		nullptr,
-		nullptr,
 		nullptr
 	};
 
-	auto sky = RE::Sky::GetSingleton();
-	if (auto masser = sky->masser) {
-		RE::NiTexturePtr masser_tex;
-		RE::BSShaderManager::GetTexture(masser->stateTextures[current_moon_phases[0]].c_str(), true, masser_tex, false);  // TODO: find the phase
-		if (masser_tex)
-			srvs[6] = reinterpret_cast<RE::NiSourceTexture*>(masser_tex.get())->rendererTexture->resourceView;
-	}
-	if (auto secunda = sky->secunda) {
-		RE::NiTexturePtr secunda_tex;
-		RE::BSShaderManager::GetTexture(secunda->stateTextures[current_moon_phases[1]].c_str(), true, secunda_tex, false);
-		if (secunda_tex)
-			srvs[7] = reinterpret_cast<RE::NiSourceTexture*>(secunda_tex.get())->rendererTexture->resourceView;
+	if (phys_sky_sb_data.enable_sky) {
+		auto sky = RE::Sky::GetSingleton();
+		if (auto masser = sky->masser) {
+			RE::NiTexturePtr masser_tex;
+			RE::BSShaderManager::GetTexture(masser->stateTextures[current_moon_phases[0]].c_str(), true, masser_tex, false);  // TODO: find the phase
+			if (masser_tex)
+				srvs.at(5) = reinterpret_cast<RE::NiSourceTexture*>(masser_tex.get())->rendererTexture->resourceView;
+		}
+		if (auto secunda = sky->secunda) {
+			RE::NiTexturePtr secunda_tex;
+			RE::BSShaderManager::GetTexture(secunda->stateTextures[current_moon_phases[1]].c_str(), true, secunda_tex, false);
+			if (secunda_tex)
+				srvs.at(6) = reinterpret_cast<RE::NiSourceTexture*>(secunda_tex.get())->rendererTexture->resourceView;
+		}
 	}
 
-	context->PSSetShaderResources(100, ARRAYSIZE(srvs), srvs);
+	context->PSSetShaderResources(100, (uint)srvs.size(), srvs.data());
+
+	if (phys_sky_sb_data.enable_sky) {
+		ID3D11SamplerState* samplers[2] = {
+			transmittance_sampler.get(),
+			sky_view_sampler.get()
+		};
+		context->PSSetSamplers(3, ARRAYSIZE(samplers), samplers);
+	}
 }
 
 void PhysicalSky::GenerateLuts()

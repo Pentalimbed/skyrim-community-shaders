@@ -45,7 +45,6 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	secunda_moonlight_min,
 	secunda_moonlight_color,
 	light_transition_angles,
-	override_vanilla_celestials,
 	sun_disc_color,
 	sun_angular_radius,
 	override_sun_traj,
@@ -164,7 +163,6 @@ void PhysicalSky::UpdateBuffer()
 		.cloud_phase_w = settings.cloud_phase_w,
 		.cloud_alpha_heuristics = settings.cloud_alpha_heuristics,
 		.cloud_color_heuristics = settings.cloud_color_heuristics,
-		.override_vanilla_celestials = settings.override_vanilla_celestials,
 		.sun_disc_color = settings.sun_disc_color,
 		.sun_aperture_cos = sun_aperture_cos,
 		.sun_aperture_rcp_sin = sun_aperture_rcp_sin,
@@ -287,51 +285,4 @@ void PhysicalSky::Hooks::NiPoint3_Normalize::thunk(RE::NiPoint3* a_this)
 		*a_this = { mod_dirlight_dir.x, mod_dirlight_dir.y, mod_dirlight_dir.z };
 	} else
 		func(a_this);
-}
-
-void PhysicalSky::Hooks::BSSkyShader_SetupGeometry::thunk(RE::BSShader* a_this, RE::BSRenderPass* a_pass, uint32_t a_renderFlags)
-{
-	func(a_this, a_pass, a_renderFlags);
-
-	auto feat = GetSingleton();
-
-	// get obj
-	feat->current_sky_obj_type = 0;
-
-	auto sky = RE::Sky::GetSingleton();
-	auto sun = sky->sun;
-	auto masser = sky->masser;
-	auto secunda = sky->secunda;
-	if (sun && (size_t)sun->sunBase.get() == (size_t)a_pass->geometry)
-		feat->current_sky_obj_type = 1;
-	else if (masser && (size_t)masser->moonMesh.get() == (size_t)a_pass->geometry)
-		feat->current_sky_obj_type = 2;
-	else if (secunda && (size_t)secunda->moonMesh.get() == (size_t)a_pass->geometry)
-		feat->current_sky_obj_type = 3;
-
-	if (feat->current_sky_obj_type == 2 || feat->current_sky_obj_type == 3)
-		if (auto shaderProperty = netimmerse_cast<RE::BSSkyShaderProperty*>(a_pass->shaderProperty))
-			if (auto tex = shaderProperty->pBaseTexture) {
-				if (feat->current_sky_obj_type == 2) {
-					for (uint i = 0; i < RE::Moon::Phase::kTotal; i++) {
-						RE::NiTexturePtr phase_tex = nullptr;
-						RE::BSShaderManager::GetTexture(masser->stateTextures[i].c_str(), true, phase_tex, false);
-						if (phase_tex.get() == tex) {
-							feat->current_moon_phases[0] = i;
-							break;
-						}
-					}
-				} else {
-					for (uint i = 0; i < RE::Moon::Phase::kTotal; i++) {
-						RE::NiTexturePtr phase_tex = nullptr;
-						RE::BSShaderManager::GetTexture(secunda->stateTextures[i].c_str(), true, phase_tex, false);
-						if (phase_tex.get() == tex) {
-							feat->current_moon_phases[1] = i;
-							break;
-						}
-					}
-				}
-			}
-
-	// GetSingleton()->current_sky_obj_type = skyrim_cast<RE::BSSkyShaderProperty*>(a_pass->shaderProperty)->objectType.underlying();
 }
