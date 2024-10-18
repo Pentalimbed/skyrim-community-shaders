@@ -60,7 +60,6 @@ struct PhysicalSky : public Feature
 	{
 		// GENRERAL
 		bool enable_sky = true;
-		bool enable_aerial = true;
 
 		// PERFORMANCE
 		uint transmittance_step = 40;
@@ -108,43 +107,44 @@ struct PhysicalSky : public Feature
 		float treelod_mult = .25f;
 
 		// CELESTIALS
-		// - Sun
-		float3 sun_disc_color = float3{ 1.f, 0.949f, 0.937f } * 50.f;
-		float sun_angular_radius = .5f * RE::NI_PI / 180.0f;  // in rad
 
-		bool override_sun_traj = true;
-		Trajectory sun_trajectory{
-			.minima = { .zenith = -40 * RE::NI_PI / 180.0f, .drift = -23.5f * RE::NI_PI / 180.0f },
-			.maxima = { .zenith = -40 * RE::NI_PI / 180.0f, .drift = 23.5f * RE::NI_PI / 180.0f }
-		};
+		struct Celestials
+		{
+			// - Sun
+			float3 sun_disc_color = float3{ 1.f, 0.949f, 0.937f } * 3.f;
+			float sun_angular_radius = .5f * RE::NI_PI / 180.0f;  // in rad
 
-		// - Moons
-		bool override_masser_traj = true;
-		Trajectory masser_trajectory = {
-			.minima = { .zenith = 0, .drift = -.174f },
-			.maxima = { .zenith = 0, .drift = -.174f },
-			.period_orbital = .25f / 0.23958333333f,  // po3 values :)
-			.offset_orbital = 0.7472f
-		};
-		float masser_angular_radius = 10.f * RE::NI_PI / 180.0f;
-		float masser_brightness = .7f;
+			bool override_sun_traj = true;
+			Trajectory sun_trajectory{
+				.minima = { .zenith = -40 * RE::NI_PI / 180.0f, .drift = -23.5f * RE::NI_PI / 180.0f },
+				.maxima = { .zenith = -40 * RE::NI_PI / 180.0f, .drift = 23.5f * RE::NI_PI / 180.0f }
+			};
 
-		bool override_secunda_traj = true;
-		Trajectory secunda_trajectory = {
-			.minima = { .zenith = 0, .drift = -.423f },
-			.maxima = { .zenith = 0, .drift = -.423f },
-			.period_orbital = .25f / 0.2375f,
-			.offset_orbital = 0.3775f
-		};
-		float secunda_angular_radius = 4.5f * RE::NI_PI / 180.0f;
-		float secunda_brightness = .7f;
+			// - Moons
+			bool override_masser_traj = true;
+			Trajectory masser_trajectory = {
+				.minima = { .zenith = 0, .drift = -.174f },
+				.maxima = { .zenith = 0, .drift = -.174f },
+				.period_orbital = .25f / 0.23958333333f,  // po3 values :)
+				.offset_orbital = 0.7472f
+			};
+			float masser_angular_radius = 10.f * RE::NI_PI / 180.0f;
+			float masser_brightness = .7f;
 
-		float stars_brightness = 1;
+			bool override_secunda_traj = true;
+			Trajectory secunda_trajectory = {
+				.minima = { .zenith = 0, .drift = -.423f },
+				.maxima = { .zenith = 0, .drift = -.423f },
+				.period_orbital = .25f / 0.2375f,
+				.offset_orbital = 0.3775f
+			};
+			float secunda_angular_radius = 4.5f * RE::NI_PI / 180.0f;
+			float secunda_brightness = .7f;
+
+			float stars_brightness = 1;
+		} celestials;
 
 		// ATMOSPHERE
-		float ap_inscatter_mix = 1.f;
-		float ap_transmittance_mix = 1.f;
-
 		float3 rayleigh_scatter = { 6.6049f, 12.345f, 29.413f };  // in megameter^-1
 		float3 rayleigh_absorption = { 0.f, 0.f, 0.f };
 		float rayleigh_decay = 1 / 8.69645f;  // in km^-1
@@ -158,12 +158,17 @@ struct PhysicalSky : public Feature
 		float ozone_altitude = 22.3499f + 35.66071f * .5f;  // in km
 		float ozone_thickness = 35.66071f;
 
+		// OTHER VOLUMETRICS
+		float3 fog_scatter = { 1.f, 1.f, 1.f };  // in km^-1
+		float3 fog_absorption = { 0.1f, 0.1f, 0.1f };
+		float fog_decay = 10.f;
+		float fog_bottom = 0.f;
+		float fog_thickness = .5f;
 	} settings;
 
 	struct PhysSkySB
 	{
 		uint enable_sky;
-		uint enable_aerial;
 
 		// PERFORMANCE
 		uint transmittance_step;
@@ -209,9 +214,6 @@ struct PhysicalSky : public Feature
 		float secunda_brightness;
 
 		// ATMOSPHERE
-		float ap_inscatter_mix;
-		float ap_transmittance_mix;
-
 		float3 rayleigh_scatter;
 		float3 rayleigh_absorption;
 		float rayleigh_decay;
@@ -225,7 +227,18 @@ struct PhysicalSky : public Feature
 		float ozone_altitude;
 		float ozone_thickness;
 
+		// OTHER VOLUMETRICS
+		float3 fog_scatter;
+		float3 fog_absorption;
+		float fog_decay;
+		float fog_h_max_km;
+
 		// DYNAMIC
+		float2 tex_dim;
+		float2 rcp_tex_dim;
+		float2 frame_dim;
+		float2 rcp_frame_dim;
+
 		float3 dirlight_dir;
 		float3 dirlight_color;
 		float3 sun_dir;
@@ -239,17 +252,20 @@ struct PhysicalSky : public Feature
 		float cam_height_km;  // in km
 
 	} phys_sky_sb_data;
-	std::unique_ptr<StructuredBuffer> phys_sky_sb = nullptr;
+	eastl::unique_ptr<StructuredBuffer> phys_sky_sb = nullptr;
 
-	std::unique_ptr<Texture2D> transmittance_lut = nullptr;
-	std::unique_ptr<Texture2D> multiscatter_lut = nullptr;
-	std::unique_ptr<Texture2D> sky_view_lut = nullptr;
-	std::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
+	eastl::unique_ptr<Texture2D> transmittance_lut = nullptr;
+	eastl::unique_ptr<Texture2D> multiscatter_lut = nullptr;
+	eastl::unique_ptr<Texture2D> sky_view_lut = nullptr;
+	eastl::unique_ptr<Texture3D> aerial_perspective_lut = nullptr;
+	eastl::unique_ptr<Texture2D> main_view_tr_tex = nullptr;
+	eastl::unique_ptr<Texture2D> main_view_lum_tex = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> transmittance_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> multiscatter_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> sky_view_program = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> aerial_perspective_program = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> main_view_program = nullptr;
 
 	winrt::com_ptr<ID3D11SamplerState> transmittance_sampler = nullptr;
 	winrt::com_ptr<ID3D11SamplerState> sky_view_sampler = nullptr;
@@ -262,9 +278,7 @@ struct PhysicalSky : public Feature
 
 	inline bool CheckComputeShaders()
 	{
-		bool result = transmittance_program && multiscatter_program && sky_view_program;
-		if (settings.enable_aerial)
-			result = result && aerial_perspective_program;
+		bool result = transmittance_program && multiscatter_program && sky_view_program && aerial_perspective_program;
 		return result;
 	}
 	bool NeedLutsUpdate();
@@ -280,10 +294,12 @@ struct PhysicalSky : public Feature
 	void SettingsClouds();
 	void SettingsCelestials();
 	void SettingsAtmosphere();
+	void SettingsFog();
 	void SettingsDebug();
 
 	virtual void Prepass() override;
 	void GenerateLuts();
+	void RenderMainView();
 
 	virtual inline void RestoreDefaultSettings() override { settings = {}; };
 	virtual void ClearShaderCache() override;

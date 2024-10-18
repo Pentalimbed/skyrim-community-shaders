@@ -1,7 +1,17 @@
+struct CloudLayer
+{
+	float bottom;
+	float thickness;
+
+	uint octaves;
+	float persistence;
+	float lacunarity;
+	float freq;
+};
+
 struct PhySkyBufferContent
 {
 	uint enable_sky;
-	uint enable_aerial;
 
 	// PERFORMANCE
 	uint transmittance_step;
@@ -47,9 +57,6 @@ struct PhySkyBufferContent
 	float secunda_brightness;
 
 	// ATMOSPHERE
-	float ap_inscatter_mix;
-	float ap_transmittance_mix;
-
 	float3 rayleigh_scatter;
 	float3 rayleigh_absorption;
 	float rayleigh_decay;
@@ -63,7 +70,18 @@ struct PhySkyBufferContent
 	float ozone_altitude;
 	float ozone_thickness;
 
+	// OTHER VOLUMETRICS
+	float3 fog_scatter;
+	float3 fog_absorption;
+	float fog_decay;
+	float fog_h_max_km;
+
 	// DYNAMIC
+	float2 tex_dim;
+	float2 rcp_tex_dim;
+	float2 frame_dim;
+	float2 rcp_frame_dim;
+
 	float3 dirlight_dir;
 	float3 dirlight_color;
 	float3 sun_dir;
@@ -82,10 +100,11 @@ SamplerState TransmittanceSampler : register(s3);  // in lighting, use shadow
 SamplerState SkyViewSampler : register(s4);        // in lighting, use color
 #endif
 
-#ifdef LUTGEN
+#if defined(LUTGEN) || defined(PHYS_VOLS)
 StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t0);
 Texture2D<float4> TexTransmittance : register(t1);
 Texture2D<float4> TexMultiScatter : register(t2);
+Texture3D<float4> TexAerialPerspective : register(t3);
 #else
 StructuredBuffer<PhySkyBufferContent> PhysSkyBuffer : register(t100);
 Texture2D<float4> TexTransmittance : register(t101);
@@ -109,9 +128,19 @@ float convertGameUnit(float x)
 	return x * PhysSkyBuffer[0].unit_scale * 1.428e-5;
 }
 
-float convertGameHeight(float h)
+float convertKm(float x)
 {
-	return convertGameUnit(max(0, h - PhysSkyBuffer[0].bottom_z)) + PhysSkyBuffer[0].planet_radius;
+	return x / (PhysSkyBuffer[0].unit_scale * 1.428e-5);
+}
+
+float3 convertGamePosition(float3 pos)
+{
+	return float3(convertGameUnit(pos.x), convertGameUnit(pos.y), convertGameUnit(pos.z - PhysSkyBuffer[0].bottom_z));
+}
+
+float3 convertKmPosition(float3 pos)
+{
+	return float3(convertKm(pos.x), convertKm(pos.y), convertKm(pos.z) + PhysSkyBuffer[0].bottom_z);
 }
 
 // return distance to sphere surface
@@ -186,7 +215,21 @@ float3 invCylinderMapAdjusted(float2 uv)
 	return sphericalDir(azimuth, zenith);
 }
 
-/*-------- VOLUMETRIC --------*/
+// https://www.shadertoy.com/view/4djXRh
+void orthographicRay(float2 uv, float3 eye, float3 target, float3 up, out float3 orig, out float3 dir)
+{
+	float3 cw = normalize(target - eye);
+	float3 cu = normalize(cross(cw, up));
+	float3 cv = normalize(cross(cu, cw));
+
+	float fov = acos(dot(cw, normalize(cu * uv.x)));
+	float screen_size = (10.0 / (2.0 * tan(abs(fov) / 2.0)));
+	float3 virtscreen = eye + cw * 2.0 + (cu * uv.x + cv * uv.y) * screen_size;
+	orig = eye + (cu * uv.x + cv * uv.y) * screen_size;
+	dir = normalize(virtscreen - orig);
+}
+
+/*-------- VOLUMES --------*/
 void sampleAtmostphere(
 	float altitude_km,
 	out float3 rayleigh_scatter,
@@ -194,20 +237,60 @@ void sampleAtmostphere(
 	out float3 extinction)
 {
 	float rayleigh_density = exp(-altitude_km * PhysSkyBuffer[0].rayleigh_decay);
-	float aerosol_density = exp(-altitude_km * PhysSkyBuffer[0].aerosol_decay);
-	float ozone_density = max(0, 1 - abs(altitude_km - PhysSkyBuffer[0].ozone_altitude) / (PhysSkyBuffer[0].ozone_thickness * 0.5));
-
 	rayleigh_scatter = PhysSkyBuffer[0].rayleigh_scatter * rayleigh_density;
 	float3 rayleigh_absorp = PhysSkyBuffer[0].rayleigh_absorption * rayleigh_density;
 
+	float aerosol_density = exp(-altitude_km * PhysSkyBuffer[0].aerosol_decay);
 	aerosol_scatter = PhysSkyBuffer[0].aerosol_scatter * aerosol_density;
 	float3 aerosol_absorp = PhysSkyBuffer[0].aerosol_absorption * aerosol_density;
 
+	float ozone_density = max(0, 1 - abs(altitude_km - PhysSkyBuffer[0].ozone_altitude) / (PhysSkyBuffer[0].ozone_thickness * 0.5));
 	float3 ozone_absorp = PhysSkyBuffer[0].ozone_absorption * ozone_density;
 
 	extinction = rayleigh_scatter + rayleigh_absorp + aerosol_scatter + aerosol_absorp + ozone_absorp;
 }
 
+void sampleExponentialFog(
+	float altitude_km,
+	out float3 scatter,
+	out float3 extinction)
+{
+	if (altitude_km < 0 || altitude_km > PhysSkyBuffer[0].fog_h_max_km) {
+		scatter = extinction = 0;
+	} else {
+		float density = exp(-altitude_km * PhysSkyBuffer[0].fog_decay);
+		scatter = PhysSkyBuffer[0].fog_scatter * density;
+		float3 absorp = PhysSkyBuffer[0].fog_absorption * density;
+		extinction = scatter + absorp;
+	}
+}
+
+// https://iquilezles.org/articles/fog/
+float3 analyticFogTransmittance(float3 start_pos, float3 end_pos)
+{
+	float3 dir_vec = end_pos - start_pos;
+	float dist = length(dir_vec);
+	if (dist < 1e-8)
+		return 1.0;
+	dir_vec /= dist;
+
+	float b = PhysSkyBuffer[0].fog_decay;
+	float fog_amount = exp(-start_pos.z * b) * (1.0 - exp(-dist * dir_vec.z * b)) / (b * dir_vec.z);
+	return exp(-fog_amount * (PhysSkyBuffer[0].fog_scatter + PhysSkyBuffer[0].fog_absorption));
+}
+
+float3 analyticFogTransmittance(float altitude_km)
+{
+	if (altitude_km < PhysSkyBuffer[0].fog_h_max_km) {
+		altitude_km = clamp(altitude_km, 0, PhysSkyBuffer[0].fog_h_max_km);
+		float3 pos = float3(0, 0, altitude_km);
+		float3 pos_ceil = pos + clamp(PhysSkyBuffer[0].dirlight_dir * (PhysSkyBuffer[0].fog_h_max_km - altitude_km) / PhysSkyBuffer[0].dirlight_dir.z, 0, 10);
+		return analyticFogTransmittance(pos, pos_ceil);
+	} else
+		return 1.0;
+}
+
+/*-------- PHASE FUNCS --------*/
 float miePhaseHenyeyGreenstein(float cos_theta, float g)
 {
 	static const float scale = .25 * RCP_PI;
@@ -349,7 +432,7 @@ float3 limbDarkenHestroffer(float norm_dist)
 #ifndef LUTGEN
 float4 getLightingApSample(float3 world_pos_unadjusted, SamplerState samp)
 {
-	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].enable_aerial) {
+	if (PhysSkyBuffer[0].enable_sky) {
 		uint3 ap_dims;
 		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
 
@@ -360,8 +443,7 @@ float4 getLightingApSample(float3 world_pos_unadjusted, SamplerState samp)
 		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(dist / PhysSkyBuffer[0].aerial_perspective_max_dist));
 
 		float4 ap_sample = TexAerialPerspective.SampleLevel(samp, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
-		ap_sample.rgb *= PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].ap_inscatter_mix;
-		ap_sample.w = lerp(1, ap_sample.w, PhysSkyBuffer[0].ap_transmittance_mix);
+		ap_sample.rgb *= PhysSkyBuffer[0].dirlight_color;
 
 		return ap_sample;
 	}
@@ -486,16 +568,14 @@ void DrawPhysicalSky(inout float4 color, PS_INPUT input)
 		color.rgb = (color.rgb + multiscatter_value) * scatter_strength;
 
 		// ap
-		if (PhysSkyBuffer[0].enable_aerial) {
-			uint3 ap_dims;
-			TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
+		uint3 ap_dims;
+		TexAerialPerspective.GetDimensions(ap_dims.x, ap_dims.y, ap_dims.z);
 
-			float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(cloud_dist / PhysSkyBuffer[0].aerial_perspective_max_dist));
-			float4 ap_sample = TexAerialPerspective.SampleLevel(SkyViewSampler, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
-			ap_sample.rgb *= PhysSkyBuffer[0].dirlight_color;
+		float depth_slice = lerp(.5 / ap_dims.z, 1 - .5 / ap_dims.z, saturate(cloud_dist / PhysSkyBuffer[0].aerial_perspective_max_dist));
+		float4 ap_sample = TexAerialPerspective.SampleLevel(SkyViewSampler, float3(cylinderMapAdjusted(view_dir), depth_slice), 0);
+		ap_sample.rgb *= PhysSkyBuffer[0].dirlight_color;
 
-			color.rgb = color.rgb * ap_sample.w + ap_sample.rgb;
-		}
+		color.rgb = color.rgb * ap_sample.w + ap_sample.rgb;
 	}
 
 #		elif defined(DITHER)      //  glare

@@ -1,5 +1,5 @@
 #define SKY_SAMPLERS
-#include "PhysicalSky.hlsli"
+#include "PhysicalSky/PhysicalSky.hlsli"
 
 #if LUTGEN == 3
 RWTexture3D<float4> RWTexOutput : register(u0);
@@ -58,7 +58,8 @@ void rayMarch(
 #endif
 
 	float3 curr_pos = pos;
-	for (uint i = 0; i < nsteps; ++i) {
+	[loop] for (uint i = 0; i < nsteps; ++i)
+	{
 		curr_pos += v_step;
 
 		float3 rayleigh_scatter, aerosol_scatter, extinction;

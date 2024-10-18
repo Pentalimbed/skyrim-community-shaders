@@ -1,7 +1,10 @@
 #include "../PhysicalSky.h"
 
+#include "Deferred.h"
 #include "State.h"
 #include "Util.h"
+
+#include "../TerrainShadows.h"
 
 bool PhysicalSky::HasShaderDefine(RE::BSShader::Type type)
 {
@@ -10,6 +13,8 @@ bool PhysicalSky::HasShaderDefine(RE::BSShader::Type type)
 	case RE::BSShader::Type::Lighting:
 	case RE::BSShader::Type::Grass:
 	case RE::BSShader::Type::DistantTree:
+	case RE::BSShader::Type::Effect:
+	case RE::BSShader::Type::Water:
 		return true;
 		break;
 	default:
@@ -20,7 +25,9 @@ bool PhysicalSky::HasShaderDefine(RE::BSShader::Type type)
 
 void PhysicalSky::SetupResources()
 {
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 	auto device = State::GetSingleton()->device;
+
 	logger::debug("Creating samplers...");
 	{
 		D3D11_SAMPLER_DESC samplerDesc = {};
@@ -41,7 +48,7 @@ void PhysicalSky::SetupResources()
 
 	logger::debug("Creating structured buffers...");
 	{
-		phys_sky_sb = std::make_unique<StructuredBuffer>(StructuredBufferDesc<PhysSkySB>(), 1);
+		phys_sky_sb = eastl::make_unique<StructuredBuffer>(StructuredBufferDesc<PhysSkySB>(), 1);
 		phys_sky_sb->CreateSRV();
 	}
 
@@ -70,21 +77,21 @@ void PhysicalSky::SetupResources()
 			.Texture2D = { .MipSlice = 0 }
 		};
 
-		transmittance_lut = std::make_unique<Texture2D>(tex2d_desc);
+		transmittance_lut = eastl::make_unique<Texture2D>(tex2d_desc);
 		transmittance_lut->CreateSRV(srv_desc);
 		transmittance_lut->CreateUAV(uav_desc);
 
 		tex2d_desc.Width = s_multiscatter_width;
 		tex2d_desc.Height = s_multiscatter_height;
 
-		multiscatter_lut = std::make_unique<Texture2D>(tex2d_desc);
+		multiscatter_lut = eastl::make_unique<Texture2D>(tex2d_desc);
 		multiscatter_lut->CreateSRV(srv_desc);
 		multiscatter_lut->CreateUAV(uav_desc);
 
 		tex2d_desc.Width = s_sky_view_width;
 		tex2d_desc.Height = s_sky_view_height;
 
-		sky_view_lut = std::make_unique<Texture2D>(tex2d_desc);
+		sky_view_lut = eastl::make_unique<Texture2D>(tex2d_desc);
 		sky_view_lut->CreateSRV(srv_desc);
 		sky_view_lut->CreateUAV(uav_desc);
 
@@ -104,9 +111,42 @@ void PhysicalSky::SetupResources()
 		uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D,
 		uav_desc.Texture3D = { .MipSlice = 0, .FirstWSlice = 0, .WSize = s_aerial_perspective_depth };
 
-		aerial_perspective_lut = std::make_unique<Texture3D>(tex3d_desc);
+		aerial_perspective_lut = eastl::make_unique<Texture3D>(tex3d_desc);
 		aerial_perspective_lut->CreateSRV(srv_desc);
 		aerial_perspective_lut->CreateUAV(uav_desc);
+	}
+
+	logger::debug("Creating render textures...");
+	{
+		D3D11_TEXTURE2D_DESC texDesc;
+		auto mainTex = renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
+		mainTex.texture->GetDesc(&texDesc);
+		texDesc.Format = DXGI_FORMAT_R11G11B10_FLOAT;
+		texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+		texDesc.MipLevels = 1;
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = texDesc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = texDesc.MipLevels }
+		};
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
+			.Format = texDesc.Format,
+			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
+			.Texture2D = { .MipSlice = 0 }
+		};
+
+		{
+			main_view_tr_tex = eastl::make_unique<Texture2D>(texDesc);
+			main_view_tr_tex->CreateSRV(srvDesc);
+			main_view_tr_tex->CreateUAV(uavDesc);
+
+			main_view_lum_tex = eastl::make_unique<Texture2D>(texDesc);
+			main_view_lum_tex->CreateSRV(srvDesc);
+			main_view_lum_tex->CreateUAV(uavDesc);
+		}
 	}
 
 	CompileComputeShaders();
@@ -114,43 +154,36 @@ void PhysicalSky::SetupResources()
 
 void PhysicalSky::CompileComputeShaders()
 {
-	logger::debug("Compiling shaders...");
+	struct ShaderCompileInfo
 	{
-		auto program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(
-			L"Data\\Shaders\\PhysicalSky\\LUTGen.cs.hlsl", { { "LUTGEN", "0" } }, "cs_5_0"));
-		if (program_ptr)
-			transmittance_program.attach(program_ptr);
+		winrt::com_ptr<ID3D11ComputeShader>* csPtr;
+		std::string_view filename;
+		std::vector<std::pair<const char*, const char*>> defines;
+	};
 
-		program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(
-			L"Data\\Shaders\\PhysicalSky\\LUTGen.cs.hlsl", { { "LUTGEN", "1" } }, "cs_5_0"));
-		if (program_ptr)
-			multiscatter_program.attach(program_ptr);
+	std::vector<ShaderCompileInfo> shaderInfos = {
+		{ &transmittance_program, "LUTGen.cs.hlsl", { { "LUTGEN", "0" } } },
+		{ &multiscatter_program, "LUTGen.cs.hlsl", { { "LUTGEN", "1" } } },
+		{ &sky_view_program, "LUTGen.cs.hlsl", { { "LUTGEN", "2" } } },
+		{ &aerial_perspective_program, "LUTGen.cs.hlsl", { { "LUTGEN", "3" } } },
+		{ &main_view_program, "Volumetrics.cs.hlsl" }
+	};
 
-		program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(
-			L"Data\\Shaders\\PhysicalSky\\LUTGen.cs.hlsl", { { "LUTGEN", "2" } }, "cs_5_0"));
-		if (program_ptr)
-			sky_view_program.attach(program_ptr);
-
-		program_ptr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(
-			L"Data\\Shaders\\PhysicalSky\\LUTGen.cs.hlsl", { { "LUTGEN", "3" } }, "cs_5_0"));
-		if (program_ptr)
-			aerial_perspective_program.attach(program_ptr);
+	for (auto& info : shaderInfos) {
+		auto path = std::filesystem::path("Data\\Shaders\\PhysicalSky") / info.filename;
+		if (auto rawPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(path.c_str(), info.defines, "cs_5_0")))
+			info.csPtr->attach(rawPtr);
 	}
 }
 
 void PhysicalSky::ClearShaderCache()
 {
-	auto checkClear = [](winrt::com_ptr<ID3D11ComputeShader>& shader) {
-		if (shader) {
-			shader->Release();
-			shader.detach();
-		}
+	const auto shaderPtrs = std::array{
+		&transmittance_program, &multiscatter_program, &sky_view_program, &aerial_perspective_program, &main_view_program
 	};
 
-	checkClear(transmittance_program);
-	checkClear(multiscatter_program);
-	checkClear(sky_view_program);
-	checkClear(aerial_perspective_program);
+	for (auto shader : shaderPtrs)
+		*shader = nullptr;
 
 	CompileComputeShaders();
 }
@@ -169,8 +202,20 @@ void PhysicalSky::Reset()
 
 void PhysicalSky::Prepass()
 {
-	if (phys_sky_sb_data.enable_sky)
+	if (phys_sky_sb_data.enable_sky) {
 		GenerateLuts();
+		RenderMainView();
+	} else {
+		auto context = State::GetSingleton()->context;
+		{
+			FLOAT clr[4] = { 1., 1., 1., 1. };
+			context->ClearUnorderedAccessViewFloat(main_view_tr_tex->uav.get(), clr);
+		}
+		{
+			FLOAT clr[4] = { 0., 0., 0., 0. };
+			context->ClearUnorderedAccessViewFloat(main_view_lum_tex->uav.get(), clr);
+		}
+	}
 
 	auto context = State::GetSingleton()->context;
 
@@ -263,12 +308,10 @@ void PhysicalSky::GenerateLuts()
 	context->Dispatch(((s_sky_view_width - 1) >> 5) + 1, ((s_sky_view_height - 1) >> 5) + 1, 1);
 
 	// -> aerial perspective
-	if (settings.enable_aerial) {
-		newer.uavs[0] = aerial_perspective_lut->uav.get();
-		context->CSSetUnorderedAccessViews(0, ARRAYSIZE(newer.uavs), newer.uavs, nullptr);
-		context->CSSetShader(aerial_perspective_program.get(), nullptr, 0);
-		context->Dispatch(((s_aerial_perspective_width - 1) >> 5) + 1, ((s_aerial_perspective_height - 1) >> 5) + 1, 1);
-	}
+	newer.uavs[0] = aerial_perspective_lut->uav.get();
+	context->CSSetUnorderedAccessViews(0, ARRAYSIZE(newer.uavs), newer.uavs, nullptr);
+	context->CSSetShader(aerial_perspective_program.get(), nullptr, 0);
+	context->Dispatch(((s_aerial_perspective_width - 1) >> 5) + 1, ((s_aerial_perspective_height - 1) >> 5) + 1, 1);
 
 	/* ---- RESTORE ---- */
 	context->CSSetShaderResources(0, ARRAYSIZE(old.srvs), old.srvs);
@@ -276,4 +319,42 @@ void PhysicalSky::GenerateLuts()
 	context->CSSetConstantBuffers(0, 1, &old.buffer);
 	context->CSSetUnorderedAccessViews(0, ARRAYSIZE(old.uavs), old.uavs, nullptr);
 	context->CSSetSamplers(3, ARRAYSIZE(old.samplers), old.samplers);
+}
+
+void PhysicalSky::RenderMainView()
+{
+	auto& context = State::GetSingleton()->context;
+	auto renderer = RE::BSGraphics::Renderer::GetSingleton();
+	auto deferred = Deferred::GetSingleton();
+
+	float2 size = Util::ConvertToDynamic(State::GetSingleton()->screenSize);
+	uint resolution[2] = { (uint)size.x, (uint)size.y };
+
+	std::array<ID3D11ShaderResourceView*, 8> srvs = {
+		phys_sky_sb->SRV(0),
+		transmittance_lut->srv.get(),
+		multiscatter_lut->srv.get(),
+		aerial_perspective_lut->srv.get(),
+		renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
+		deferred->shadowView,
+		deferred->perShadow->srv.get(),
+		TerrainShadows::GetSingleton()->IsHeightMapReady() ? TerrainShadows::GetSingleton()->texShadowHeight->srv.get() : nullptr,
+	};
+	std::array<ID3D11UnorderedAccessView*, 2> uavs = { main_view_tr_tex->uav.get(), main_view_lum_tex->uav.get() };
+	std::array<ID3D11SamplerState*, 2> samplers = { transmittance_sampler.get(), sky_view_sampler.get() };
+
+	context->CSSetSamplers(3, (uint)samplers.size(), samplers.data());
+
+	context->CSSetShaderResources(0, (uint)srvs.size(), srvs.data());
+	context->CSSetUnorderedAccessViews(0, (uint)uavs.size(), uavs.data(), nullptr);
+	context->CSSetShader(main_view_program.get(), nullptr, 0);
+	context->Dispatch((resolution[0] + 7u) >> 3, (resolution[1] + 7u) >> 3, 1);
+
+	samplers.fill(nullptr);
+	srvs.fill(nullptr);
+	uavs.fill(nullptr);
+	context->CSSetShaderResources(0, (uint)srvs.size(), srvs.data());
+	context->CSSetUnorderedAccessViews(0, (uint)uavs.size(), uavs.data(), nullptr);
+	context->CSSetSamplers(3, (uint)samplers.size(), samplers.data());
+	context->CSSetShader(nullptr, nullptr, 0);
 }

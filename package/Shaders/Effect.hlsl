@@ -513,6 +513,10 @@ cbuffer PerGeometry : register(b2)
 #		include "CloudShadows/CloudShadows.hlsli"
 #	endif
 
+#	if defined(PHYS_SKY)
+#		include "PhysicalSky/PhysicalSky.hlsli"
+#	endif
+
 #	include "Common/ShadowSampling.hlsli"
 
 #	if defined(LIGHTING)
@@ -523,24 +527,32 @@ float3 GetLightingColor(float3 msPosition, float3 worldPosition, float4 screenPo
 
 	float3 color = DLightColor.xyz;
 #		if defined(EFFECT_WEATHER)
+	color = DirLightColorShared.rgb;
+
+#			if defined(PHYS_SKY)
+	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color) {
+		color = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
+
+		float3 transmitSample = getLightingTransmitSample(worldPosition.z, SampDepthSampler);
+		color *= transmitSample;
+
+		color *= analyticFogTransmittance(convertGameUnit(worldPosition.z + CameraPosAdjust[eyeIndex].z - PhysSkyBuffer[0].bottom_z));
+
+		color = Color::LinearToGamma(color) / Color::LightPreMult;
+	}
+#			endif
+
 #			if defined(EFFECT_SHADOWS)
 	if (!InInterior && !InMapMenu && (ExtraShaderDescriptor & _InWorld)) {
-		color = DirLightColorShared * GetEffectShadow(worldPosition, normalize(worldPosition), screenPosition, eyeIndex) * 0.5;
-
-		float3 directionalAmbientColor = DirectionalAmbientShared._14_24_34;
-		color += directionalAmbientColor;
+		color *= GetEffectShadow(worldPosition, normalize(worldPosition), screenPosition, eyeIndex) * 0.5;
 	} else {
-		color = DirLightColorShared * 0.5;
-
-		float3 directionalAmbientColor = DirectionalAmbientShared._14_24_34;
-		color += directionalAmbientColor;
+		color *= 0.5;
 	}
 #			else
-	color = DirLightColorShared * 0.5;
-
+	color *= 0.5;
+#			endif
 	float3 directionalAmbientColor = DirectionalAmbientShared._14_24_34;
 	color += directionalAmbientColor;
-#			endif
 #		endif
 
 	color.x += dot(PLightColorR * lightFadeMul, 1.0.xxxx);

@@ -78,6 +78,11 @@ void PhysicalSky::DrawSettings()
 			ImGui::EndTabItem();
 		}
 
+		if (ImGui::BeginTabItem("Fog")) {
+			SettingsFog();
+			ImGui::EndTabItem();
+		}
+
 		if (ImGui::BeginTabItem("Debug")) {
 			SettingsDebug();
 			ImGui::EndTabItem();
@@ -93,14 +98,6 @@ void PhysicalSky::SettingsGeneral()
 		ImGui::TextColored({ 1, .1, .1, 1 }, "Shader compilation failed!");
 
 	ImGui::Checkbox("Enable Physcial Sky", &settings.enable_sky);
-
-	ImGui::SeparatorText("Aerial Perspective");
-	{
-		ImGui::Checkbox("Enable Aerial Perspective", &settings.enable_aerial);
-
-		ImGui::SliderFloat("In-scatter", &settings.ap_inscatter_mix, 0.f, 2.f);
-		ImGui::SliderFloat("View Transmittance", &settings.ap_transmittance_mix, 0.f, 1.f);
-	}
 
 	ImGui::SeparatorText("Performance");
 	{
@@ -306,6 +303,8 @@ void PhysicalSky::SettingsClouds()
 
 void PhysicalSky::SettingsCelestials()
 {
+	auto& celestials = settings.celestials;
+
 	ImGui::TextWrapped("How celestials look and move.");
 
 	ImGui::SeparatorText("General");
@@ -313,19 +312,19 @@ void PhysicalSky::SettingsCelestials()
 	ImGui::SeparatorText("Sun Disc");
 	ImGui::PushID("Sun");
 	{
-		ImGui::ColorEdit3("Color", &settings.sun_disc_color.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-		ImGui::SliderAngle("Angular Radius", &settings.sun_angular_radius, 0.05, 5, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::ColorEdit3("Color", &celestials.sun_disc_color.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+		ImGui::SliderAngle("Angular Radius", &celestials.sun_angular_radius, 0.05, 5, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::Text("Ours is quite small (only 0.25 deg)");
 
-		ImGui::Checkbox("Custom Trajectory", &settings.override_sun_traj);
+		ImGui::Checkbox("Custom Trajectory", &celestials.override_sun_traj);
 		if (ImGui::TreeNodeEx("Trajectory")) {
-			if (!settings.override_sun_traj)
+			if (!celestials.override_sun_traj)
 				ImGui::BeginDisabled();
 
-			TrajectoryEdit(settings.sun_trajectory);
+			TrajectoryEdit(celestials.sun_trajectory);
 
-			if (!settings.override_sun_traj)
+			if (!celestials.override_sun_traj)
 				ImGui::EndDisabled();
 
 			ImGui::TreePop();
@@ -336,17 +335,17 @@ void PhysicalSky::SettingsCelestials()
 	ImGui::SeparatorText("Masser");
 	ImGui::PushID("Masser");
 	{
-		ImGui::SliderFloat("Brightness", &settings.masser_brightness, 0.f, 10.f, "%.2f");
-		ImGui::SliderAngle("Angular Radius", &settings.masser_angular_radius, 0.05, 30, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Brightness", &celestials.masser_brightness, 0.f, 10.f, "%.2f");
+		ImGui::SliderAngle("Angular Radius", &celestials.masser_angular_radius, 0.05, 30, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 
-		ImGui::Checkbox("Custom Trajectory", &settings.override_masser_traj);
+		ImGui::Checkbox("Custom Trajectory", &celestials.override_masser_traj);
 		if (ImGui::TreeNodeEx("Trajectory")) {
-			if (!settings.override_masser_traj)
+			if (!celestials.override_masser_traj)
 				ImGui::BeginDisabled();
 
-			TrajectoryEdit(settings.masser_trajectory);
+			TrajectoryEdit(celestials.masser_trajectory);
 
-			if (!settings.override_masser_traj)
+			if (!celestials.override_masser_traj)
 				ImGui::EndDisabled();
 
 			ImGui::TreePop();
@@ -357,17 +356,17 @@ void PhysicalSky::SettingsCelestials()
 	ImGui::SeparatorText("Secunda");
 	ImGui::PushID("Secunda");
 	{
-		ImGui::SliderFloat("Brightness", &settings.secunda_brightness, 0.f, 10.f, "%.2f");
-		ImGui::SliderAngle("Angular Radius", &settings.secunda_angular_radius, 0.05, 30, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Brightness", &celestials.secunda_brightness, 0.f, 10.f, "%.2f");
+		ImGui::SliderAngle("Angular Radius", &celestials.secunda_angular_radius, 0.05, 30, "%.2f deg", ImGuiSliderFlags_AlwaysClamp);
 
-		ImGui::Checkbox("Custom Trajectory", &settings.override_secunda_traj);
+		ImGui::Checkbox("Custom Trajectory", &celestials.override_secunda_traj);
 		if (ImGui::TreeNodeEx("Trajectory")) {
-			if (!settings.override_masser_traj)
+			if (!celestials.override_masser_traj)
 				ImGui::BeginDisabled();
 
-			TrajectoryEdit(settings.secunda_trajectory);
+			TrajectoryEdit(celestials.secunda_trajectory);
 
-			if (!settings.override_masser_traj)
+			if (!celestials.override_masser_traj)
 				ImGui::EndDisabled();
 
 			ImGui::TreePop();
@@ -429,6 +428,21 @@ void PhysicalSky::SettingsAtmosphere()
 		ImGui::DragFloat("Layer Thickness", &settings.ozone_thickness, .1f, 0.f, 50.f, "%.3f km");
 	}
 	ImGui::PopID();
+}
+
+void PhysicalSky::SettingsFog()
+{
+	ImGui::TextWrapped("Fog, mist, smog, toxic volcanic ash cloud, etc.");
+
+	ImGui::SeparatorText("Settings");
+
+	ImGui::SliderFloat3("Scatter", &settings.fog_scatter.x, 0.f, 3.f, "%.3f km^-1");
+	ImGui::SliderFloat3("Absorption", &settings.fog_absorption.x, 0.f, 3.f, "%.3f km^-1");
+	ImGui::SliderFloat("Height Decay", &settings.fog_decay, 0.f, 30.f);
+	ImGui::SliderFloat("Layer Offset", &settings.fog_bottom, 0.f, 2.f, "%.3f km");
+	ImGui::SliderFloat("Layer Height", &settings.fog_thickness, 0.f, 1.f, "%.3f km");
+	if (auto _tt = Util::HoverTooltipWrapper())
+		ImGui::Text("For optimization purposes.");
 }
 
 void PhysicalSky::SettingsDebug()
@@ -512,5 +526,11 @@ void PhysicalSky::SettingsDebug()
 
 		ImGui::BulletText("Sky-View LUT");
 		ImGui::Image((void*)(sky_view_lut->srv.get()), { s_sky_view_width, s_sky_view_height });
+
+		ImGui::BulletText("Main View Transmittance");
+		ImGui::Image((void*)(main_view_tr_tex->srv.get()), { main_view_tr_tex->desc.Width * 0.2f, main_view_tr_tex->desc.Height * 0.2f });
+
+		ImGui::BulletText("Main View Luminance");
+		ImGui::Image((void*)(main_view_lum_tex->srv.get()), { main_view_lum_tex->desc.Width * 0.2f, main_view_lum_tex->desc.Height * 0.2f });
 	}
 }

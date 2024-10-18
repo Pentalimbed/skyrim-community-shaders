@@ -2,16 +2,31 @@
 
 #include "PSCommon.h"
 
+#include "State.h"
 #include "Util.h"
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Orbit, azimuth, zenith, drift)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Orbit, azimuth, zenith, drift);
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Trajectory,
 	minima, maxima,
 	period_orbital, offset_orbital,
-	period_long, offset_long)
+	period_long, offset_long);
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings::Celestials,
+	sun_disc_color,
+	sun_angular_radius,
+	override_sun_traj,
+	sun_trajectory,
+	override_masser_traj,
+	masser_trajectory,
+	masser_angular_radius,
+	masser_brightness,
+	override_secunda_traj,
+	secunda_trajectory,
+	secunda_angular_radius,
+	secunda_brightness,
+	stars_brightness)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	enable_sky,
-	enable_aerial,
 	transmittance_step,
 	multiscatter_step,
 	multiscatter_sqrt_samples,
@@ -45,21 +60,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	secunda_moonlight_min,
 	secunda_moonlight_color,
 	light_transition_angles,
-	sun_disc_color,
-	sun_angular_radius,
-	override_sun_traj,
-	sun_trajectory,
-	override_masser_traj,
-	masser_trajectory,
-	masser_angular_radius,
-	masser_brightness,
-	override_secunda_traj,
-	secunda_trajectory,
-	secunda_angular_radius,
-	secunda_brightness,
-	stars_brightness,
-	ap_inscatter_mix,
-	ap_transmittance_mix,
+	celestials,
 	rayleigh_scatter,
 	rayleigh_absorption,
 	rayleigh_decay,
@@ -69,7 +70,12 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PhysicalSky::Settings,
 	aerosol_decay,
 	ozone_absorption,
 	ozone_altitude,
-	ozone_thickness)
+	ozone_thickness,
+	fog_scatter,
+	fog_absorption,
+	fog_decay,
+	fog_bottom,
+	fog_thickness)
 
 RE::NiPoint3 Orbit::getDir(float t)
 {
@@ -133,12 +139,17 @@ void PhysicalSky::SaveSettings(json& o_json)
 
 void PhysicalSky::UpdateBuffer()
 {
-	float sun_aperture_cos = cos(settings.sun_angular_radius);
+	float sun_aperture_cos = cos(settings.celestials.sun_angular_radius);
 	float sun_aperture_rcp_sin = 1.f / sqrt(1 - sun_aperture_cos * sun_aperture_cos);  // I trust u compiler
+
+	float2 res = State::GetSingleton()->screenSize;
+	float2 dynres = Util::ConvertToDynamic(res);
+	dynres = { floor(dynres.x), floor(dynres.y) };
+
+	float fog_mult = exp(settings.fog_bottom * settings.fog_decay);
 
 	phys_sky_sb_data = {
 		.enable_sky = settings.enable_sky && NeedLutsUpdate(),
-		.enable_aerial = settings.enable_aerial,
 		.transmittance_step = settings.transmittance_step,
 		.multiscatter_step = settings.multiscatter_step,
 		.multiscatter_sqrt_samples = settings.multiscatter_sqrt_samples,
@@ -163,15 +174,13 @@ void PhysicalSky::UpdateBuffer()
 		.cloud_phase_w = settings.cloud_phase_w,
 		.cloud_alpha_heuristics = settings.cloud_alpha_heuristics,
 		.cloud_color_heuristics = settings.cloud_color_heuristics,
-		.sun_disc_color = settings.sun_disc_color,
+		.sun_disc_color = settings.celestials.sun_disc_color,
 		.sun_aperture_cos = sun_aperture_cos,
 		.sun_aperture_rcp_sin = sun_aperture_rcp_sin,
-		.masser_aperture_cos = cos(settings.masser_angular_radius),
-		.masser_brightness = settings.masser_brightness,
-		.secunda_aperture_cos = cos(settings.secunda_angular_radius),
-		.secunda_brightness = settings.secunda_brightness,
-		.ap_inscatter_mix = settings.ap_inscatter_mix,
-		.ap_transmittance_mix = settings.ap_transmittance_mix,
+		.masser_aperture_cos = cos(settings.celestials.masser_angular_radius),
+		.masser_brightness = settings.celestials.masser_brightness,
+		.secunda_aperture_cos = cos(settings.celestials.secunda_angular_radius),
+		.secunda_brightness = settings.celestials.secunda_brightness,
 		.rayleigh_scatter = settings.rayleigh_scatter * 1e-3f,  // km^-1
 		.rayleigh_absorption = settings.rayleigh_absorption * 1e-3f,
 		.rayleigh_decay = settings.rayleigh_decay,
@@ -181,7 +190,16 @@ void PhysicalSky::UpdateBuffer()
 		.aerosol_decay = settings.aerosol_decay,
 		.ozone_absorption = settings.ozone_absorption * 1e-3f,
 		.ozone_altitude = settings.ozone_altitude,
-		.ozone_thickness = settings.ozone_thickness
+		.ozone_thickness = settings.ozone_thickness,
+		.fog_scatter = settings.fog_scatter * fog_mult,
+		.fog_absorption = settings.fog_absorption * fog_mult,
+		.fog_decay = settings.fog_decay,
+		.fog_h_max_km = settings.fog_bottom + settings.fog_thickness,
+
+		.tex_dim = res,
+		.rcp_tex_dim = float2(1.0f) / res,
+		.frame_dim = dynres,
+		.rcp_frame_dim = float2(1.0f) / dynres,
 	};
 
 	// DYNAMIC STUFF
@@ -211,15 +229,15 @@ void PhysicalSky::UpdateOrbitsAndHeight()
 	auto calendar = RE::Calendar::GetSingleton();
 	if (calendar) {
 		float game_days = getDayInYear();  // Last Seed = 8
-		if (settings.override_sun_traj) {
-			sun_dir = settings.sun_trajectory.getDir(game_days);
+		if (settings.celestials.override_sun_traj) {
+			sun_dir = settings.celestials.sun_trajectory.getDir(game_days);
 		} else {
 			sun_dir = Orbit{}.getDir(getVanillaSunLerpFactor());
 		}
 
-		if (settings.override_masser_traj) {
-			auto masser_dir = settings.masser_trajectory.getDir(game_days);
-			auto masser_up = masser_dir.Cross(settings.masser_trajectory.getTangent(game_days));
+		if (settings.celestials.override_masser_traj) {
+			auto masser_dir = settings.celestials.masser_trajectory.getDir(game_days);
+			auto masser_up = masser_dir.Cross(settings.celestials.masser_trajectory.getTangent(game_days));
 
 			phys_sky_sb_data.masser_dir = { masser_dir.x, masser_dir.y, masser_dir.z };
 			phys_sky_sb_data.masser_upvec = { masser_up.x, masser_up.y, masser_up.z };
@@ -232,9 +250,9 @@ void PhysicalSky::UpdateOrbitsAndHeight()
 			phys_sky_sb_data.masser_upvec = { masser_upvec.x, masser_upvec.y, masser_upvec.z };
 		}
 
-		if (settings.override_secunda_traj) {
-			auto secunda_dir = settings.secunda_trajectory.getDir(game_days);
-			auto secunda_up = secunda_dir.Cross(settings.secunda_trajectory.getTangent(game_days));
+		if (settings.celestials.override_secunda_traj) {
+			auto secunda_dir = settings.celestials.secunda_trajectory.getDir(game_days);
+			auto secunda_up = secunda_dir.Cross(settings.celestials.secunda_trajectory.getTangent(game_days));
 
 			phys_sky_sb_data.secunda_dir = { secunda_dir.x, secunda_dir.y, secunda_dir.z };
 			phys_sky_sb_data.secunda_upvec = { secunda_up.x, secunda_up.y, secunda_up.z };

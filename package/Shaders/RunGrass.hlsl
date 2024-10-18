@@ -507,11 +507,16 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 	float3 dirLightColor = DirLightColorShared.xyz;
 
 #			if defined(PHYS_SKY)
-	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color)
-		dirLightColor = Color::LinearToGamma(PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra) / Color::LightPreMult;
+	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color) {
+		dirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
 
-	float3 transmit_sample = getLightingTransmitSample(input.WorldPosition.z, SampShadowMaskSampler);
-	dirLightColor *= transmit_sample;
+		float3 transmit_sample = getLightingTransmitSample(input.WorldPosition.z, SampShadowMaskSampler);
+		dirLightColor *= transmit_sample;
+
+		dirLightColor *= analyticFogTransmittance(convertGameUnit(input.WorldPosition.z + CameraPosAdjust[eyeIndex].z - PhysSkyBuffer[0].bottom_z));
+
+		dirLightColor = Color::LinearToGamma(dirLightColor) / Color::LightPreMult;
+	}
 #			endif
 
 	float3 dirLightColorMultiplier = 1;
