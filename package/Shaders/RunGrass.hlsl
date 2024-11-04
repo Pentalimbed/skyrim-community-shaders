@@ -398,6 +398,10 @@ cbuffer AlphaTestRefCB : register(b11)
 #		include "Skylighting/Skylighting.hlsli"
 #	endif
 
+#	if defined(PHYS_SKY)
+#		include "PhysicalSky/PhysicalSky.hlsli"
+#	endif
+
 #	ifdef GRASS_LIGHTING
 #		if defined(TRUE_PBR)
 
@@ -517,6 +521,17 @@ PS_OUTPUT main(PS_INPUT input, bool frontFace
 #			endif  // TRUE_PBR
 
 	float3 dirLightColor = DirLightColorShared.xyz;
+
+#			if defined(PHYS_SKY)
+	if (PhysSkyBuffer[0].enable_sky && PhysSkyBuffer[0].override_dirlight_color) {
+		dirLightColor = PhysSkyBuffer[0].dirlight_color * PhysSkyBuffer[0].horizon_penumbra;
+
+		dirLightColor *= getDirlightTransmittance(input.WorldPosition + CameraPosAdjust[eyeIndex], SampBaseSampler);
+
+		dirLightColor = Color::LinearToGamma(dirLightColor) / Color::LightPreMult;
+	}
+#			endif
+
 	float3 dirLightColorMultiplier = 1;
 
 	float dirLightAngle = dot(normal, DirLightDirectionShared.xyz);
