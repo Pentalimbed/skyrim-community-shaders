@@ -226,7 +226,7 @@ float3 getShadowVolumeSampleUvw(float3 pos, float3 ray_dir)
 	if (any(pos < shadow_bounds_min) || any(pos > shadow_bounds_max)) {
 		// outside
 		float2 hit_dists = rayIntersectAABB(pos, ray_dir, shadow_bounds_min, shadow_bounds_max);
-		if (hit_dists.x > hit_dists.y)
+		if (hit_dists.x > hit_dists.y || hit_dists.y < 0)
 			return -1;
 		shadow_sample_pos += (hit_dists.x + 128) * ray_dir;
 	}
@@ -234,6 +234,7 @@ float3 getShadowVolumeSampleUvw(float3 pos, float3 ray_dir)
 	float3 shadow_sample_uvw = shadow_sample_pos - float3(CameraPosAdjust[0].xy, PhysSkyBuffer[0].cloud_layer.bottom);
 	shadow_sample_uvw /= float3(PhysSkyBuffer[0].shadow_volume_range.xx, PhysSkyBuffer[0].cloud_layer.thickness);
 	shadow_sample_uvw.xy += 0.5;
+
 	return shadow_sample_uvw;
 }
 
@@ -570,12 +571,12 @@ float3 getDirlightTransmittance(float3 world_pos_abs, SamplerState samp)
 	if (all(pos_sample_shadow_uvw.xyz > 0))
 		cloud_density = TexShadowVolume.SampleLevel(samp, pos_sample_shadow_uvw.xyz, 0);
 	else
-		cloud_density += inBetweenSphereDistance(
-							 world_pos_abs + float3(-CameraPosAdjust[0].xy, PhysSkyBuffer[0].planet_radius),
-							 PhysSkyBuffer[0].dirlight_dir,
-							 PhysSkyBuffer[0].planet_radius + PhysSkyBuffer[0].cloud_layer.bottom,
-							 PhysSkyBuffer[0].planet_radius + PhysSkyBuffer[0].cloud_layer.bottom + PhysSkyBuffer[0].cloud_layer.thickness) *
-		                 PhysSkyBuffer[0].cloud_layer.average_density;
+		cloud_density = inBetweenSphereDistance(
+							world_pos_abs + float3(-CameraPosAdjust[0].xy, PhysSkyBuffer[0].planet_radius),
+							PhysSkyBuffer[0].dirlight_dir,
+							PhysSkyBuffer[0].planet_radius + PhysSkyBuffer[0].cloud_layer.bottom,
+							PhysSkyBuffer[0].planet_radius + PhysSkyBuffer[0].cloud_layer.bottom + PhysSkyBuffer[0].cloud_layer.thickness) *
+		                PhysSkyBuffer[0].cloud_layer.average_density;
 
 	transmittance *= exp(-(PhysSkyBuffer[0].cloud_layer.scatter + PhysSkyBuffer[0].cloud_layer.absorption) * cloud_density);
 
