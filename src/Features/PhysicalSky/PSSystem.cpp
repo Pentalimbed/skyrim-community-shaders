@@ -198,13 +198,16 @@ void PhysicalSky::UpdateBuffer()
 	bool all_set = CheckComputeShaders();
 
 	// check worldspace
-	auto worldspace_it = std::ranges::find_if(settings.worldspace_whitelist, [](const auto& info) {
-		if (globals::game::tes)
-			if (auto worldspace = globals::game::tes->GetRuntimeData2().worldSpace; worldspace)
+	bool worldspace_whitelisted = false;
+	auto worldspace_it = settings.worldspace_whitelist.end();
+	if (globals::game::tes)
+		if (auto worldspace = globals::game::tes->GetRuntimeData2().worldSpace; worldspace) {
+			worldspace_it = std::ranges::find_if(settings.worldspace_whitelist, [=](const auto& info) {
 				return info.name == worldspace->GetFormEditorID();
-		return false;
-	});
-	all_set = worldspace_it != settings.worldspace_whitelist.end();
+			});
+			worldspace_whitelisted = worldspace_it != settings.worldspace_whitelist.end();
+		}
+	all_set &= worldspace_whitelisted;
 
 	float sun_aperture_cos = cos(settings.celestials.sun_angular_radius);
 	float sun_aperture_rcp_sin = 1.f / sqrt(1 - sun_aperture_cos * sun_aperture_cos);
@@ -216,7 +219,7 @@ void PhysicalSky::UpdateBuffer()
 	float fog_mult = exp(settings.fog_bottom * settings.fog_decay);
 
 	phys_sky_sb_data = {
-		.enable_sky = settings.enable_sky,
+		.enable_sky = settings.enable_sky && all_set,
 		.transmittance_step = settings.transmittance_step,
 		.multiscatter_step = settings.multiscatter_step,
 		.multiscatter_sqrt_samples = settings.multiscatter_sqrt_samples,
@@ -226,7 +229,7 @@ void PhysicalSky::UpdateBuffer()
 		.ray_march_range = settings.ray_march_range,
 		.fog_max_step = settings.fog_max_step,
 		.cloud_max_step = settings.cloud_max_step,
-		.bottom_z = worldspace_it != settings.worldspace_whitelist.end() ? worldspace_it->bottom_z : -14000.f,
+		.bottom_z = worldspace_whitelisted ? worldspace_it->bottom_z : -14000.f,
 		.planet_radius = settings.planet_radius,
 		.atmos_thickness = settings.atmos_thickness,
 		.ground_albedo = settings.ground_albedo,
