@@ -12,6 +12,7 @@
 #include "Features/InverseSquareLighting.h"
 #include "Features/LODBlending.h"
 #include "Features/LightLimitFix.h"
+#include "Features/PhysicalWeather.h"
 #include "Features/ScreenSpaceGI.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/SkySync.h"
@@ -153,7 +154,8 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		globals::features::hairSpecular,
 		globals::features::interiorSunShadows,
 		globals::features::terrainVariation,
-		globals::features::ibl
+		globals::features::ibl,
+		globals::features::physicalWeather,
 	};
 
 	static std::vector<Feature*> featuresVR = [] {
