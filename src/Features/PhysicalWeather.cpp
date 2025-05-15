@@ -30,7 +30,7 @@ void PhysicalWeather::SetupResources()
 
 	logger::debug("Creating LUT textures...");
 	{
-		D3D11_TEXTURE2D_DESC tex2d_desc{
+		D3D11_TEXTURE2D_DESC tex2dDesc{
 			.Width = kTrLutW,
 			.Height = kTrLutH,
 			.MipLevels = 1,
@@ -42,36 +42,36 @@ void PhysicalWeather::SetupResources()
 			.CPUAccessFlags = 0,
 			.MiscFlags = 0
 		};
-		D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {
-			.Format = tex2d_desc.Format,
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = tex2dDesc.Format,
 			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
 			.Texture2D = { .MostDetailedMip = 0, .MipLevels = 1 }
 		};
-		D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
-			.Format = tex2d_desc.Format,
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
+			.Format = tex2dDesc.Format,
 			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
 			.Texture2D = { .MipSlice = 0 }
 		};
 
-		texTrLut = eastl::make_unique<Texture2D>(tex2d_desc);
-		texTrLut->CreateSRV(srv_desc);
-		texTrLut->CreateUAV(uav_desc);
+		texTrLut = eastl::make_unique<Texture2D>(tex2dDesc);
+		texTrLut->CreateSRV(srvDesc);
+		texTrLut->CreateUAV(uavDesc);
 
-		tex2d_desc.Width = kMsLutW;
-		tex2d_desc.Height = kMsLutH;
+		tex2dDesc.Width = kMsLutW;
+		tex2dDesc.Height = kMsLutH;
 
-		texMsLut = eastl::make_unique<Texture2D>(tex2d_desc);
-		texMsLut->CreateSRV(srv_desc);
-		texMsLut->CreateUAV(uav_desc);
+		texMsLut = eastl::make_unique<Texture2D>(tex2dDesc);
+		texMsLut->CreateSRV(srvDesc);
+		texMsLut->CreateUAV(uavDesc);
 
-		tex2d_desc.Width = kSvLutW;
-		tex2d_desc.Height = kSvLutH;
+		tex2dDesc.Width = kSvLutW;
+		tex2dDesc.Height = kSvLutH;
 
-		texSvLut = eastl::make_unique<Texture2D>(tex2d_desc);
-		texSvLut->CreateSRV(srv_desc);
-		texSvLut->CreateUAV(uav_desc);
+		texSvLut = eastl::make_unique<Texture2D>(tex2dDesc);
+		texSvLut->CreateSRV(srvDesc);
+		texSvLut->CreateUAV(uavDesc);
 
-		D3D11_TEXTURE3D_DESC tex3d_desc{
+		D3D11_TEXTURE3D_DESC tex3dDesc{
 			.Width = kApLutW,
 			.Height = kApLutH,
 			.Depth = kApLutD,
@@ -82,14 +82,45 @@ void PhysicalWeather::SetupResources()
 			.CPUAccessFlags = 0,
 			.MiscFlags = 0
 		};
-		srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
-		srv_desc.Texture3D = { .MostDetailedMip = 0, .MipLevels = 1 };
-		uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D,
-		uav_desc.Texture3D = { .MipSlice = 0, .FirstWSlice = 0, .WSize = kApLutD };
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
+		srvDesc.Texture3D = { .MostDetailedMip = 0, .MipLevels = 1 };
+		uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D,
+		uavDesc.Texture3D = { .MipSlice = 0, .FirstWSlice = 0, .WSize = kApLutD };
 
-		texApLut = eastl::make_unique<Texture3D>(tex3d_desc);
-		texApLut->CreateSRV(srv_desc);
-		texApLut->CreateUAV(uav_desc);
+		texApLut = eastl::make_unique<Texture3D>(tex3dDesc);
+		texApLut->CreateSRV(srvDesc);
+		texApLut->CreateUAV(uavDesc);
+	}
+
+	logger::debug("Creating render textures...");
+	{
+		D3D11_TEXTURE2D_DESC tex_desc;
+		auto mainTex = globals::game::renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
+		mainTex.texture->GetDesc(&tex_desc);
+		tex_desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+		tex_desc.MipLevels = 1;
+
+		D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+			.Format = tex_desc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+			.Texture2D = {
+				.MostDetailedMip = 0,
+				.MipLevels = tex_desc.MipLevels }
+		};
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
+			.Format = tex_desc.Format,
+			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
+			.Texture2D = { .MipSlice = 0 }
+		};
+
+		texMainViewTr = eastl::make_unique<Texture2D>(tex_desc);
+		texMainViewTr->CreateSRV(srv_desc);
+		texMainViewTr->CreateUAV(uav_desc);
+
+		texMainViewLum = eastl::make_unique<Texture2D>(tex_desc);
+		texMainViewLum->CreateSRV(srv_desc);
+		texMainViewLum->CreateUAV(uav_desc);
 	}
 
 	CompileShaders();
@@ -113,6 +144,7 @@ void PhysicalWeather::CompileShaders()
 		{ &csMsLutGen, "LutGen.cs.hlsl", { { "LUTGEN", "1" } } },
 		{ &csSvLutGen, "LutGen.cs.hlsl", { { "LUTGEN", "2" } } },
 		{ &csApLutGen, "LutGen.cs.hlsl", { { "LUTGEN", "3" } } },
+		{ &csMainView, "VolumeRendering.cs.hlsl" },
 	};
 
 	for (auto& info : shaderInfos) {
@@ -123,7 +155,7 @@ void PhysicalWeather::CompileShaders()
 }
 bool PhysicalWeather::ShadersOK()
 {
-	return csTrLutGen && csMsLutGen && csSvLutGen && csApLutGen;
+	return csTrLutGen && csMsLutGen && csSvLutGen && csApLutGen && csMainView;
 }
 
 void PhysicalWeather::Reset()
@@ -188,7 +220,20 @@ void PhysicalWeather::Reset()
 
 void PhysicalWeather::Prepass()
 {
-	GenerateLuts();
+	if (cbData.enabled) {
+		GenerateLuts();
+		RenderMainView();
+	} else {
+		auto context = globals::d3d::context;
+		{
+			FLOAT clr[4] = { 1., 1., 1., 1. };
+			context->ClearUnorderedAccessViewFloat(texMainViewTr->uav.get(), clr);
+		}
+		{
+			FLOAT clr[4] = { 0., 0., 0., 0. };
+			context->ClearUnorderedAccessViewFloat(texMainViewLum->uav.get(), clr);
+		}
+	}
 }
 
 void PhysicalWeather::GenerateLuts()
@@ -203,7 +248,7 @@ void PhysicalWeather::GenerateLuts()
 		ID3D11UnorderedAccessView* uav = nullptr;
 
 		/* ---- DISPATCH ---- */
-		context->CSSetSamplers(3, (int)samplers.size(), samplers.data());
+		context->CSSetSamplers(0, (int)samplers.size(), samplers.data());
 
 		// -> transmittance
 		uav = texTrLut->uav.get();
@@ -238,10 +283,50 @@ void PhysicalWeather::GenerateLuts()
 		srvs.fill(nullptr);
 		uav = nullptr;
 
-		context->CSSetSamplers(3, (int)samplers.size(), samplers.data());
+		context->CSSetSamplers(0, (int)samplers.size(), samplers.data());
 		context->CSSetUnorderedAccessViews(0, 1, &uav, nullptr);
 		context->CSSetShaderResources(0, (int)srvs.size(), srvs.data());
-		context->CSSetShader(csSvLutGen.get(), nullptr, 0);
+		context->CSSetShader(nullptr, nullptr, 0);
+	}
+	state->EndPerfEvent();
+}
+
+void PhysicalWeather::RenderMainView()
+{
+	auto state = globals::state;
+	auto context = globals::d3d::context;
+
+	float2 size = Util::ConvertToDynamic(state->screenSize);
+	uint resolution[2] = { (uint)size.x, (uint)size.y };
+
+	state->BeginPerfEvent("Physical Weather: Main View");
+	{
+		auto samplers = std::array{ sampTr.get(), sampSv.get() };
+		auto srvs = std::array{
+			texTrLut->srv.get(),
+			texMsLut->srv.get(),
+			texSvLut->srv.get(),
+			texApLut->srv.get(),
+			globals::game::renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
+		};
+		auto uavs = std::array{ texMainViewTr->uav.get(), texMainViewLum->uav.get() };
+
+		/* ---- DISPATCH ---- */
+		context->CSSetSamplers(0, (int)samplers.size(), samplers.data());
+		context->CSSetUnorderedAccessViews(0, (int)uavs.size(), uavs.data(), nullptr);
+		context->CSSetShaderResources(0, (int)srvs.size(), srvs.data());
+		context->CSSetShader(csMainView.get(), nullptr, 0);
+		context->Dispatch((resolution[0] + 7) >> 3, (resolution[1] + 7) >> 3, 1);
+
+		/* ---- RESTORE ---- */
+		samplers.fill(nullptr);
+		srvs.fill(nullptr);
+		uavs.fill(nullptr);
+
+		context->CSSetSamplers(0, (int)samplers.size(), samplers.data());
+		context->CSSetUnorderedAccessViews(0, (int)uavs.size(), uavs.data(), nullptr);
+		context->CSSetShaderResources(0, (int)srvs.size(), srvs.data());
+		context->CSSetShader(nullptr, nullptr, 0);
 	}
 	state->EndPerfEvent();
 }

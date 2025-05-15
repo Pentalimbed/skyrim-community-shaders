@@ -15,8 +15,16 @@ struct PhysicalWeather : Feature
 
 	virtual inline std::string GetName() override { return "Physical Weather"; }
 	virtual inline std::string GetShortName() override { return "PhysicalWeather"; }
-	virtual inline std::string_view GetShaderDefineName() override { return "PHYSICAL_WEATHER"; }
-	virtual inline bool HasShaderDefine(RE::BSShader::Type) override { return false; }
+	virtual inline std::string_view GetShaderDefineName() override { return "PHYS_WEATHER"; }
+	virtual inline bool HasShaderDefine(RE::BSShader::Type type) override
+	{
+		switch (type) {
+		case RE::BSShader::Type::Sky:
+			return true;
+		default:
+			return false;
+		}
+	}
 
 	virtual void LoadSettings(json& o_json) override;
 	virtual void SaveSettings(json& o_json) override;
@@ -31,6 +39,7 @@ struct PhysicalWeather : Feature
 
 	virtual void Prepass() override;  // gpu render
 	void GenerateLuts();
+	void RenderMainView();
 
 	virtual void DrawSettings() override;
 	void SettingsDebug();
@@ -114,6 +123,8 @@ struct PhysicalWeather : Feature
 	eastl::unique_ptr<Texture2D> texMsLut = nullptr;  // multiscattering
 	eastl::unique_ptr<Texture2D> texSvLut = nullptr;  // sky view
 	eastl::unique_ptr<Texture3D> texApLut = nullptr;  // aerial perspective
+	eastl::unique_ptr<Texture2D> texMainViewTr = nullptr;
+	eastl::unique_ptr<Texture2D> texMainViewLum = nullptr;
 
 	winrt::com_ptr<ID3D11SamplerState> sampTr = nullptr;
 	winrt::com_ptr<ID3D11SamplerState> sampSv = nullptr;
@@ -122,4 +133,5 @@ struct PhysicalWeather : Feature
 	winrt::com_ptr<ID3D11ComputeShader> csMsLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csSvLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csApLutGen = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> csMainView = nullptr;
 };

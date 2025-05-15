@@ -6,6 +6,7 @@
 #endif
 
 #define SKY_SAMPLERS
+#define PS_PREPASS
 #include "PhysicalWeather/Common.hlsli"
 
 #if LUTGEN == 3
@@ -53,7 +54,7 @@ void rayMarch(
 
 	float tAtmos = RayIntersectSphere(pos, rayDir, 0, data.rAtmosphere);
 #if LUTGEN == 3
-	float tMax = 60 / 1.428e-5f; // 60 km
+	float tMax = AP_MAX_DIST;
 #else
 	float tMax = tGround > 0 ? tGround : tAtmos;
 #endif

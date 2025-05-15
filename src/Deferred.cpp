@@ -6,6 +6,7 @@
 
 #include "Features/DynamicCubemaps.h"
 #include "Features/IBL.h"
+#include "Features/PhysicalWeather.h"
 #include "Features/ScreenSpaceGI.h"
 #include "Features/Skylighting.h"
 #include "Features/SubsurfaceScattering.h"
@@ -454,12 +455,13 @@ void Deferred::DeferredPasses()
 		dynamicCubemaps->UpdateCubemap();
 
 	auto terrainBlending = globals::features::terrainBlending;
+	auto physWeather = globals::features::physicalWeather;
 
 	// Deferred Composite
 	{
 		TracyD3D11Zone(globals::state->tracyCtx, "Deferred Composite");
 
-		ID3D11ShaderResourceView* srvs[15]{
+		ID3D11ShaderResourceView* srvs[17]{
 			specular.SRV,
 			albedo.SRV,
 			normalRoughness.SRV,
@@ -475,6 +477,8 @@ void Deferred::DeferredPasses()
 			ssgi_hq_spec ? nullptr : ssgi_cocg,
 			ssgi_hq_spec ? ssgi_gi_spec : nullptr,
 			ibl->loaded ? ibl->diffuseIBLTexture->srv.get() : nullptr,
+			physWeather->loaded ? physWeather->texMainViewTr->srv.get() : nullptr,
+			physWeather->loaded ? physWeather->texMainViewLum->srv.get() : nullptr,
 		};
 
 		if (dynamicCubemaps->loaded)
@@ -699,6 +703,9 @@ ID3D11ComputeShader* Deferred::GetComputeMainComposite()
 
 		if (globals::features::ibl->loaded)
 			defines.push_back({ "IBL", nullptr });
+
+		if (globals::features::physicalWeather->loaded)
+			defines.push_back({ globals::features::physicalWeather->GetShaderDefineName().data(), nullptr });
 
 		if (REL::Module::IsVR())
 			defines.push_back({ "FRAMEBUFFER", nullptr });

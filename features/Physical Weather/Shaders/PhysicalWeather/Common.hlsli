@@ -6,14 +6,25 @@ SamplerState SampTr : register(s0);  // in lighting, use shadow
 SamplerState SampSv : register(s1);  // in lighting, use color
 #endif
 
-#if defined(LUTGEN)
+#if defined(PS_PREPASS)
 Texture2D<float4> TexTrLut : register(t0);
 Texture2D<float4> TexMsLut : register(t1);
-Texture3D<float4> TexApLut : register(t2);
+Texture2D<float4> TexSvLut : register(t2);
+Texture3D<float4> TexApLut : register(t3);
 #endif
 
+static const float AP_MAX_DIST = 60 / 1.428e-5f; // 60 km
 
 static const float RCP_PI = 1 / Math::PI;  // PI
+
+#ifndef ISNAN
+#   define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))
+#endif
+
+float3 PosWs2Planet(float3 posWorld){
+    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+    return posWorld - float3(FrameBuffer::CameraPosAdjust[0].xy, data.zBottom - data.rPlanet);
+}
 
 // return distance to sphere surface
 // url: https://viclw17.github.io/2018/07/16/raytracing-ray-sphere-intersection

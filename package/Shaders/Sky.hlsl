@@ -1,4 +1,5 @@
 #include "Common/FrameBuffer.hlsli"
+#include "Common/SharedData.hlsli"
 #include "Common/VR.hlsli"
 
 struct VS_INPUT
@@ -241,6 +242,18 @@ PS_OUTPUT main(PS_INPUT input)
 #	else
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
+
+#	if defined(PHYS_WEATHER) 
+	if (SharedData::physWeatherData.enabled) {
+#		if defined(DITHER) && !defined(TEX)
+		// disable vanilla sky
+		psout.Color.xyz = 0;
+#		elif defined(TEX) && defined(CLOUDS)
+		// disable vanilla clouds
+		discard;
+#		endif
+	}
+#	endif
 
 	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
 

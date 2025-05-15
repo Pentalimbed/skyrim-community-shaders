@@ -67,6 +67,11 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il, i
 }
 #endif
 
+#if defined(PHYS_WEATHER)
+Texture2D<float3> PhysWeatherTrTexture : register(t14);
+Texture2D<float3> PhysWeatherLumTexture : register(t15);
+#endif
+
 [numthreads(8, 8, 1)] void main(uint3 dispatchID
 								: SV_DispatchThreadID) {
 	float2 uv = float2(dispatchID.xy + 0.5) * SharedData::BufferDim.zw;
@@ -175,6 +180,10 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il, i
 		color += reflectance * finalIrradiance;
 	}
 
+#endif
+
+#if defined(PHYS_WEATHER)
+	color = color * PhysWeatherTrTexture[dispatchID.xy] + PhysWeatherLumTexture[dispatchID.xy];
 #endif
 
 	color = Color::LinearToGamma(color);
