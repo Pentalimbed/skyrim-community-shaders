@@ -197,7 +197,7 @@ namespace SharedData
 
 		// WORLD
 		uint enabled;  //
-		float zBottom;  
+		float zBottom;
 		float rPlanet;
 		float rAtmosphere;
 		float _pad0;  //

@@ -243,7 +243,7 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
 
-#	if defined(PHYS_WEATHER) 
+#	if defined(PHYS_WEATHER)
 	if (SharedData::physWeatherData.enabled) {
 #		if defined(DITHER) && !defined(TEX)
 		// disable vanilla sky

@@ -1,8 +1,8 @@
 #ifndef COMPUTESHADER
-#   define COMPUTESHADER
+#	define COMPUTESHADER
 #endif
 #ifndef LUTGEN
-#   define LUTGEN 0
+#	define LUTGEN 0
 #endif
 
 #define SKY_SAMPLERS
@@ -32,7 +32,7 @@ void rayMarch(
 #endif
 )
 {
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 
 #if LUTGEN == 0
 	const uint nsteps = 40;
@@ -73,14 +73,14 @@ void rayMarch(
 		curr_pos += stride;
 
 		float rouRayleigh, rouAerosol, rouOzone;
-        SampleAtmosphere(
-            max(0.f, (length(curr_pos) - data.rPlanet)),
-            rouRayleigh, rouAerosol, rouOzone);
+		SampleAtmosphere(
+			max(0.f, (length(curr_pos) - data.rPlanet)),
+			rouRayleigh, rouAerosol, rouOzone);
 		float3 muSRayleigh = rouRayleigh * data.rayleighScatter;
 		float3 muSAerosol = rouAerosol * data.aerosolScatter;
-        float3 extinction = muSRayleigh + muSAerosol +
-            rouAerosol * data.aerosolAbsorption +
-            rouOzone * data.ozoneAbsorption;
+		float3 extinction = muSRayleigh + muSAerosol +
+		                    rouAerosol * data.aerosolAbsorption +
+		                    rouOzone * data.ozoneAbsorption;
 
 		float3 trSample = exp(-dt * extinction);
 
@@ -130,8 +130,8 @@ void rayMarch(
 }
 
 [numthreads(8, 8, 1)] void main(uint3 tid
-								  : SV_DispatchThreadID) {
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+								: SV_DispatchThreadID) {
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 
 #if LUTGEN == 3
 	RWTexOutput[uint3(tid.xy, 0)] = float4(0, 0, 0, 1);

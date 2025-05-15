@@ -13,17 +13,18 @@ Texture2D<float4> TexSvLut : register(t2);
 Texture3D<float4> TexApLut : register(t3);
 #endif
 
-static const float AP_MAX_DIST = 60 / 1.428e-5f; // 60 km
+static const float AP_MAX_DIST = 60 / 1.428e-5f;  // 60 km
 
 static const float RCP_PI = 1 / Math::PI;  // PI
 
 #ifndef ISNAN
-#   define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))
+#	define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))
 #endif
 
-float3 PosWs2Planet(float3 posWorld){
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-    return posWorld - float3(FrameBuffer::CameraPosAdjust[0].xy, data.zBottom - data.rPlanet);
+float3 PosWs2Planet(float3 posWorld)
+{
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	return posWorld - float3(FrameBuffer::CameraPosAdjust[0].xy, data.zBottom - data.rPlanet);
 }
 
 // return distance to sphere surface
@@ -56,7 +57,7 @@ float HorizonZenithCos(float r)
 
 float2 TrLutUv(float r, float cosSunZenith)
 {
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 	float cosHorZenith = HorizonZenithCos(r);
 	float2 uv = float2(
 		saturate((cosSunZenith - cosHorZenith) / (1 - cosHorZenith)),
@@ -72,7 +73,7 @@ float2 TrLutUvPlanet(float3 pos, float3 sunDir)
 }
 
 // cylinder map
-float2 SkyViewLutUv(float3 rayDir) 
+float2 SkyViewLutUv(float3 rayDir)
 {
 	float azimuth = atan2(rayDir.y, rayDir.x);
 	float u = azimuth * .5 * RCP_PI;  // sampler wraps around so ok
@@ -90,113 +91,113 @@ float3 InvSkyViewLutUv(float2 uv)
 	return SphericalDir(azimuth, zenith);
 }
 
-
 void SampleAtmosphere(
-    float  altitude,
-    out float rayleighDensity,
-    out float aerosolDensity,
-    out float ozoneDensity)
+	float altitude,
+	out float rayleighDensity,
+	out float aerosolDensity,
+	out float ozoneDensity)
 {
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-    rayleighDensity              = exp(-altitude * data.rayleighFalloff);
-    aerosolDensity               = exp(-altitude * data.aerosolFalloff);
-    ozoneDensity                 = max(0.f, 1 - abs(altitude - data.ozoneAltitude) / (data.ozoneThickness * 0.5f));
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	rayleighDensity = exp(-altitude * data.rayleighFalloff);
+	aerosolDensity = exp(-altitude * data.aerosolFalloff);
+	ozoneDensity = max(0.f, 1 - abs(altitude - data.ozoneAltitude) / (data.ozoneThickness * 0.5f));
 }
 
-namespace Phase{
-    float HG(float cos_theta, float g)
-    {
-        static const float scale = .25 * RCP_PI;
-        const float g2 = g * g;
+namespace Phase
+{
+	float HG(float cos_theta, float g)
+	{
+		static const float scale = .25 * RCP_PI;
+		const float g2 = g * g;
 
-        float num = (1.0 - g2);
-        float denom = pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5);
+		float num = (1.0 - g2);
+		float denom = pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5);
 
-        return scale * num / denom;
-    }
+		return scale * num / denom;
+	}
 
-    float HGDualLobe(float cos_theta, float g_0, float g_1, float w)
-    {
-        return lerp(HG(cos_theta, g_0), HG(cos_theta, g_1), w);
-    }
+	float HGDualLobe(float cos_theta, float g_0, float g_1, float w)
+	{
+		return lerp(HG(cos_theta, g_0), HG(cos_theta, g_1), w);
+	}
 
-    float CornetteShanks(float cos_theta, float g)
-    {
-        static const float scale = .375 * RCP_PI;
-        const float g2 = g * g;
+	float CornetteShanks(float cos_theta, float g)
+	{
+		static const float scale = .375 * RCP_PI;
+		const float g2 = g * g;
 
-        float num = (1.0 - g2) * (1.0 + cos_theta * cos_theta);
-        float denom = (2.0 + g2) * pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5);
+		float num = (1.0 - g2) * (1.0 + cos_theta * cos_theta);
+		float denom = (2.0 + g2) * pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5);
 
-        return scale * num / denom;
-    }
+		return scale * num / denom;
+	}
 
-    float Draine(float cos_theta, float g, float alpha)
-    {
-        static const float scale = .25 * RCP_PI;
-        const float g2 = g * g;
+	float Draine(float cos_theta, float g, float alpha)
+	{
+		static const float scale = .25 * RCP_PI;
+		const float g2 = g * g;
 
-        float num = (1.0 - g2) * (1.0 + alpha * cos_theta * cos_theta);
-        float denom = pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5) * (1.0 + alpha * (1.0 + 2.0 * g2) * .333333333333333);
+		float num = (1.0 - g2) * (1.0 + alpha * cos_theta * cos_theta);
+		float denom = pow(abs(1.0 + g2 - 2.0 * g * cos_theta), 1.5) * (1.0 + alpha * (1.0 + 2.0 * g2) * .333333333333333);
 
-        return scale * num / denom;
-    }
+		return scale * num / denom;
+	}
 
-    // https://www.shadertoy.com/view/tl33Rn
-    float smoothstep_unchecked(float x) { return (x * x) * (3.0 - x * 2.0); }
-    float smoothbump(float a, float r, float x) { return 1.0 - smoothstep_unchecked(min(abs(x - a), r) / r); }
-    float powerful_scurve(float x, float p1, float p2) { return pow(1.0 - pow(1.0 - saturate(x), p2), p1); }
-    float3 CloudFit(float cos_theta)
-    {
-        float x = acos(cos_theta);
-        float x2 = max(0., x - 2.45) / (Math::PI - 2.15);
-        float x3 = max(0., x - 2.95) / (Math::PI - 2.95);
-        float y = (exp(-max(x * 1.5 + 0.0, 0.0) * 30.0)         // front peak
-                + smoothstep(1.7, 0., x) * 0.45 * 0.8        // front ramp
-                + smoothbump(0.4, 0.5, cos_theta) * 0.02     // front bump middle
-                - smoothstep(1., 0.2, x) * 0.06              // front ramp damp wave
-                + smoothbump(2.18, 0.20, x) * 0.06           // first trail wave
-                + smoothstep(2.28, 2.45, x) * 0.18           // trailing piece
-                - powerful_scurve(x2 * 4.0, 3.5, 8.) * 0.04  // trail
-                + x2 * -0.085 + x3 * x3 * 0.1);              // trail peak
+	// https://www.shadertoy.com/view/tl33Rn
+	float smoothstep_unchecked(float x) { return (x * x) * (3.0 - x * 2.0); }
+	float smoothbump(float a, float r, float x) { return 1.0 - smoothstep_unchecked(min(abs(x - a), r) / r); }
+	float powerful_scurve(float x, float p1, float p2) { return pow(1.0 - pow(1.0 - saturate(x), p2), p1); }
+	float3 CloudFit(float cos_theta)
+	{
+		float x = acos(cos_theta);
+		float x2 = max(0., x - 2.45) / (Math::PI - 2.15);
+		float x3 = max(0., x - 2.95) / (Math::PI - 2.95);
+		float y = (exp(-max(x * 1.5 + 0.0, 0.0) * 30.0)         // front peak
+				   + smoothstep(1.7, 0., x) * 0.45 * 0.8        // front ramp
+				   + smoothbump(0.4, 0.5, cos_theta) * 0.02     // front bump middle
+				   - smoothstep(1., 0.2, x) * 0.06              // front ramp damp wave
+				   + smoothbump(2.18, 0.20, x) * 0.06           // first trail wave
+				   + smoothstep(2.28, 2.45, x) * 0.18           // trailing piece
+				   - powerful_scurve(x2 * 4.0, 3.5, 8.) * 0.04  // trail
+				   + x2 * -0.085 + x3 * x3 * 0.1);              // trail peak
 
-        float3 ret = y;
-        // spectralize a bit
-        ret = lerp(ret, ret + 0.008 * 2., smoothstep(0.94, 1., cos_theta) * sin(x * 10. * float3(8, 4, 2)));
-        ret = lerp(ret, ret - 0.008 * 2., smoothbump(-0.7, 0.14, cos_theta) * sin(x * 20. * float3(8, 4, 2)));   // fogbow
-        ret = lerp(ret, ret - 0.008 * 5., smoothstep(-0.994, -1., cos_theta) * sin(x * 30. * float3(3, 4, 2)));  // glory
+		float3 ret = y;
+		// spectralize a bit
+		ret = lerp(ret, ret + 0.008 * 2., smoothstep(0.94, 1., cos_theta) * sin(x * 10. * float3(8, 4, 2)));
+		ret = lerp(ret, ret - 0.008 * 2., smoothbump(-0.7, 0.14, cos_theta) * sin(x * 20. * float3(8, 4, 2)));   // fogbow
+		ret = lerp(ret, ret - 0.008 * 5., smoothstep(-0.994, -1., cos_theta) * sin(x * 30. * float3(3, 4, 2)));  // glory
 
-        // scale and offset should be tweaked so integral on sphere is 1
-        ret += 0.13 * 1.4;
-        return ret * 3.9 * 0.25 * RCP_PI;  // Edit: additonal 1/4pi to be consistent with the rest
-    }
+		// scale and offset should be tweaked so integral on sphere is 1
+		ret += 0.13 * 1.4;
+		return ret * 3.9 * 0.25 * RCP_PI;  // Edit: additonal 1/4pi to be consistent with the rest
+	}
 
-    // numerical fit https://www.shadertoy.com/view/4sjBDG
-    float ThomasSchander(float costh)
-    {
-        // This function was optimized to minimize (delta*delta)/reference in order to capture
-        // the low intensity behavior.
-        float bestParams[10];
-        bestParams[0] = 9.805233e-06;
-        bestParams[1] = -6.500000e+01;
-        bestParams[2] = -5.500000e+01;
-        bestParams[3] = 8.194068e-01;
-        bestParams[4] = 1.388198e-01;
-        bestParams[5] = -8.370334e+01;
-        bestParams[6] = 7.810083e+00;
-        bestParams[7] = 2.054747e-03;
-        bestParams[8] = 2.600563e-02;
-        bestParams[9] = -4.552125e-12;
+	// numerical fit https://www.shadertoy.com/view/4sjBDG
+	float ThomasSchander(float costh)
+	{
+		// This function was optimized to minimize (delta*delta)/reference in order to capture
+		// the low intensity behavior.
+		float bestParams[10];
+		bestParams[0] = 9.805233e-06;
+		bestParams[1] = -6.500000e+01;
+		bestParams[2] = -5.500000e+01;
+		bestParams[3] = 8.194068e-01;
+		bestParams[4] = 1.388198e-01;
+		bestParams[5] = -8.370334e+01;
+		bestParams[6] = 7.810083e+00;
+		bestParams[7] = 2.054747e-03;
+		bestParams[8] = 2.600563e-02;
+		bestParams[9] = -4.552125e-12;
 
-        float p1 = costh + bestParams[3];
-        float4 expValues = exp(float4(bestParams[1] * costh + bestParams[2], bestParams[5] * p1 * p1, bestParams[6] * costh, bestParams[9] * costh));
-        float4 expValWeight = float4(bestParams[0], bestParams[4], bestParams[7], bestParams[8]);
-        return dot(expValues, expValWeight) * 0.25;
-    }
+		float p1 = costh + bestParams[3];
+		float4 expValues = exp(float4(bestParams[1] * costh + bestParams[2], bestParams[5] * p1 * p1, bestParams[6] * costh, bestParams[9] * costh));
+		float4 expValWeight = float4(bestParams[0], bestParams[4], bestParams[7], bestParams[8]);
+		return dot(expValues, expValWeight) * 0.25;
+	}
 
-    float Rayleigh(float cos_theta)
-    {
-        const float k = .1875 * RCP_PI;
-        return k * (1.0 + cos_theta * cos_theta);
-    }
+	float Rayleigh(float cos_theta)
+	{
+		const float k = .1875 * RCP_PI;
+		return k * (1.0 + cos_theta * cos_theta);
+	}
 }
