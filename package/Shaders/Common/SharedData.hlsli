@@ -198,23 +198,31 @@ namespace SharedData
 		// WORLD
 		uint enabled;  //
 		float zBottom;
-		float rPlanet;
+		float2 centre;
+		float rPlanet;  //
 		float rAtmosphere;
-		float _pad0;  //
-		float3 groundAlbedo;
+		float3 groundAlbedo;  //
 
 		// ATMOSPHERE
-		float rayleighFalloff;  //
-		float3 rayleighScatter;
+		float rayleighFalloff;
+		float3 rayleighScatter;  //
 
-		float aerosolFalloff;  //
+		float aerosolFalloff;
 		float aerosolPhaseG;
-		float3 aerosolScatter;  //
+		float2 _pad0;  //
+		float3 aerosolScatter;
+		float _pad1;  //
 		float3 aerosolAbsorption;
 
 		float ozoneAltitude;  //
 		float ozoneThickness;
-		float3 ozoneAbsorption;
+		float3 ozoneAbsorption;  //
+
+		// CLOUDS
+		float cloudDensityScale;
+		float3 cloudScatter;  //
+		float cloudNoiseScale;
+		float3 cloudAbsorption;  //
 	};
 
 	cbuffer FeatureData : register(b6)

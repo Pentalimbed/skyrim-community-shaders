@@ -188,6 +188,7 @@ void PhysicalWeather::Reset()
 		.rcpFrameDim = float2(1.0f) / dynres,
 		.enabled = allGood,
 		.zBottom = worldspaceInfo.zBottom,
+		.centre = worldspaceInfo.centre,
 		.groundAlbedo = settings.groundAlbedo,
 		.rayleighFalloff = settings.rayleighFalloff * kGameUnit2Km,
 		.rayleighScatter = settings.rayleighScatter * 1e-3 * kGameUnit2Km,
@@ -198,6 +199,10 @@ void PhysicalWeather::Reset()
 		.ozoneAltitude = settings.ozoneAltitude * kKm2GameUnit,
 		.ozoneThickness = settings.ozoneThickness * kKm2GameUnit,
 		.ozoneAbsorption = settings.ozoneAbsorption * 1e-3 * kGameUnit2Km,
+		.cloudDensityScale = settings.cloudDensityScale,
+		.cloudScatter = settings.cloudScatter * kGameUnit2Km,
+		.cloudNoiseScale = settings.cloudNoiseScale * kKm2GameUnit,
+		.cloudAbsorption = settings.cloudAbsorption * kGameUnit2Km,
 	};
 
 	if (!cbData.enabled)

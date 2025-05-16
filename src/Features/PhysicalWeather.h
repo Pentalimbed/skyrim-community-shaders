@@ -44,6 +44,7 @@ struct PhysicalWeather : Feature
 	virtual void DrawSettings() override;
 	void SettingsGeneral();
 	void SettingsAtmosphere();
+	void SettingsClouds();
 	void SettingsDebug();
 
 	////////////////////////////////////////////////////////////////////////
@@ -61,9 +62,15 @@ struct PhysicalWeather : Feature
 	constexpr static uint16_t kApLutH = 32;
 	constexpr static uint16_t kApLutD = 32;
 
+	constexpr static uint16_t kCloudW = 256;
+	constexpr static uint16_t kCloudH = 256;
+	constexpr static uint16_t kCloudD = 192;
+	constexpr static float3 kCloudRange = { 16.f, 16.f, 12.f };  // in km
+
 	struct WorldspaceInfo
 	{
 		float zBottom = -14000.f;
+		float2 centre = { 0.f, 0.f };
 	};
 
 	struct Settings
@@ -86,6 +93,11 @@ struct PhysicalWeather : Feature
 		float ozoneAltitude = 22.3499f + 35.66071f * .5f;  // in km
 		float ozoneThickness = 35.66071f;
 		float3 ozoneAbsorption = { 2.2911f, 1.5404f, 0 };
+
+		float cloudDensityScale = 1.f;
+		float cloudNoiseScale = 0.5f;                // in km
+		float3 cloudScatter = { 40.f, 40.f, 40.f };  // in km^-1
+		float3 cloudAbsorption = { 0.f, 0.f, 0.f };
 	} settings;
 
 	struct CbData
@@ -101,25 +113,33 @@ struct PhysicalWeather : Feature
 		float3 lightColor;
 
 		// WORLD
-		uint enabled;
-		float zBottom;  //
-		float rPlanet;
+		uint enabled;  //
+		float zBottom;
+		float2 centre;
+		float rPlanet;  //
 		float rAtmosphere;
-		float _pad0;  //
-		float3 groundAlbedo;
+		float3 groundAlbedo;  //
 
 		// ATMOSPHERE
-		float rayleighFalloff;  //
-		float3 rayleighScatter;
+		float rayleighFalloff;
+		float3 rayleighScatter;  //
 
-		float aerosolFalloff;  //
+		float aerosolFalloff;
 		float aerosolPhaseG;
-		float3 aerosolScatter;  //
+		float2 _pad0;  //
+		float3 aerosolScatter;
+		float _pad1;  //
 		float3 aerosolAbsorption;
 
 		float ozoneAltitude;  //
 		float ozoneThickness;
-		float3 ozoneAbsorption;
+		float3 ozoneAbsorption;  //
+
+		// CLOUDS
+		float cloudDensityScale;
+		float3 cloudScatter;  //
+		float cloudNoiseScale;
+		float3 cloudAbsorption;  //
 	} cbData;
 	static_assert(sizeof(CbData) % 16 == 0);
 

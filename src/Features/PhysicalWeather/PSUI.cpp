@@ -13,6 +13,10 @@ void PhysicalWeather::DrawSettings()
 			SettingsAtmosphere();
 			ImGui::EndTabItem();
 		}
+		if (ImGui::BeginTabItem("Clouds")) {
+			SettingsClouds();
+			ImGui::EndTabItem();
+		}
 		if (ImGui::BeginTabItem("Debug")) {
 			SettingsDebug();
 			ImGui::EndTabItem();
@@ -95,6 +99,18 @@ void PhysicalWeather::SettingsAtmosphere()
 		ImGui::DragFloat("Layer Thickness", &settings.ozoneThickness, .1f, 0.f, 50.f, "%.3f km");
 		ImGui::PopID();
 	}
+}
+
+void PhysicalWeather::SettingsClouds()
+{
+	if (ImGui::BeginTable("Info", 1, ImGuiTableFlags_BordersOuter | ImGuiTableFlags_SizingStretchSame, { -1, 0 })) {
+		ImGui::TableNextColumn();
+		ImGui::TextWrapped("Appearance of clouds and their lighting.");
+		ImGui::EndTable();
+	}
+
+	ImGui::ColorEdit3("Scatter", &settings.cloudScatter.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+	ImGui::ColorEdit3("Absorption", &settings.cloudAbsorption.x, ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
 }
 
 void PhysicalWeather::SettingsDebug()
