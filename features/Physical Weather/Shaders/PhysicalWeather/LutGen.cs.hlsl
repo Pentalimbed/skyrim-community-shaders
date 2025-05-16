@@ -149,7 +149,8 @@ void rayMarch(
 	float altitude = lerp(data.rPlanet, data.rAtmosphere, uv.y);
 	float3 pos = float3(0, 0, altitude);
 
-	float horZenithCos = HorizonZenithCos(altitude);
+	// float horZenithCos = HorizonZenithCos(altitude);
+	float horZenithCos = -0.414;
 	float zenithCos = lerp(horZenithCos, 1, uv.x);
 	float3 sunDir = float3(0, sqrt(1 - zenithCos * zenithCos), zenithCos);
 #else

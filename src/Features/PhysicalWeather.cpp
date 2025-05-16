@@ -162,7 +162,7 @@ void PhysicalWeather::Reset()
 {
 	auto accumulator = RE::BSGraphics::BSShaderAccumulator::GetCurrentAccumulator();
 
-	bool allGood = ShadersOK();
+	bool allGood = settings.enabled && ShadersOK();
 
 	// check worldspace
 	bool worldspace_enabled = false;
@@ -199,6 +199,9 @@ void PhysicalWeather::Reset()
 		.ozoneThickness = settings.ozoneThickness * kKm2GameUnit,
 		.ozoneAbsorption = settings.ozoneAbsorption * 1e-3 * kGameUnit2Km,
 	};
+
+	if (!cbData.enabled)
+		return;
 
 	auto dirLight = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
 	if (dirLight) {

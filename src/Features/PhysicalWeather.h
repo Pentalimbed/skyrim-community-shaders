@@ -19,7 +19,7 @@ struct PhysicalWeather : Feature
 	virtual inline bool HasShaderDefine(RE::BSShader::Type type) override
 	{
 		switch (type) {
-		case RE::BSShader::Type::Sky:
+		case RE::BSShader::Type::Sky:  // disable vanilla sky and clouds when enabled
 			return true;
 		default:
 			return false;
@@ -42,6 +42,8 @@ struct PhysicalWeather : Feature
 	void RenderMainView();
 
 	virtual void DrawSettings() override;
+	void SettingsGeneral();
+	void SettingsAtmosphere();
 	void SettingsDebug();
 
 	////////////////////////////////////////////////////////////////////////
@@ -66,6 +68,8 @@ struct PhysicalWeather : Feature
 
 	struct Settings
 	{
+		bool enabled = true;
+
 		float3 sunlightColor = float3{ 1.0f, 0.949f, 0.937f } * 6.f;
 
 		std::map<std::string, WorldspaceInfo> worldspaceWhitelist = {

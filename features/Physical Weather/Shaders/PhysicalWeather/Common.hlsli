@@ -58,7 +58,8 @@ float HorizonZenithCos(float r)
 float2 TrLutUv(float r, float cosSunZenith)
 {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-	float cosHorZenith = HorizonZenithCos(r);
+	// float cosHorZenith = HorizonZenithCos(r);  
+	const float cosHorZenith = -0.414;
 	float2 uv = float2(
 		saturate((cosSunZenith - cosHorZenith) / (1 - cosHorZenith)),
 		saturate((r - data.rPlanet) / (data.rAtmosphere - data.rPlanet)));
