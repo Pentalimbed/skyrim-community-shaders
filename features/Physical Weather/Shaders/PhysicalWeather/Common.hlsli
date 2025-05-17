@@ -21,8 +21,8 @@ Texture3D<float> TexCloudShadow : register(t8);
 
 static const float RCP_PI = 1 / Math::PI;         // PI
 static const float AP_MAX_DIST = 60 / 1.428e-5f;  // 60 km
-static const uint3 CLOUD_DIM = uint3(256, 256, 192);
-static const float3 CLOUD_RANGE = float3(16.f, 16.f, 12.f) / 1.428e-5f;
+static const uint3 CLOUD_DIM = uint3(256, 256, 256);
+static const float3 CLOUD_RANGE = float3(10.f, 10.f, 10.f) / 1.428e-5f;
 
 #ifndef ISNAN
 #	define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))

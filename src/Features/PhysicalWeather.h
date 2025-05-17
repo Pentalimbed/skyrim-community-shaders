@@ -66,8 +66,8 @@ struct PhysicalWeather : Feature
 
 	constexpr static uint16_t kCloudW = 256;
 	constexpr static uint16_t kCloudH = 256;
-	constexpr static uint16_t kCloudD = 192;
-	constexpr static float3 kCloudRange = { 16.f, 16.f, 12.f };  // in km
+	constexpr static uint16_t kCloudD = 256;
+	constexpr static float3 kCloudRange = { 10.f, 10.f, 10.f };  // in km
 
 	struct WorldspaceInfo
 	{
@@ -79,7 +79,7 @@ struct PhysicalWeather : Feature
 	{
 		bool enabled = true;
 
-		float3 sunlightColor = float3{ 1.0f, 0.949f, 0.937f } * 6.f;
+		float3 sunlightColor = float3{ 1.0f, 0.97f, 0.95f } * 6.f;
 
 		std::map<std::string, WorldspaceInfo> worldspaceWhitelist = {
 			{ "Tamriel", { -14000.f } }
@@ -98,7 +98,7 @@ struct PhysicalWeather : Feature
 
 		float cloudDensityScale = 1.f;
 		float cloudNoiseScale = 0.5f;                // in km
-		float3 cloudScatter = { 40.f, 40.f, 40.f };  // in km^-1
+		float3 cloudScatter = { 60.f, 60.f, 60.f };  // in km^-1
 		float3 cloudAbsorption = { 0.f, 0.f, 0.f };
 	} settings;
 

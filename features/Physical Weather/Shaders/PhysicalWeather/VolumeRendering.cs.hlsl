@@ -20,7 +20,7 @@ RWTexture3D<float> RWCloudShadow : register(u0);
 
 const static float EPS = 1e-8;
 const static uint MAX_STEP = 150;
-const static float SUN_SAMPLE_STRIDE = 0.1 / 1.428e-5f;  // 100 m
+const static float SUN_SAMPLE_STRIDE = 0.05 / 1.428e-5f;  // 50 m
 
 struct RayInfo
 {
@@ -104,13 +104,13 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 	posWorld = mul(FrameBuffer::CameraViewProjInverse[eyeIndex], posWorld);
 	posWorld.xyz = posWorld.xyz / posWorld.w;
 
-	const float solid_dist = length(posWorld.xyz);
+	const float solidDist = length(posWorld.xyz);
 
-	ray.dir = posWorld.xyz / solid_dist;
+	ray.dir = posWorld.xyz / solidDist;
 	ray.posStart = FrameBuffer::CameraPosAdjust[eyeIndex].xyz;
-	ray.distSolid = solid_dist;
+	ray.distSolid = solidDist;
 	ray.posSolid = ray.posStart + posWorld.xyz;
-	ray.distEnd = min(solid_dist, 16 / 1.428e-5f);
+	ray.distEnd = min(solidDist, 16 / 1.428e-5f);
 	ray.posEnd = ray.posStart + ray.dir * ray.distEnd;
 	ray.marchSteps = 0;
 	ray.dist = 1e-2;
@@ -221,7 +221,6 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	const float phaseAerosol = Phase::CornetteShanks(u, data.aerosolPhaseG);
 	const float phaseRayleigh = Phase::Rayleigh(u);
 	const float phaseCloud = lerp(Phase::ThomasSchander(u), Phase::HG(u, -0.3), 0.3);
-	const float phaseCloudSecondary = Phase::HGDualLobe(u, 0.21, -0.15, 0.3);
 
 	while (ray.marchSteps < MAX_STEP && ray.dist < ray.distEnd) {
 		// march distance
@@ -262,7 +261,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		float3 scatterFactor = (1 - trSample) / max(extinction, EPS);
 
 		// - sun transmittance
-		float2 lutUv = TrLutUvPlanet(ray.pos, data.lightDir);
+		float2 lutUv = TrLutUvPlanet(posPlanet, data.lightDir);
 		float3 trAtmos = TexTrLut.SampleLevel(SampTr, lutUv, 0).rgb;
 
 		float rouCloud1, rouCloud2;
