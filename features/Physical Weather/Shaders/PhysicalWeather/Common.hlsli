@@ -12,6 +12,10 @@ Texture2D<float4> TexTrLut : register(t0);
 Texture2D<float4> TexMsLut : register(t1);
 Texture2D<float4> TexSvLut : register(t2);
 Texture3D<float4> TexApLut : register(t3);
+Texture2D<float> TexDepth : register(t4);
+Texture3D<float> TexNoise : register(t5);
+Texture3D<float3> TexCloudProfile : register(t6);
+Texture3D<float> TexCloudSdf : register(t7);
 #endif
 
 

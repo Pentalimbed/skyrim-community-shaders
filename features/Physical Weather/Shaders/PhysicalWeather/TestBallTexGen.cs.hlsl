@@ -8,11 +8,12 @@
 RWTexture3D<float3> RWTexProfile : register(u0);
 RWTexture3D<float> RWTexSDF : register(u1);
 
-const static float rBall = 0.4 / 1.428e-5f; // 200 m
+const static float rBall = 0.2 / 1.428e-5f; // 200 m
 const static float dimProfileDepth = 0.1 / 1.428e-5f; // 100 m
 
 float3 TestBallCentre(){
-	return CLOUD_RANGE * float3(0.5, 0.5, 0.15);
+    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	return float3(data.centre, data.zBottom + CLOUD_RANGE.z * 0.1);
 }
 
 float TestBallSdfSampler(float3 posWorld){
@@ -38,7 +39,8 @@ float3 TestBallSampler(float3 posWorld){
 [numthreads(8, 8, 1)] void main(uint3 tid
 								: SV_DispatchThreadID)
 {
-    float3 posWorld = (tid + 0.5) / CLOUD_DIM * CLOUD_RANGE;
+    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+    float3 posWorld = ((tid + 0.5) / CLOUD_DIM - 0.5) * CLOUD_RANGE + float3(data.centre, data.zBottom);
     float sdf = TestBallSdfSampler(posWorld);
     float3 profile = TestBallSampler(posWorld);
     RWTexProfile[tid] = profile;

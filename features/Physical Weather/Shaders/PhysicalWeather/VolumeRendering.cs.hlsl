@@ -13,11 +13,6 @@
 
 #include "Common/Random.hlsli"
 
-Texture2D<float> TexDepth : register(t4);
-Texture3D<float> TexNoise : register(t5);
-Texture3D<float> TexCloudProfile : register(t6);
-Texture3D<float> TexCloudSdf : register(t7);
-
 RWTexture2D<float4> RWTexTr : register(u0);
 RWTexture2D<float4> RWTexLum : register(u1);
 
@@ -58,26 +53,6 @@ float3 TestBallCentre(){
 	return float3(data.centre, data.zBottom + CLOUD_RANGE.z * 0.15);
 }
 
-float TestBallSdfSampler(float3 posWorld){
-	float3 centre = TestBallCentre();
-	float3 posRelative = posWorld - centre;
-	float sdf = length(posRelative) - rBall;
-
-	return sdf;
-}
-
-float3 TestBallSampler(float3 posWorld){
-	float3 centre = TestBallCentre();
-	float3 posRelative = posWorld - centre;
-	float sdf = length(posRelative) - rBall;
-
-	float dimProfile = saturate(-sdf/ dimProfileDepth);
-	float detailType = posRelative.z / rBall * 0.5 + 0.5;
-	float densityScale = 1.f;
-
-	return float3(dimProfile, detailType, densityScale);
-}
-
 float TestBallShadowSampler(float3 posWorld){
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 
@@ -95,13 +70,13 @@ float TestBallShadowSampler(float3 posWorld){
 }
 
 void sampleCloudDensity(
-	float3 posWorld, float eye_dist, float mip_level,
+	float3 posWorld, float eye_dist, float mip_level, bool upres,
 	out float3 profile, out float density)
 {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 	
 	density = 0;
-	profile = TestBallSampler(posWorld);
+	profile = TexCloudProfile.SampleLevel(SampTr, PosWs2CloudUvw(posWorld), 0);
 	if (profile.x < 1e-8)
 		return;
 	
@@ -119,8 +94,7 @@ void sampleCloudDensity(
 
 	// Upres
 	float hhf_fraction;
-	bool close_range = eye_dist < 0.15 / 1.428e-5f;
-	if (close_range) {
+	if (upres) {
 		// Get the hf noise by folding the highest frequency billowy noise.
 		float hhf_noise = saturate(lerp(1.0 - pow(abs(abs(noise.g * 2.0 - 1.0) * 2.0 - 1.0), 4.0), pow(abs(abs(noise.a * 2.0 - 1.0) * 2.0 - 1.0), 2.0), profile.y));
 
@@ -136,7 +110,7 @@ void sampleCloudDensity(
 
 	// Sharpen result
 	density = pow(density, lerp(0.3, 0.6, max(EPS, powered_density_scale)));
-	if (close_range) 
+	if (upres) 
 		density = pow(density, lerp(0.5, 1.0, hhf_fraction)) * lerp(0.666, 1.0, hhf_fraction);
 }
 
@@ -188,7 +162,7 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 
 	while(ray.marchSteps < MAX_STEP && ray.dist < ray.distEnd){
 		// march distance
-		float sdf = TestBallSdfSampler(ray.pos);
+		float sdf = TexCloudSdf.SampleLevel(SampTr, PosWs2CloudUvw(ray.pos), 0);
 		float sdfDist = max(0, sdf);
 		float adaptiveStepSize = max(1.0, sqrt(0.001 / 1.428e-5f * ray.dist) * 0.8);
 		float distLeft = ray.distEnd - ray.dist;
@@ -210,7 +184,7 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 		// float rouCloud = cloudSample.x;
 		float3 cloudSample; 
 		float rouCloud;
-		sampleCloudDensity(ray.pos, ray.dist, 0, cloudSample, rouCloud);
+		sampleCloudDensity(ray.pos, ray.dist, 0, ray.dist < 0.15 / 1.428e-5f, cloudSample, rouCloud);
 
 		// calculate lighting
 		float3 muSRayleigh = rouRayleigh * data.rayleighScatter;
@@ -230,8 +204,8 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 		
 		float rouCloud1, rouCloud2;
 		float3 tmp;
-		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir, ray.dist, 0, tmp, rouCloud1);
-		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2, ray.dist, 0, tmp, rouCloud2);
+		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir, ray.dist, 0, false, tmp, rouCloud1);
+		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2, ray.dist, 0, false, tmp, rouCloud2);
 		float sumSunRouCloud = rouCloud1 + rouCloud2;
 		float cloudShadowSample = TestBallShadowSampler(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2);
 		float3 trSunCloud = exp(-(sumSunRouCloud * SUN_SAMPLE_STRIDE + cloudShadowSample) * (data.cloudScatter + data.cloudAbsorption));

@@ -277,6 +277,7 @@ void PhysicalWeather::Prepass()
 {
 	if (cbData.enabled) {
 		GenerateLuts();
+		TestBallTexGen();
 		RenderMainView();
 	} else {
 		auto context = globals::d3d::context;
