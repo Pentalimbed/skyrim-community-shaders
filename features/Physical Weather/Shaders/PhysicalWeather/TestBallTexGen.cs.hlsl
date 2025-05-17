@@ -8,15 +8,17 @@
 RWTexture3D<float3> RWTexProfile : register(u0);
 RWTexture3D<float> RWTexSDF : register(u1);
 
-const static float rBall = 0.4 / 1.428e-5f; // 400 m
-const static float dimProfileDepth = 0.1 / 1.428e-5f; // 100 m
+const static float rBall = 0.4 / 1.428e-5f;            // 400 m
+const static float dimProfileDepth = 0.1 / 1.428e-5f;  // 100 m
 
-float3 TestBallCentre(){
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+float3 TestBallCentre()
+{
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 	return float3(data.centre, data.zBottom + CLOUD_RANGE.z * 0.2);
 }
 
-float TestBallSdfSampler(float3 posWorld){
+float TestBallSdfSampler(float3 posWorld)
+{
 	float3 centre = TestBallCentre();
 	float3 posRelative = posWorld - centre;
 	float sdf = length(posRelative) - rBall;
@@ -24,12 +26,13 @@ float TestBallSdfSampler(float3 posWorld){
 	return sdf;
 }
 
-float3 TestBallSampler(float3 posWorld){
+float3 TestBallSampler(float3 posWorld)
+{
 	float3 centre = TestBallCentre();
 	float3 posRelative = posWorld - centre;
 	float sdf = length(posRelative) - rBall;
 
-	float dimProfile = saturate(-sdf/ dimProfileDepth);
+	float dimProfile = saturate(-sdf / dimProfileDepth);
 	float detailType = posRelative.z / rBall * 0.5 + 0.5;
 	float densityScale = 1.f;
 
@@ -37,12 +40,11 @@ float3 TestBallSampler(float3 posWorld){
 }
 
 [numthreads(8, 8, 1)] void main(uint3 tid
-								: SV_DispatchThreadID)
-{
-    const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-    float3 posWorld = CloudUvw2PosWs((tid + 0.5) / CLOUD_DIM);
-    float sdf = TestBallSdfSampler(posWorld);
-    float3 profile = TestBallSampler(posWorld);
-    RWTexProfile[tid] = profile;
-    RWTexSDF[tid] = sdf;
+								: SV_DispatchThreadID) {
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	float3 posWorld = CloudUvw2PosWs((tid + 0.5) / CLOUD_DIM);
+	float sdf = TestBallSdfSampler(posWorld);
+	float3 profile = TestBallSampler(posWorld);
+	RWTexProfile[tid] = profile;
+	RWTexSDF[tid] = sdf;
 }

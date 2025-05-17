@@ -20,7 +20,7 @@ RWTexture3D<float> RWCloudShadow : register(u0);
 
 const static float EPS = 1e-8;
 const static uint MAX_STEP = 150;
-const static float SUN_SAMPLE_STRIDE = 0.1 / 1.428e-5f; // 100 m
+const static float SUN_SAMPLE_STRIDE = 0.1 / 1.428e-5f;  // 100 m
 
 struct RayInfo
 {
@@ -50,12 +50,12 @@ void sampleCloudDensity(
 	out float3 profile, out float density)
 {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-	
+
 	density = 0;
 	profile = TexCloudProfile.SampleLevel(SampTr, PosWs2CloudUvw(posWorld), 0);
 	if (profile.x < 1e-8)
 		return;
-	
+
 	// sample noise
 	// float3 offset = data.cloudNoiseOffset;
 	float3 offset = 0;
@@ -81,12 +81,12 @@ void sampleCloudDensity(
 	}
 
 	density = saturate((profile.x - noise_composite) / (1 - noise_composite));
-	float powered_density_scale = pow(saturate(profile.z), 4.0); 
-	density *= powered_density_scale; 
+	float powered_density_scale = pow(saturate(profile.z), 4.0);
+	density *= powered_density_scale;
 
 	// Sharpen result
 	density = pow(density, lerp(0.3, 0.6, max(EPS, powered_density_scale)));
-	if (upres) 
+	if (upres)
 		density = pow(density, lerp(0.5, 1.0, hhf_fraction)) * lerp(0.666, 1.0, hhf_fraction);
 }
 
@@ -127,7 +127,9 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 #define SHADOW_NTHREADS 256
 groupshared float gDensity[SHADOW_NTHREADS];
 
-[numthreads(SHADOW_NTHREADS, 1, 1)] void renderShadow(const uint gtid : SV_GroupThreadID, const uint2 gid : SV_GroupID){
+[numthreads(SHADOW_NTHREADS, 1, 1)] void renderShadow(const uint gtid
+													  : SV_GroupThreadID, const uint2 gid
+													  : SV_GroupID) {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 
 	uint3 dims;
@@ -170,7 +172,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		const float3 pos = CloudUvw2PosWs(threadUv);
 
 		// fetch density using only ndf
-		float3 cloudSample; 
+		float3 cloudSample;
 		float rou;
 		sampleCloudDensity(pos, 1e8, 0, false, cloudSample, rou);
 
@@ -198,13 +200,14 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-[numthreads(8, 8, 1)] void main(uint2 tid
-								: SV_DispatchThreadID) {
+	[numthreads(8, 8, 1)] void main(uint2 tid
+									: SV_DispatchThreadID)
+{
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 
 	const uint2 pxCoords = tid;
@@ -213,24 +216,24 @@ groupshared float gDensity[SHADOW_NTHREADS];
 
 	RayInfo ray;
 	InitRay(pxCoords, rnd, ray);
-	
+
 	const float u = dot(ray.dir, data.lightDir);
 	const float phaseAerosol = Phase::CornetteShanks(u, data.aerosolPhaseG);
 	const float phaseRayleigh = Phase::Rayleigh(u);
 	const float phaseCloud = lerp(Phase::ThomasSchander(u), Phase::HG(u, -0.3), 0.3);
 	const float phaseCloudSecondary = Phase::HGDualLobe(u, 0.21, -0.15, 0.3);
 
-	while(ray.marchSteps < MAX_STEP && ray.dist < ray.distEnd){
+	while (ray.marchSteps < MAX_STEP && ray.dist < ray.distEnd) {
 		// march distance
 		float sdf = TexCloudSdf.SampleLevel(SampTr, PosWs2CloudUvw(ray.pos), 0);
 		float sdfDist = max(0, sdf);
 		float adaptiveStepSize = max(1.0, sqrt(0.001 / 1.428e-5f * ray.dist) * 0.8);
 		float distLeft = ray.distEnd - ray.dist;
 		float stepSize = min(distLeft + 1, max(sdfDist, adaptiveStepSize) * lerp(0.8, 1, rnd.z));
-		
+
 		ray.dist += stepSize;
 		ray.pos = ray.posStart + ray.dist * ray.dir;
-		ray.marchSteps++; 
+		ray.marchSteps++;
 
 		float3 posPlanet = PosWs2Planet(ray.pos);
 
@@ -242,7 +245,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 
 		// float3 cloudSample = TestBallSampler(ray.pos);
 		// float rouCloud = cloudSample.x;
-		float3 cloudSample; 
+		float3 cloudSample;
 		float rouCloud;
 		sampleCloudDensity(ray.pos, ray.dist, 0, ray.dist < 0.15 / 1.428e-5f, cloudSample, rouCloud);
 
@@ -251,7 +254,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		float3 muSAerosol = rouAerosol * data.aerosolScatter;
 		float3 muSCloud = rouCloud * data.cloudScatter;
 
-		float3 extinction = 
+		float3 extinction =
 			muSRayleigh + muSAerosol + rouAerosol * data.aerosolAbsorption + rouOzone * data.ozoneAbsorption +
 			muSCloud + rouCloud * data.cloudAbsorption;
 		float3 trSample = exp(-stepSize * extinction);
@@ -261,7 +264,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		// - sun transmittance
 		float2 lutUv = TrLutUvPlanet(ray.pos, data.lightDir);
 		float3 trAtmos = TexTrLut.SampleLevel(SampTr, lutUv, 0).rgb;
-		
+
 		float rouCloud1, rouCloud2;
 		float3 tmp;
 		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir, ray.dist, 0, false, tmp, rouCloud1);
@@ -271,7 +274,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		float3 posCloudShadow;
 		bool hasCloudShadow = SnapPosToShadowBox(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2, posCloudShadow);
 		float cloudShadowSample = hasCloudShadow ? TexCloudShadow.SampleLevel(SampTr, PosWs2CloudUvw(posCloudShadow), 0) : 0;
-		
+
 		float3 trSunCloud = exp(-(sumSunRouCloud * SUN_SAMPLE_STRIDE + cloudShadowSample) * (data.cloudScatter + data.cloudAbsorption));
 
 		float3 trSun = trAtmos * trSunCloud;
@@ -279,11 +282,11 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		// - attenuate
 		float3 inscatter = 0;
 		inscatter += (phaseRayleigh * muSRayleigh + phaseAerosol * muSAerosol + phaseCloud * muSCloud) * trSun * data.lightColor;
-		
+
 		// - multiscatter approx
 		float3 msVolume = cloudSample.x;
-		msVolume *= exp(-(sumSunRouCloud * SUN_SAMPLE_STRIDE + cloudShadowSample) * (data.cloudScatter + data.cloudAbsorption) * 
-			Remap(u, 0.0, 0.9, 0.25, Remap(sdf, -0.128 / 1.428e-5f, 0.0, 0.05, 0.25)));
+		msVolume *= exp(-(sumSunRouCloud * SUN_SAMPLE_STRIDE + cloudShadowSample) * (data.cloudScatter + data.cloudAbsorption) *
+						Remap(u, 0.0, 0.9, 0.25, Remap(sdf, -0.128 / 1.428e-5f, 0.0, 0.05, 0.25)));
 		msVolume *= trAtmos;
 		inscatter += muSCloud * msVolume * data.lightColor;
 
@@ -292,7 +295,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 		ray.lum += scatterIntegeral * ray.tr;
 		ray.tr *= trSample;
 
-		if(any(ray.tr < EPS)){
+		if (any(ray.tr < EPS)) {
 			ray.tr = 0;
 			break;
 		}
@@ -302,7 +305,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	const float2 svUv = SkyViewLutUv(ray.dir);
 	if (ray.hitSky) {
 		ray.lum += TexSvLut.SampleLevel(SampSv, svUv, 0).rgb * data.lightColor * ray.tr;
-		
+
 		const float2 trStopUv = TrLutUvPlanet(PosWs2Planet(ray.pos), ray.dir);
 		const float3 trStop = TexTrLut.SampleLevel(SampTr, trStopUv, 0).rgb;
 		ray.tr *= trStop;
@@ -321,4 +324,3 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	RWTexTr[pxCoords] = float4(ray.tr, 1);
 	RWTexLum[pxCoords] = float4(ray.lum, 1);
 }
-

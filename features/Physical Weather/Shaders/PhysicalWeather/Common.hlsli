@@ -4,7 +4,7 @@
 #ifdef SKY_SAMPLERS
 SamplerState SampTr : register(s0);  // in lighting, use shadow
 SamplerState SampSv : register(s1);  // in lighting, use color
-SamplerState SampNoise : register(s2);  
+SamplerState SampNoise : register(s2);
 #endif
 
 #if defined(PS_PREPASS)
@@ -19,11 +19,10 @@ Texture3D<float> TexCloudSdf : register(t7);
 Texture3D<float> TexCloudShadow : register(t8);
 #endif
 
-
-static const float RCP_PI = 1 / Math::PI;  // PI
+static const float RCP_PI = 1 / Math::PI;         // PI
 static const float AP_MAX_DIST = 60 / 1.428e-5f;  // 60 km
-static const uint3 CLOUD_DIM = uint3(256, 256, 192);  
-static const float3 CLOUD_RANGE = float3(16.f, 16.f, 12.f) / 1.428e-5f;  
+static const uint3 CLOUD_DIM = uint3(256, 256, 192);
+static const float3 CLOUD_RANGE = float3(16.f, 16.f, 12.f) / 1.428e-5f;
 
 #ifndef ISNAN
 #	define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))
@@ -31,7 +30,8 @@ static const float3 CLOUD_RANGE = float3(16.f, 16.f, 12.f) / 1.428e-5f;
 
 float Remap(float x, float in_a, float in_b, float out_a, float out_b)
 {
-	if (in_a == in_b) return out_a;
+	if (in_a == in_b)
+		return out_a;
 	return lerp(out_a, out_b, saturate((x - in_a) / (in_b - in_a)));
 }
 
@@ -41,12 +41,14 @@ float3 PosWs2Planet(float3 posWorld)
 	return posWorld - float3(FrameBuffer::CameraPosAdjust[0].xy, data.zBottom - data.rPlanet);
 }
 
-float3 PosWs2CloudUvw(float3 posWorld){
+float3 PosWs2CloudUvw(float3 posWorld)
+{
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 	return (posWorld - float3(data.centre, data.zBottom)) / CLOUD_RANGE + float3(0.5, 0.5, 0);
 }
 
-float3 CloudUvw2PosWs(float3 uvw){
+float3 CloudUvw2PosWs(float3 uvw)
+{
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 	return (uvw - float3(0.5, 0.5, 0)) * CLOUD_RANGE + float3(data.centre, data.zBottom);
 }
@@ -68,19 +70,19 @@ float2 RayIntersectBox(float3 orig, float3 dir, float3 boxMin, float3 boxMax)
 bool SnapPosToShadowBox(float3 posWorld, out float3 posSnap)
 {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-	
+
 	posSnap = posWorld;
 
 	float3 anchor = float3(data.centre, data.zBottom);
-	float3 boxMin = anchor - CLOUD_RANGE * float3(0.5,0.5,0);
-	float3 boxMax = anchor + CLOUD_RANGE * float3(0.5,0.5,1);
-	if(all(posWorld > boxMin) && all(posWorld < boxMax))
+	float3 boxMin = anchor - CLOUD_RANGE * float3(0.5, 0.5, 0);
+	float3 boxMax = anchor + CLOUD_RANGE * float3(0.5, 0.5, 1);
+	if (all(posWorld > boxMin) && all(posWorld < boxMax))
 		return true;
 
 	float2 intersection = RayIntersectBox(posWorld, data.lightDir, boxMin, boxMax);
 	if (intersection.x > intersection.y || intersection.y <= 0)
 		return false;
-	
+
 	posSnap = posWorld + data.lightDir * (intersection.x > 0 ? intersection.x : intersection.y);
 	return true;
 }
@@ -116,7 +118,7 @@ float HorizonZenithCos(float r)
 float2 TrLutUv(float r, float cosSunZenith)
 {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-	// float cosHorZenith = HorizonZenithCos(r);  
+	// float cosHorZenith = HorizonZenithCos(r);
 	const float cosHorZenith = -0.414;
 	float2 uv = float2(
 		saturate((cosSunZenith - cosHorZenith) / (1 - cosHorZenith)),
