@@ -4,6 +4,7 @@
 #ifdef SKY_SAMPLERS
 SamplerState SampTr : register(s0);  // in lighting, use shadow
 SamplerState SampSv : register(s1);  // in lighting, use color
+SamplerState SampNoise : register(s2);  
 #endif
 
 #if defined(PS_PREPASS)

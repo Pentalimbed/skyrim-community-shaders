@@ -2,6 +2,8 @@
 
 #include "State.h"
 
+#include <DDSTextureLoader.h>
+
 void PhysicalWeather::LoadSettings(json&) {}
 void PhysicalWeather::SaveSettings(json&) {}
 void PhysicalWeather::RestoreDefaultSettings() { settings = {}; }
@@ -9,6 +11,7 @@ void PhysicalWeather::RestoreDefaultSettings() { settings = {}; }
 void PhysicalWeather::SetupResources()
 {
 	auto device = globals::d3d::device;
+	auto context = globals::d3d::context;
 
 	logger::debug("Creating samplers...");
 	{
@@ -26,9 +29,14 @@ void PhysicalWeather::SetupResources()
 		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		DX::ThrowIfFailed(device->CreateSamplerState(&samplerDesc, sampSv.put()));
+
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		DX::ThrowIfFailed(device->CreateSamplerState(&samplerDesc, sampNoise.put()));
 	}
 
-	logger::debug("Creating LUT textures...");
+	logger::debug("Creating textures...");
 	{
 		D3D11_TEXTURE2D_DESC tex2dDesc{
 			.Width = kTrLutW,
@@ -92,7 +100,40 @@ void PhysicalWeather::SetupResources()
 		texApLut->CreateUAV(uavDesc);
 	}
 
-	logger::debug("Creating render textures...");
+	{
+		D3D11_TEXTURE3D_DESC tex3dDesc{
+			.Width = kCloudW,
+			.Height = kCloudH,
+			.Depth = kCloudD,
+			.MipLevels = 1,
+			.Format = DXGI_FORMAT_R11G11B10_FLOAT,
+			.Usage = D3D11_USAGE_DEFAULT,
+			.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET,
+			.CPUAccessFlags = 0,
+			.MiscFlags = 0
+		};
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+			.Format = tex3dDesc.Format,
+			.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D,
+			.Texture3D = { .MostDetailedMip = 0, .MipLevels = 1 }
+		};
+		D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {
+			.Format = tex3dDesc.Format,
+			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D,
+			.Texture3D = { .MipSlice = 0, .FirstWSlice = 0, .WSize = kCloudD }
+		};
+
+		texCloudProfile = eastl::make_unique<Texture3D>(tex3dDesc);
+		texCloudProfile->CreateSRV(srvDesc);
+		texCloudProfile->CreateUAV(uavDesc);
+
+		tex3dDesc.Format = srvDesc.Format = uavDesc.Format = DXGI_FORMAT_R16_FLOAT;
+
+		texCloudSdf = eastl::make_unique<Texture3D>(tex3dDesc);
+		texCloudSdf->CreateSRV(srvDesc);
+		texCloudSdf->CreateUAV(uavDesc);
+	}
+
 	{
 		D3D11_TEXTURE2D_DESC tex_desc;
 		auto mainTex = globals::game::renderer->GetRuntimeData().renderTargets[RE::RENDER_TARGETS::kMAIN];
@@ -123,6 +164,11 @@ void PhysicalWeather::SetupResources()
 		texMainViewLum->CreateUAV(uav_desc);
 	}
 
+	logger::debug("Loading textures from files...");
+	{
+		DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\PhysicalWeather\\noise.dds", nullptr, srvCloudNoise.put());
+	}
+
 	CompileShaders();
 }
 void PhysicalWeather::ClearShaderCache()
@@ -145,6 +191,7 @@ void PhysicalWeather::CompileShaders()
 		{ &csSvLutGen, "LutGen.cs.hlsl", { { "LUTGEN", "2" } } },
 		{ &csApLutGen, "LutGen.cs.hlsl", { { "LUTGEN", "3" } } },
 		{ &csMainView, "VolumeRendering.cs.hlsl" },
+		{ &csTestBall, "TestBallTexGen.cs.hlsl" },
 	};
 
 	for (auto& info : shaderInfos) {
@@ -201,7 +248,7 @@ void PhysicalWeather::Reset()
 		.ozoneAbsorption = settings.ozoneAbsorption * 1e-3 * kGameUnit2Km,
 		.cloudDensityScale = settings.cloudDensityScale,
 		.cloudScatter = settings.cloudScatter * kGameUnit2Km,
-		.cloudNoiseScale = settings.cloudNoiseScale * kKm2GameUnit,
+		.cloudNoiseFreq = 1.f / settings.cloudNoiseScale * kGameUnit2Km,
 		.cloudAbsorption = settings.cloudAbsorption * kGameUnit2Km,
 	};
 
@@ -251,7 +298,7 @@ void PhysicalWeather::GenerateLuts()
 
 	state->BeginPerfEvent("Physical Weather: LUT Generation");
 	{
-		auto samplers = std::array{ sampTr.get(), sampSv.get() };
+		auto samplers = std::array{ sampTr.get(), sampSv.get(), sampNoise.get() };
 		std::array<ID3D11ShaderResourceView*, 2> srvs = {};
 		ID3D11UnorderedAccessView* uav = nullptr;
 
@@ -299,6 +346,23 @@ void PhysicalWeather::GenerateLuts()
 	state->EndPerfEvent();
 }
 
+void PhysicalWeather::TestBallTexGen()
+{
+	auto context = globals::d3d::context;
+
+	auto uavs = std::array{ texCloudProfile->uav.get(), texCloudSdf->uav.get() };
+
+	/* ---- DISPATCH ---- */
+	context->CSSetUnorderedAccessViews(0, (int)uavs.size(), uavs.data(), nullptr);
+	context->CSSetShader(csTestBall.get(), nullptr, 0);
+	context->Dispatch((kCloudW + 7) >> 3, (kCloudH + 7) >> 3, kCloudD);
+
+	/* ---- RESTORE ---- */
+	uavs.fill(nullptr);
+	context->CSSetUnorderedAccessViews(0, (int)uavs.size(), uavs.data(), nullptr);
+	context->CSSetShader(nullptr, nullptr, 0);
+}
+
 void PhysicalWeather::RenderMainView()
 {
 	auto state = globals::state;
@@ -309,13 +373,16 @@ void PhysicalWeather::RenderMainView()
 
 	state->BeginPerfEvent("Physical Weather: Main View");
 	{
-		auto samplers = std::array{ sampTr.get(), sampSv.get() };
+		auto samplers = std::array{ sampTr.get(), sampSv.get(), sampNoise.get() };
 		auto srvs = std::array{
 			texTrLut->srv.get(),
 			texMsLut->srv.get(),
 			texSvLut->srv.get(),
 			texApLut->srv.get(),
 			globals::game::renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
+			srvCloudNoise.get(),
+			texCloudProfile->srv.get(),
+			texCloudSdf->srv.get(),
 		};
 		auto uavs = std::array{ texMainViewTr->uav.get(), texMainViewLum->uav.get() };
 

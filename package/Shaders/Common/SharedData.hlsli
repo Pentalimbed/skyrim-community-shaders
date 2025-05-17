@@ -221,7 +221,7 @@ namespace SharedData
 		// CLOUDS
 		float cloudDensityScale;
 		float3 cloudScatter;  //
-		float cloudNoiseScale;
+		float cloudNoiseFreq;
 		float3 cloudAbsorption;  //
 	};
 

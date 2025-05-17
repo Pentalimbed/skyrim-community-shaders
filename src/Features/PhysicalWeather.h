@@ -39,6 +39,7 @@ struct PhysicalWeather : Feature
 
 	virtual void Prepass() override;  // gpu render
 	void GenerateLuts();
+	void TestBallTexGen();
 	void RenderMainView();
 
 	virtual void DrawSettings() override;
@@ -138,7 +139,7 @@ struct PhysicalWeather : Feature
 		// CLOUDS
 		float cloudDensityScale;
 		float3 cloudScatter;  //
-		float cloudNoiseScale;
+		float cloudNoiseFreq;
 		float3 cloudAbsorption;  //
 	} cbData;
 	static_assert(sizeof(CbData) % 16 == 0);
@@ -147,15 +148,21 @@ struct PhysicalWeather : Feature
 	eastl::unique_ptr<Texture2D> texMsLut = nullptr;  // multiscattering
 	eastl::unique_ptr<Texture2D> texSvLut = nullptr;  // sky view
 	eastl::unique_ptr<Texture3D> texApLut = nullptr;  // aerial perspective
+	eastl::unique_ptr<Texture3D> texCloudProfile = nullptr;
+	eastl::unique_ptr<Texture3D> texCloudSdf = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewTr = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewLum = nullptr;
+	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudNoise = nullptr;
 
 	winrt::com_ptr<ID3D11SamplerState> sampTr = nullptr;
 	winrt::com_ptr<ID3D11SamplerState> sampSv = nullptr;
+	winrt::com_ptr<ID3D11SamplerState> sampNoise = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> csTrLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csMsLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csSvLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csApLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csMainView = nullptr;
+
+	winrt::com_ptr<ID3D11ComputeShader> csTestBall = nullptr;
 };
