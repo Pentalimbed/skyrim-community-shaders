@@ -45,8 +45,9 @@ float TestBoxSdfSampler(float3 posWorld)
 	return posWorld.z - SharedData::physWeatherData.zBottom - hBox;
 }
 
-float3 TestBoxSampler(float3 posWorld){
-    float dimProfile = (posWorld.z - SharedData::physWeatherData.zBottom > hBox) ? 0 : 1;
+float3 TestBoxSampler(float3 posWorld)
+{
+	float dimProfile = (posWorld.z - SharedData::physWeatherData.zBottom > hBox) ? 0 : 1;
 	float detailType = 0.f;
 	float densityScale = 1.f;
 	return float3(dimProfile, detailType, densityScale);
@@ -57,7 +58,7 @@ float3 TestBoxSampler(float3 posWorld){
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 	float3 posWorld = CloudUvw2PosWs((tid + 0.5) / CLOUD_DIM);
 
-    float sdf = TestBallSdfSampler(posWorld);
+	float sdf = TestBallSdfSampler(posWorld);
 	float3 profile = TestBallSampler(posWorld);
 	// float sdf = TestBoxSdfSampler(posWorld);
 	// float3 profile = TestBoxSampler(posWorld);
