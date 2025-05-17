@@ -16,7 +16,7 @@
 RWTexture2D<float4> RWTexTr : register(u0);
 RWTexture2D<float4> RWTexLum : register(u1);
 
-RWTexture3D<float> RWShadowVolume : register(u0);
+RWTexture3D<float> RWCloudShadow : register(u0);
 
 const static float EPS = 1e-8;
 const static uint MAX_STEP = 150;
@@ -44,30 +44,6 @@ struct RayInfo
 	float3 tr;
 	float3 lum;
 };
-
-const static float rBall = 0.4 / 1.428e-5f; // 200 m
-const static float dimProfileDepth = 0.1 / 1.428e-5f; // 100 m
-
-float3 TestBallCentre(){
-	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-	return float3(data.centre, data.zBottom + CLOUD_RANGE.z * 0.15);
-}
-
-float TestBallShadowSampler(float3 posWorld){
-	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-
-	float3 centre = TestBallCentre();
-	if(RayIntersectSphere(posWorld, data.lightDir, centre, rBall) < 0)
-		return 0;
-	float3 posRelative = posWorld - centre;
-	float d = length(posRelative);
-	float dProj = abs(dot(posRelative, data.lightDir));
-	float dLine = sqrt(d * d - dProj * dProj);
-	if(dLine >= rBall)
-		return 0;
-	float lIntersect = sqrt(rBall * rBall - dLine * dLine) * 2;
-	return lIntersect;
-}
 
 void sampleCloudDensity(
 	float3 posWorld, float eye_dist, float mip_level, bool upres,
@@ -143,6 +119,90 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 	ray.lum = 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#define SHADOW_NTHREADS 256
+groupshared float gDensity[SHADOW_NTHREADS];
+
+[numthreads(SHADOW_NTHREADS, 1, 1)] void renderShadow(const uint gtid : SV_GroupThreadID, const uint2 gid : SV_GroupID){
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+
+	uint3 dims;
+	RWCloudShadow.GetDimensions(dims.x, dims.y, dims.z);
+	const float3 rcpDims = rcp(dims);
+
+	const float3 rayDir = -data.lightDir;  // from sun
+
+	float3 rayPxIncrement = rayDir / CLOUD_RANGE * dims;
+	const float dirMaxComponent = max(max(abs(rayPxIncrement.x), abs(rayPxIncrement.y)), abs(rayPxIncrement.z));
+
+	uint3 startPx;
+	bool3 componentMask = false;
+	if (abs(rayPxIncrement.x) == dirMaxComponent) {
+		startPx = uint3(rayPxIncrement.x > 0 ? 0 : dims.x - 1, gid);
+		componentMask.x = true;
+	} else if (abs(rayPxIncrement.y) == dirMaxComponent) {
+		startPx = uint3(gid.x, rayPxIncrement.y > 0 ? 0 : dims.y - 1, gid.y);
+		componentMask.y = true;
+	} else {
+		startPx = uint3(gid, rayPxIncrement.z > 0 ? 0 : dims.z - 1);
+		componentMask.z = true;
+	}
+	rayPxIncrement /= dirMaxComponent;
+	const float3 rayUvIncrement = rayPxIncrement * rcpDims;
+	const float3 startUv = (startPx + 0.5) * rcpDims;
+	const float3 rawThreadUv = startUv + gtid * rayUvIncrement;
+
+	const bool3 isUvInRange = (rawThreadUv > 0) && (rawThreadUv < 1);
+	const bool isValid = dot(isUvInRange, componentMask);
+
+	const float3 threadUv = rawThreadUv - floor(rawThreadUv);  // wraparound
+	const uint3 threadPxCoord = threadUv * dims;
+
+	float pastDensity = RWCloudShadow[threadPxCoord];
+	if (ISNAN(pastDensity))
+		pastDensity = 0;
+
+	if (isValid) {
+		const float3 pos = CloudUvw2PosWs(threadUv);
+
+		// fetch density using only ndf
+		float3 cloudSample; 
+		float rou;
+		sampleCloudDensity(pos, 1e8, 0, false, cloudSample, rou);
+
+		gDensity[gtid] = rou * length(rayUvIncrement * CLOUD_RANGE);
+	}
+	GroupMemoryBarrierWithGroupSync();
+
+	// parallel summation
+	[unroll] for (uint offset = 1; offset < SHADOW_NTHREADS; offset <<= 1)
+	{
+		if (isValid && gtid >= offset) {
+			if (all(floor(rawThreadUv - rayUvIncrement * offset) == floor(rawThreadUv)))  // no wraparound happened
+			{
+				float rouCurrent = gDensity[gtid];
+				float rouSample = gDensity[gtid - offset];
+				gDensity[gtid] = rouCurrent + rouSample;
+			}
+		}
+		GroupMemoryBarrierWithGroupSync();
+	}
+
+	// save
+	if (isValid) {
+		RWCloudShadow[threadPxCoord] = lerp(pastDensity, gDensity[gtid], 0.1f);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 [numthreads(8, 8, 1)] void main(uint2 tid
 								: SV_DispatchThreadID) {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
@@ -207,7 +267,11 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir, ray.dist, 0, false, tmp, rouCloud1);
 		sampleCloudDensity(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2, ray.dist, 0, false, tmp, rouCloud2);
 		float sumSunRouCloud = rouCloud1 + rouCloud2;
-		float cloudShadowSample = TestBallShadowSampler(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2);
+
+		float3 posCloudShadow;
+		bool hasCloudShadow = SnapPosToShadowBox(ray.pos + SUN_SAMPLE_STRIDE * data.lightDir * 2, posCloudShadow);
+		float cloudShadowSample = hasCloudShadow ? TexCloudShadow.SampleLevel(SampTr, PosWs2CloudUvw(posCloudShadow), 0) : 0;
+		
 		float3 trSunCloud = exp(-(sumSunRouCloud * SUN_SAMPLE_STRIDE + cloudShadowSample) * (data.cloudScatter + data.cloudAbsorption));
 
 		float3 trSun = trAtmos * trSunCloud;
@@ -257,3 +321,4 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 	RWTexTr[pxCoords] = float4(ray.tr, 1);
 	RWTexLum[pxCoords] = float4(ray.lum, 1);
 }
+

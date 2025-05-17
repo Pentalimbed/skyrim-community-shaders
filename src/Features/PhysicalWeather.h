@@ -40,6 +40,7 @@ struct PhysicalWeather : Feature
 	virtual void Prepass() override;  // gpu render
 	void GenerateLuts();
 	void TestBallTexGen();
+	void RenderCloudShadow();
 	void RenderMainView();
 
 	virtual void DrawSettings() override;
@@ -150,6 +151,7 @@ struct PhysicalWeather : Feature
 	eastl::unique_ptr<Texture3D> texApLut = nullptr;  // aerial perspective
 	eastl::unique_ptr<Texture3D> texCloudProfile = nullptr;
 	eastl::unique_ptr<Texture3D> texCloudSdf = nullptr;
+	eastl::unique_ptr<Texture3D> texCloudShadow = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewTr = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewLum = nullptr;
 	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudNoise = nullptr;
@@ -162,6 +164,7 @@ struct PhysicalWeather : Feature
 	winrt::com_ptr<ID3D11ComputeShader> csMsLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csSvLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csApLutGen = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> csCloudShadow = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csMainView = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> csTestBall = nullptr;

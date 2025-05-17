@@ -16,6 +16,7 @@ Texture2D<float> TexDepth : register(t4);
 Texture3D<float> TexNoise : register(t5);
 Texture3D<float3> TexCloudProfile : register(t6);
 Texture3D<float> TexCloudSdf : register(t7);
+Texture3D<float> TexCloudShadow : register(t8);
 #endif
 
 
@@ -42,7 +43,46 @@ float3 PosWs2Planet(float3 posWorld)
 
 float3 PosWs2CloudUvw(float3 posWorld){
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
-	return (posWorld - float3(data.centre, data.zBottom)) / CLOUD_RANGE + 0.5;
+	return (posWorld - float3(data.centre, data.zBottom)) / CLOUD_RANGE + float3(0.5, 0.5, 0);
+}
+
+float3 CloudUvw2PosWs(float3 uvw){
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	return (uvw - float3(0.5, 0.5, 0)) * CLOUD_RANGE + float3(data.centre, data.zBottom);
+}
+
+// https://gist.github.com/DomNomNom/46bb1ce47f68d255fd5d
+// compute the near and far intersections of the cube (stored in the x and y components) using the slab method
+// no intersection means vec.x > vec.y (really tNear > tFar)
+float2 RayIntersectBox(float3 orig, float3 dir, float3 boxMin, float3 boxMax)
+{
+	float3 tMin = (boxMin - orig) / dir;
+	float3 tMax = (boxMax - orig) / dir;
+	float3 t1 = min(tMin, tMax);
+	float3 t2 = max(tMin, tMax);
+	float tNear = max(max(t1.x, t1.y), t1.z);
+	float tFar = min(min(t2.x, t2.y), t2.z);
+	return float2(tNear, tFar);
+};
+
+bool SnapPosToShadowBox(float3 posWorld, out float3 posSnap)
+{
+	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
+	
+	posSnap = posWorld;
+
+	float3 anchor = float3(data.centre, data.zBottom);
+	float3 boxMin = anchor - CLOUD_RANGE * float3(0.5,0.5,0);
+	float3 boxMax = anchor + CLOUD_RANGE * float3(0.5,0.5,1);
+	if(all(posWorld > boxMin) && all(posWorld < boxMax))
+		return true;
+
+	float2 intersection = RayIntersectBox(posWorld, data.lightDir, boxMin, boxMax);
+	if (intersection.x > intersection.y || intersection.y <= 0)
+		return false;
+	
+	posSnap = posWorld + data.lightDir * (intersection.x > 0 ? intersection.x : intersection.y);
+	return true;
 }
 
 // return distance to sphere surface
