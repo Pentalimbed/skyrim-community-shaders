@@ -68,8 +68,8 @@ void SampleSSGISpecular(uint2 pixCoord, sh2 lobe, out float ao, out float3 il, i
 #endif
 
 #if defined(PHYS_WEATHER)
-Texture2D<float3> PhysWeatherTrTexture : register(t14);
-Texture2D<float3> PhysWeatherLumTexture : register(t15);
+Texture2D<float3> PhysWeatherTrTexture : register(t15);
+Texture2D<float3> PhysWeatherLumTexture : register(t16);
 #endif
 
 [numthreads(8, 8, 1)] void main(uint3 dispatchID
