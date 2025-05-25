@@ -174,11 +174,14 @@ void PhysicalWeather::SetupResources()
 	}
 
 	CompileShaders();
+	weatherSim.SetupResources();
 }
+
 void PhysicalWeather::ClearShaderCache()
 {
 	CompileShaders();
 }
+
 void PhysicalWeather::CompileShaders()
 {
 	struct ShaderCompileInfo
@@ -204,7 +207,10 @@ void PhysicalWeather::CompileShaders()
 		if (auto rawPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(path.c_str(), info.defines, "cs_5_0", info.entry.data())))
 			info.csPtr->attach(rawPtr);
 	}
+
+	weatherSim.CompileShaders();
 }
+
 bool PhysicalWeather::ShadersOK()
 {
 	return csTrLutGen && csMsLutGen && csSvLutGen && csApLutGen && csCloudShadow && csMainView;
@@ -280,6 +286,8 @@ void PhysicalWeather::Reset()
 
 void PhysicalWeather::Prepass()
 {
+	weatherSim.PerFrame();
+
 	if (cbData.enabled) {
 		GenerateLuts();
 		TestBallTexGen();

@@ -2,7 +2,7 @@
 #	define COMPUTESHADER
 #endif
 
-#define PS_PREPASS
+#define PS_PREPASS_RSRCS
 #include "PhysicalWeather/Common.hlsli"
 
 RWTexture3D<float3> RWTexProfile : register(u0);

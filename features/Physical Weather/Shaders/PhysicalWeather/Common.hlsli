@@ -7,7 +7,7 @@ SamplerState SampSv : register(s1);  // in lighting, use color
 SamplerState SampNoise : register(s2);
 #endif
 
-#if defined(PS_PREPASS)
+#ifdef PS_PREPASS_RSRCS
 Texture2D<float4> TexTrLut : register(t0);
 Texture2D<float4> TexMsLut : register(t1);
 Texture2D<float4> TexSvLut : register(t2);
@@ -23,6 +23,7 @@ static const float RCP_PI = 1 / Math::PI;         // PI
 static const float AP_MAX_DIST = 60 / 1.428e-5f;  // 60 km
 static const uint3 CLOUD_DIM = uint3(256, 256, 256);
 static const float3 CLOUD_RANGE = float3(10.f, 10.f, 10.f) / 1.428e-5f;
+static const float3 CLOUD_RANGE_M = float3(10.f, 10.f, 10.f) * 1e3;
 
 #ifndef ISNAN
 #	define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))

@@ -2,9 +2,11 @@
 
 #include "Buffer.h"
 #include "Feature.h"
+#include "PhysicalWeather/WeatherSim.h"
 
 #include <map>
 
+// TODO: Compatibility with SkySync & IBL
 struct PhysicalWeather : Feature
 {
 	static PhysicalWeather* GetSingleton()
@@ -71,7 +73,7 @@ struct PhysicalWeather : Feature
 
 	struct WorldspaceInfo
 	{
-		float zBottom = -14000.f;
+		float zBottom = -14500.f;
 		float2 centre = { 0.f, 0.f };
 	};
 
@@ -82,7 +84,7 @@ struct PhysicalWeather : Feature
 		float3 sunlightColor = float3{ 1.0f, 0.97f, 0.95f } * 6.f;
 
 		std::map<std::string, WorldspaceInfo> worldspaceWhitelist = {
-			{ "Tamriel", { -14000.f } }
+			{ "Tamriel", { -14500.f } }
 		};
 		float3 groundAlbedo = { .2f, .2f, .2f };
 
@@ -168,4 +170,6 @@ struct PhysicalWeather : Feature
 	winrt::com_ptr<ID3D11ComputeShader> csMainView = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> csTestBall = nullptr;
+
+	WeatherSim weatherSim = {};
 };

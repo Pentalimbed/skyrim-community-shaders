@@ -8,7 +8,7 @@
 #endif
 
 #define SKY_SAMPLERS
-#define PS_PREPASS
+#define PS_PREPASS_RSRCS
 #include "PhysicalWeather/Common.hlsli"
 
 #include "Common/Random.hlsli"
