@@ -292,7 +292,7 @@ class ThetaFetcher : IFetcher3D {
     float z0; // height of terrain
 
     float4 Fetch(Texture3D tex, int3 px){
-        if ((px.z + 1) * CELL_SIZE.z <= z0 || any(px.xy < 0)  || any(px >= int3(CLOUD_DIM))) {
+        if ((px.z + 1) * CELL_SIZE.z <= z0 || any(px.xy < 0) || any(px >= int3(CLOUD_DIM))) {
             float z = (px.z + 0.5) * CELL_SIZE.z;
             return pad4(Abs2PotTmp(TmpProfile(z, 0, tmpOcean), PressureProfile(z, 0, tmpOcean)));
         }
@@ -318,8 +318,9 @@ class PadFetcher : IFetcher3D{
 class PressureFetcher : IFetcher3D {
     float z0; // height of terrain
     float4 Fetch(Texture3D tex, int3 px){
-        if (any(px.xy < 0) || any(px.xy >= CLOUD_DIM.xy)) 
-            return 0;
+        // TODO: issue with free bound
+        // if (any(px.xy < 0) || any(px.xy >= CLOUD_DIM.xy)) 
+        //     return 0;
         px = clamp(px, 0, CLOUD_DIM - 1);
         return tex[px];
     }
@@ -330,7 +331,7 @@ class PressureFetcher : IFetcher3D {
 // second-order runge kutta backtrace
 float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, float dt){
     float3 mid = uvw - 0.5 * dt * LinearSample3D(fetcher, texU, uvw).xyz / CLOUD_RANGE_M;
-    float3 coord = uvw - dt * LinearSample3D(fetcher, texU, mid).xyz;
+    float3 coord = uvw - dt * LinearSample3D(fetcher, texU, mid).xyz / CLOUD_RANGE_M;
     return coord;
 };
 
@@ -487,24 +488,22 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
 
 // buoyancy and external force
 // 3d in 1: qv
+// 3d in 2: theta
 // 3d inout 1: u
 [numthreads(8, 8, 1)] void buoyExtForce(int3 tid : SV_DispatchThreadID){
     float z = (tid.z + 0.5) * CELL_SIZE.z;
 
     // buoyancy
     float qVapor = Tex3d1[tid].x;
-    float xVapor = qVapor / (qVapor + 1); // [SS] eq. 9
-    float molThermal = lerp(molAir, molVapor, xVapor); // [SS] eq. 7
-    float gammaThermal = lerp(gammaAir, gammaVapor, xVapor); // [SS] eq. 11
-    float tmpThermal = TmpThermal(PressureProfile(z, 0, tmpOcean), tmpOcean, pOcean, gammaThermal); // [SS] eq. 10
-    float tmpAir = TmpProfile(z, 0, tmpOcean);
-    float3 fBuoyancy = float3(0, 0, g * (molAir / molThermal * tmpThermal / tmpAir - 1)); // [SS] eq. 15
+    float theta = Tex3d2[tid].x;
+    float thetaRef = Abs2PotTmp(TmpProfile(z, 0, tmpOcean), PressureProfile(z, 0, tmpOcean));
+    float3 fBuoyancy = float3(0, 0, g * (theta / thetaRef - 1 + 0.61 * qVapor)) * 0.05;
 
     // TODO 
     // wind
     float3 fWind = 0;
 
-    // RWTex3d1[tid] = pad4(RWTex3d1[tid].xyz + (fBuoyancy + fWind) * dt);
+    RWTex3d1[tid] = pad4(RWTex3d1[tid].xyz + (fBuoyancy + fWind) * dt);
 }
 
 // div of velocity and init of project
@@ -523,7 +522,7 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
     float vz0 = fetcher.Fetch(Tex3d1, tid + int3(0, 0, -1)).z;
     float vz1 = fetcher.Fetch(Tex3d1, tid + int3(0, 0, 1)).z;
 
-    RWTex3d1[tid] = pad4(-(vx1 - vx0 + vy1 - vy0 + vz1 - vz0) * 0.5 * RCP_CELL_SIZE.x);
+    RWTex3d1[tid] = pad4((vx1 - vx0 + vy1 - vy0 + vz1 - vz0) * 0.5 * RCP_CELL_SIZE.x);
     RWTex3d2[tid] = 0;
 }
 
@@ -593,6 +592,7 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
 
     float3 uv = (tid + 0.5) / CLOUD_DIM;
     float3 uvAdv = BacktraceRungeKutta2(Tex3d1, uFetcher, uv, dt);
+    float3 dt0 = dt / CLOUD_RANGE_M;
     float3 velocity = Tex3d1[tid].xyz;
 
     {
@@ -602,15 +602,15 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
         RWTex3d7[tid] = LinearSample3D(thetaFetcher, Tex3d8, uvAdv); // theta
     }
     {
-        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermRain(Tex3d2[tid].x)) * dt / CLOUD_RANGE_M;
+        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermRain(Tex3d2[tid].x)) * dt0;
         RWTex3d4[tid] = LinearSample3D(qjFetcher, Tex3d5, uv - dispos); // qr
     }
     {
-        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermSnow(Tex3d2[tid].x)) * dt / CLOUD_RANGE_M;
+        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermSnow(Tex3d2[tid].x)) * dt0;
         RWTex3d5[tid] = LinearSample3D(qjFetcher, Tex3d6, uv - dispos); // qs
     }
     {
-        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermIce(Tex3d2[tid].x)) * dt / CLOUD_RANGE_M;
+        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermIce(Tex3d2[tid].x)) * dt0;
         RWTex3d6[tid] = LinearSample3D(qjFetcher, Tex3d7, uv - dispos); // qi
     }
 }
@@ -660,9 +660,9 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
     float eqVpW = EqVpWater(tmp);
     float eqVpI = EqVpIce(tmp);
     float nI = 1e3 * exp(12.96 * (eqVpW - eqVpI) / (eqVpI - 0.639)); // ice crystal number concentration, [WS] eq. 21
-    float satHeadCond = lS / (kA * tmp) * (lS / (rV * tmp) - 1); // heat conduction saturation ratio, [WS] eq. 19
+    float satHeatCond = lS / (kA * tmp) * (lS / (rV * tmp) - 1); // heat conduction saturation ratio, [WS] eq. 19
     float satVapDiff = rV * tmp * p / 2.21 * eqVpI; // vapor diffusion saturation ratio, [WS] eq. 20
-    float cVd = 65.2 * sqrt(nI) * (eqVpW - eqVpI) / (sqrt(rouAir) * (satHeadCond + satVapDiff) * eqVpI); // rate constant for vapor deposition on hexagonal crystals, [WS] eq. 18
+    float cVd = 65.2 * sqrt(nI) * (eqVpW - eqVpI) / (sqrt(rouAir) * (satHeatCond + satVapDiff) * eqVpI); // rate constant for vapor deposition on hexagonal crystals, [WS] eq. 18
     float qTilde = max(qI, 1e-12 * nI / rouAir); // [WS] eq. 23
     float bW = (tmpCelsius >= -40 && tmpCelsius <= 0) ? min(qW, pow((1 - cap) * cVd * dt + pow(qTilde, 1 - cap), rcp(1 - cap))) : 0; // warm cloud to ice cloud, [WS] eq. 22
     // bW *= dt; // dt taking into account above
@@ -773,14 +773,12 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
 
     int3 vxP = int3(tid.xy, dSlice);
     float z = (0.5 + vxP.z) * CELL_SIZE.z;
-    
-    float qVapor = 0;
-    float xVapor = qVapor / (qVapor + 1); // [SS] eq. 9
-    float molThermal = lerp(molAir, molVapor, xVapor); // [SS] eq. 7
-    float gammaThermal = lerp(gammaAir, gammaVapor, xVapor); // [SS] eq. 11
-    float tmpThermal = TmpThermal(PressureProfile(z, 0, tmpOcean), tmpOcean, pOcean, gammaThermal); // [SS] eq. 10
-    float tmpAir = TmpProfile(z, 0, tmpOcean);
-    float3 fBuoyancy = float3(0, 0, g * (molAir / molThermal * tmpThermal / tmpAir - 1)); // [SS] eq. 15
 
-    RWTex2d1[tid.xy] = Remap(Tex3d1[vxP].z, -100, 100, 0, 1);
+    float qVapor = Tex3d2[tid].x;
+    float theta = Tex3d5[tid].x;
+    float3 fBuoyancy = float3(0, 0, g * (theta / Abs2PotTmp(tmpOcean, pOcean) - 1 + 0.61 * qVapor));
+
+    // RWTex2d1[tid.xy] = Remap(RWTex3d1[vxP].z, 0, 0.01, 0, 1);
+    // RWTex2d1[tid.xy] = Remap(RWTex3d2[vxP].x, 0, 0.04, 0, 1);
+    RWTex2d1[tid.xy] = Remap(qVapor, 0, 0.1, 0, 1);
 }

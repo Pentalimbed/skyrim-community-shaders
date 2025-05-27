@@ -46,42 +46,19 @@ WeatherSim::WeatherSim()
 		BasicDispatch({}, {}, srv3ds, uav3ds, csGroundEva.get(), false);
 	});
 
-	// advect
-	tasks.push_back([&]() {
-		auto srv3ds = std::array{ texU->srv.get() };
-		auto uav3ds = std::array{ tex3dVec3Temps[0]->uav.get() };
-		BasicDispatch({}, {}, srv3ds, uav3ds, csAdvectVel.get(), true);
-	});
-
-	// diffuse
-	tasks.push_back([&]() {
-		globals::d3d::context->CopyResource(tex3dVec3Temps[1]->resource.get(), tex3dVec3Temps[0]->resource.get());
-	});
-	for (int i = 0; i < 20; i++) {
-		tasks.push_back([&]() {
-			auto srv3ds = std::array{ texU->srv.get(), tex3dVec3Temps[0]->srv.get() };
-			auto uav3ds = std::array{ tex3dVec3Temps[1]->uav.get() };
-			BasicDispatch({}, {}, srv3ds, uav3ds, csDiffVelIter.get(), true);
-
-			tex3dVec3Temps[0].swap(tex3dVec3Temps[1]);
-		});
-	}
-	tasks.push_back([&]() { tex3dVec3Temps[0].swap(texU); });
-
 	// source & vort confine
+	// tasks.push_back([&]() {
+	// 	auto srv3ds = std::array{ texU->srv.get() };
+	// 	auto uav3ds = std::array{ tex3dVec3Temps[0]->uav.get() };
+	// 	BasicDispatch({}, {}, srv3ds, uav3ds, csVorticity.get(), true);
+	// });
+	// tasks.push_back([&]() {
+	// 	auto srv3ds = std::array{ tex3dVec3Temps[0]->srv.get() };
+	// 	auto uav3ds = std::array{ texU->uav.get() };
+	// 	BasicDispatch({}, {}, srv3ds, uav3ds, csVortConfine.get(), true);
+	// });
 	tasks.push_back([&]() {
-		auto srv3ds = std::array{ texU->srv.get() };
-		auto uav3ds = std::array{ tex3dVec3Temps[0]->uav.get() };
-		BasicDispatch({}, {}, srv3ds, uav3ds, csVorticity.get(), true);
-	});
-	tasks.push_back([&]() {
-		auto srv3ds = std::array{ tex3dVec3Temps[0]->srv.get() };
-		auto uav3ds = std::array{ texU->uav.get() };
-		BasicDispatch({}, {}, srv3ds, uav3ds, csVortConfine.get(), true);
-	});
-
-	tasks.push_back([&]() {
-		auto srv3ds = std::array{ texQV->srv.get() };
+		auto srv3ds = std::array{ texQV->srv.get(), texTheta->srv.get() };
 		auto uav3ds = std::array{ texU->uav.get() };
 		BasicDispatch({}, {}, srv3ds, uav3ds, csBuoyExtForce.get(), true);
 	});
@@ -97,7 +74,7 @@ WeatherSim::WeatherSim()
 			auto srv3ds = std::array{ tex3dTemps[0]->srv.get(), tex3dTemps[1]->srv.get() };
 			auto uav3ds = std::array{ tex3dTemps[2]->uav.get() };
 			BasicDispatch({}, {}, srv3ds, uav3ds, csProjectIter.get(), true);
-			tex3dVec3Temps[1].swap(tex3dVec3Temps[2]);
+			tex3dTemps[1].swap(tex3dTemps[2]);
 		});
 	}
 	tasks.push_back([&]() {
@@ -105,6 +82,30 @@ WeatherSim::WeatherSim()
 		auto uav3ds = std::array{ texU->uav.get() };
 		BasicDispatch({}, {}, srv3ds, uav3ds, csProject.get(), true);
 	});
+
+	// advect
+	tasks.push_back([&]() {
+		auto srv3ds = std::array{ texU->srv.get() };
+		auto uav3ds = std::array{ tex3dVec3Temps[0]->uav.get() };
+		BasicDispatch({}, {}, srv3ds, uav3ds, csAdvectVel.get(), true);
+		tex3dVec3Temps[0].swap(texU);
+	});
+
+	// diffuse
+	// tasks.push_back([&]() {
+	// 	globals::d3d::context->CopyResource(tex3dVec3Temps[0]->resource.get(), texU->resource.get());
+	// 	globals::d3d::context->CopyResource(tex3dVec3Temps[1]->resource.get(), texU->resource.get());
+	// });
+	// for (int i = 0; i < 20; i++) {
+	// 	tasks.push_back([&]() {
+	// 		auto srv3ds = std::array{ texU->srv.get(), tex3dVec3Temps[0]->srv.get() };
+	// 		auto uav3ds = std::array{ tex3dVec3Temps[1]->uav.get() };
+	// 		BasicDispatch({}, {}, srv3ds, uav3ds, csDiffVelIter.get(), true);
+
+	// 		tex3dVec3Temps[0].swap(tex3dVec3Temps[1]);
+	// 	});
+	// }
+	// tasks.push_back([&]() { tex3dVec3Temps[0].swap(texU); });
 
 	// advect props
 	tasks.push_back([&]() {
@@ -128,7 +129,7 @@ WeatherSim::WeatherSim()
 
 void WeatherSim::DrawSettings()
 {
-	ImGui::SliderFloat("Vorticity Confinement Strength", &settings.epsConf, 0, 1.0, "%.2f");
+	ImGui::SliderFloat2("Global Wind", &settings.globalWind.x, -10.f, 10.f, "%.1f m/s");
 
 	ImGui::SeparatorText("");
 
@@ -146,6 +147,7 @@ void WeatherSim::DrawSettings()
 
 	ImGui::SeparatorText("");
 
+	ImGui::Checkbox("Per Frame Full Update", &enableDebugUpdate);
 	ImGui::Checkbox("Debug Visualization", &enableDebugViz);
 	ImGui::SliderInt("Debug Slice", &debugSlice, 0, kCloudD - 1);
 
@@ -314,6 +316,10 @@ void WeatherSim::PerFrame()
 		.globalWind = settings.globalWind,
 	};
 	cb->Update(data);
+
+	// TODO REMOVE DEBUG
+	if (enableDebugUpdate)
+		while (!Update()) {}
 
 	if (enableDebugViz) {
 		globals::state->BeginPerfEvent("DEBUG VIZ");

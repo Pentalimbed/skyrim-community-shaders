@@ -12,13 +12,14 @@ class WeatherSim
 	std::vector<std::function<void()>> tasks = {};
 	int updProgress = 0;
 
+	bool enableDebugUpdate = false;
 	bool enableDebugViz = true;
 	int debugSlice = 30;
 	struct Settings
 	{
-		float tmpOcean = 18;                // Celcius, sea level (z=0) temperature
-		float epsConf = .1f;                // vorticity confinement strength
-		float2 globalWind = { 0.f, -5.f };  // m s^-1, boundary wind velocity
+		float tmpOcean = 18;               // Celcius, sea level (z=0) temperature
+		float epsConf = .1f;               // vorticity confinement strength
+		float2 globalWind = { 0.f, 0.f };  // m s^-1, boundary wind velocity
 	} settings;
 
 	struct CB
