@@ -416,8 +416,10 @@ void PhysicalWeather::RenderCloudShadow()
 			texApLut->srv.get(),
 			globals::game::renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
 			srvCloudNoise.get(),
-			texCloudProfile->srv.get(),
-			texCloudSdf->srv.get(),
+			weatherSim.GetCloudMap(),
+			weatherSim.GetCloudSdf(),
+			// texCloudProfile->srv.get(),
+			// texCloudSdf->srv.get(),
 		};
 		auto uav = texCloudShadow->uav.get();
 
@@ -462,8 +464,10 @@ void PhysicalWeather::RenderMainView()
 			texApLut->srv.get(),
 			globals::game::renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
 			srvCloudNoise.get(),
-			texCloudProfile->srv.get(),
-			texCloudSdf->srv.get(),
+			weatherSim.GetCloudMap(),
+			weatherSim.GetCloudSdf(),
+			// texCloudProfile->srv.get(),
+			// texCloudSdf->srv.get(),
 			texCloudShadow->srv.get(),
 		};
 		auto uavs = std::array{ texMainViewTr->uav.get(), texMainViewLum->uav.get() };

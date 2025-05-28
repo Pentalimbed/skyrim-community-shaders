@@ -17,12 +17,15 @@ class WeatherSim
 	int debugSlice = 30;
 	struct Settings
 	{
-		float tmpOcean = 18;               // Celcius, sea level (z=0) temperature
+		float tmpOcean = 18;               // Celsius, sea level (z=0) temperature
 		float epsConf = .1f;               // vorticity confinement strength
 		float2 globalWind = { 0.f, 0.f };  // m s^-1, boundary wind velocity
+
+		float2 qcRange = { 1e-2f, 1.f };  // g/kg
+		float2 uRange = { 0, 10 };        // m/s
 	} settings;
 
-	struct CB
+	struct SimCB
 	{
 		float dt;
 		float3 debugValues;
@@ -30,20 +33,34 @@ class WeatherSim
 		float epsConf;
 		float2 globalWind;
 	};
+	eastl::unique_ptr<ConstantBuffer> simCb = nullptr;
 
-	eastl::unique_ptr<ConstantBuffer> cb = nullptr;
+	struct OutCB
+	{
+		float2 qcRange;
+		float2 uRange;
+	};
+	eastl::unique_ptr<ConstantBuffer> outCb = nullptr;
+
+	struct JumpFloodCB
+	{
+		int stride[3];
+		float _pad;
+	};
+	eastl::unique_ptr<ConstantBuffer> jumpFloodCb = nullptr;
 
 	eastl::unique_ptr<Texture3D> texU = nullptr;
 	eastl::unique_ptr<Texture3D> texQV = nullptr;
-	eastl::unique_ptr<Texture3D> texQW = nullptr;
 	eastl::unique_ptr<Texture3D> texQC = nullptr;
-	eastl::unique_ptr<Texture3D> texQR = nullptr;
-	eastl::unique_ptr<Texture3D> texQS = nullptr;
-	eastl::unique_ptr<Texture3D> texQI = nullptr;
+	eastl::unique_ptr<Texture3D> texQP = nullptr;
 	eastl::unique_ptr<Texture3D> texTheta = nullptr;
 	std::array<eastl::unique_ptr<Texture3D>, 2> tex3dVec3Temps = { nullptr };
-	std::array<eastl::unique_ptr<Texture3D>, 7> tex3dTemps = { nullptr };
+	std::array<eastl::unique_ptr<Texture3D>, 4> tex3dTemps = { nullptr };
 	eastl::unique_ptr<Texture2D> texDebug = nullptr;
+
+	std::array<eastl::unique_ptr<Texture3D>, 2> texCloudSites = { nullptr };
+	eastl::unique_ptr<Texture3D> texCloudMap = nullptr;
+	eastl::unique_ptr<Texture3D> texCloudSdf = nullptr;
 
 	winrt::com_ptr<ID3D11ComputeShader> csInitStates = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csGroundEva = nullptr;
@@ -58,6 +75,10 @@ class WeatherSim
 	winrt::com_ptr<ID3D11ComputeShader> csAdvectProps = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csWaterMicrophysics = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csDebugViz = nullptr;
+
+	winrt::com_ptr<ID3D11ComputeShader> csMask = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> csJumpFlood = nullptr;
+	winrt::com_ptr<ID3D11ComputeShader> csAssemble = nullptr;
 
 	void BasicDispatch(
 		std::span<ID3D11ShaderResourceView*> srv2ds,
@@ -77,4 +98,7 @@ public:
 	bool Update();
 	void InitStates();
 	void PerFrame();
+
+	inline ID3D11ShaderResourceView* GetCloudMap() const { return texCloudMap ? texCloudMap->srv.get() : nullptr; }
+	inline ID3D11ShaderResourceView* GetCloudSdf() const { return texCloudSdf ? texCloudSdf->srv.get() : nullptr; }
 };

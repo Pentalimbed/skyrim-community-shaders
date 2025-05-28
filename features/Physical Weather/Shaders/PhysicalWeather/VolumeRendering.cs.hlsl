@@ -52,7 +52,11 @@ void sampleCloudDensity(
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;
 
 	density = 0;
-	profile = TexCloudProfile.SampleLevel(SampTr, PosWs2CloudUvw(posWorld), 0);
+	profile = 0;
+	float3 uvw = PosWs2CloudUvw(posWorld);
+	if(any(uvw < 0) || any(uvw > 1))
+		return;
+	profile = TexCloudProfile.SampleLevel(SampTr, uvw, 0);
 	if (profile.x < 1e-8)
 		return;
 
@@ -198,14 +202,14 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	if (isValid) {
 		RWCloudShadow[threadPxCoord] = lerp(pastDensity, gDensity[gtid], 0.1f);
 	}
-}
+};
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	[numthreads(8, 8, 1)] void main(uint2 tid
+[numthreads(8, 8, 1)] void main(uint2 tid
 									: SV_DispatchThreadID)
 {
 	const SharedData::PhysWeatherData data = SharedData::physWeatherData;

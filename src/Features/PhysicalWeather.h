@@ -147,12 +147,13 @@ struct PhysicalWeather : Feature
 	} cbData;
 	static_assert(sizeof(CbData) % 16 == 0);
 
+	eastl::unique_ptr<Texture3D> texCloudProfile = nullptr;
+	eastl::unique_ptr<Texture3D> texCloudSdf = nullptr;
+
 	eastl::unique_ptr<Texture2D> texTrLut = nullptr;  // transmittance
 	eastl::unique_ptr<Texture2D> texMsLut = nullptr;  // multiscattering
 	eastl::unique_ptr<Texture2D> texSvLut = nullptr;  // sky view
 	eastl::unique_ptr<Texture3D> texApLut = nullptr;  // aerial perspective
-	eastl::unique_ptr<Texture3D> texCloudProfile = nullptr;
-	eastl::unique_ptr<Texture3D> texCloudSdf = nullptr;
 	eastl::unique_ptr<Texture3D> texCloudShadow = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewTr = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewLum = nullptr;

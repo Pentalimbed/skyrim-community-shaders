@@ -24,9 +24,6 @@ Texture3D Tex3d2 : register(t5);
 Texture3D Tex3d3 : register(t6);
 Texture3D Tex3d4 : register(t7);
 Texture3D Tex3d5 : register(t8);
-Texture3D Tex3d6 : register(t9);
-Texture3D Tex3d7 : register(t10);
-Texture3D Tex3d8 : register(t11);
 
 RWTexture2D<float4> RWTex2d1 : register(u0);
 RWTexture2D<float4> RWTex2d2 : register(u1);
@@ -36,8 +33,6 @@ RWTexture3D<float4> RWTex3d2 : register(u3);
 RWTexture3D<float4> RWTex3d3 : register(u4);
 RWTexture3D<float4> RWTex3d4 : register(u5);
 RWTexture3D<float4> RWTex3d5 : register(u6);
-RWTexture3D<float4> RWTex3d6 : register(u7);
-RWTexture3D<float4> RWTex3d7 : register(u8);
 
 cbuffer CB: register(b0)
 {
@@ -182,6 +177,14 @@ float SatMixingRatioWater(float tmp, float p) {
 float SatMixingRatioIce(float tmp, float p) {
     return 0.622 / p * EqVpIce(tmp);
 }
+// thermal heat capacity
+float CapThermal(float qV){
+    float xVapor = qV / (qV + 1); // [SS] eq. 9
+    float molThermal = lerp(molAir, molVapor, xVapor); // [SS] eq. 7
+    float gammaThermal = lerp(gammaAir, gammaVapor, xVapor); // [SS] eq. 11
+    float cpThermal = gammaThermal * rUniGas / (molThermal * (gammaThermal - 1));
+    return cpThermal; // J kg^-1 K^-1, [SS] eq. 8
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -268,9 +271,12 @@ class VaporFetcher : IFetcher3D {
     float z0; // height of terrain
 
     float4 Fetch(Texture3D tex, int3 px){
-        if ((px.z + 1) * CELL_SIZE.z <= z0 || px.z >= (int)CLOUD_DIM.z) 
+        // if ((px.z + 1) * CELL_SIZE.z <= z0 || px.z >= (int)CLOUD_DIM.z) 
+        //     return 0;
+        // px = px % CLOUD_DIM;
+        if ((px.z + 1) * CELL_SIZE.z <= z0 || any(px.xy < 0)  || any(px >= int3(CLOUD_DIM))) 
             return 0;
-        px = px % CLOUD_DIM;
+        px = clamp(px, 0, CLOUD_DIM - 1);
         return tex[px];
     }
 };
@@ -319,8 +325,8 @@ class PressureFetcher : IFetcher3D {
     float z0; // height of terrain
     float4 Fetch(Texture3D tex, int3 px){
         // TODO: issue with free bound
-        // if (any(px.xy < 0) || any(px.xy >= CLOUD_DIM.xy)) 
-        //     return 0;
+        if (any(px.xy < 0) || any(px.xy >= CLOUD_DIM.xy)) 
+            return 0;
         px = clamp(px, 0, CLOUD_DIM - 1);
         return tex[px];
     }
@@ -394,27 +400,13 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
 
     // TODO use actual evaporation map
     // float eva = Tex2d2[tid.xy].x;
-    float eva = 0.001 * (Random::perlinNoise((vxId + 0.5) * 0.1) * 0.5 + 1);
-    RWTex3d1[vxId] = pad4(min(qSat, RWTex3d1[vxId].x + eva * dt * qSat));
+    float eva = lerp(0, 3e-4, Random::perlinNoise((vxId + 0.5) / 15.0) * 0.5 + 0.5);
+    RWTex3d1[vxId] = pad4(min(qSat, RWTex3d1[vxId].x + eva * dt));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
 // VOLUME UPDATES
-
-
-// advect velocity
-// 2d in 1: height map
-// 3d in 1: u
-// 3d out 1: new u, advected
-[numthreads(8, 8, 1)] void advectVel(int3 tid : SV_DispatchThreadID){
-    VelocityFetcher fetcher;
-    fetcher.z0 = Tex2d1[tid.xy].x;
-
-    float3 uv = (tid + 0.5) / CLOUD_DIM;
-    float3 uvAdv = BacktraceRungeKutta2(Tex3d1, fetcher, uv, dt);
-    RWTex3d1[tid] = LinearSample3D(fetcher, Tex3d1, uvAdv);
-}
 
 // diffuse velocity (one iteration)
 // 2d in 1: height map
@@ -488,16 +480,18 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
 
 // buoyancy and external force
 // 3d in 1: qv
-// 3d in 2: theta
+// 3d in 2: qc
+// 3d in 3: theta
 // 3d inout 1: u
 [numthreads(8, 8, 1)] void buoyExtForce(int3 tid : SV_DispatchThreadID){
     float z = (tid.z + 0.5) * CELL_SIZE.z;
 
     // buoyancy
-    float qVapor = Tex3d1[tid].x;
-    float theta = Tex3d2[tid].x;
+    float qV = Tex3d1[tid].x;
+    float qC = Tex3d2[tid].x;
+    float theta = Tex3d3[tid].x;
     float thetaRef = Abs2PotTmp(TmpProfile(z, 0, tmpOcean), PressureProfile(z, 0, tmpOcean));
-    float3 fBuoyancy = float3(0, 0, g * (theta / thetaRef - 1 + 0.61 * qVapor)) * 0.05;
+    float3 fBuoyancy = float3(0, 0, g * (theta / thetaRef - 1 + 0.61 * qV - qC));
 
     // TODO 
     // wind
@@ -565,207 +559,100 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
     RWTex3d1[tid] = pad4(RWTex3d1[tid].xyz - float3(px1 - px0, py1 - py0, pz1 - pz0) * 0.5 * RCP_CELL_SIZE.x);
 }
 
+
+// advect velocity
+// 2d in 1: height map
+// 3d in 1: u
+// 3d out 1: new u, advected
+[numthreads(8, 8, 1)] void advectVel(int3 tid : SV_DispatchThreadID){
+    VelocityFetcher fetcher;
+    fetcher.z0 = Tex2d1[tid.xy].x;
+
+    float3 uv = (tid + 0.5) / CLOUD_DIM;
+    float3 uvAdv = BacktraceRungeKutta2(Tex3d1, fetcher, uv, dt);
+    RWTex3d1[tid] = LinearSample3D(fetcher, Tex3d1, uvAdv);
+}
+
 // advection of properties
 // 2d in 1: height map
 // 3d in 1: u
 // 3d in 2: qv
-// 3d in 3: qw
-// 3d in 4: qc
-// 3d in 5: qr
-// 3d in 6: qs
-// 3d in 7: qi
-// 3d in 8: theta
-// 3d out 1-7: new props above
+// 3d in 3: qc
+// 3d in 4: qp
+// 3d in 5: theta
+// 3d out 1-4: new props above
 // TODO: less memory requirement? perchance
 [numthreads(8, 8, 1)] void advectProps(int3 tid : SV_DispatchThreadID){
     VelocityFetcher uFetcher;
     uFetcher.z0 = Tex2d1[tid.xy].x;
-
     VaporFetcher qvFetcher;
     qvFetcher.z0 = Tex2d1[tid.xy].x;
-    
     ContentFetcher qjFetcher;
     qjFetcher.z0 = Tex2d1[tid.xy].x;
-    
     ThetaFetcher thetaFetcher;
     thetaFetcher.z0 = Tex2d1[tid.xy].x;
 
     float3 uv = (tid + 0.5) / CLOUD_DIM;
     float3 uvAdv = BacktraceRungeKutta2(Tex3d1, uFetcher, uv, dt);
     float3 dt0 = dt / CLOUD_RANGE_M;
-    float3 velocity = Tex3d1[tid].xyz;
 
     {
         RWTex3d1[tid] = LinearSample3D(qvFetcher, Tex3d2, uvAdv); // qv
-        RWTex3d2[tid] = LinearSample3D(qjFetcher, Tex3d3, uvAdv); // qw
-        RWTex3d3[tid] = LinearSample3D(qjFetcher, Tex3d4, uvAdv); // qc
-        RWTex3d7[tid] = LinearSample3D(thetaFetcher, Tex3d8, uvAdv); // theta
-    }
-    {
-        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermRain(Tex3d2[tid].x)) * dt0;
-        RWTex3d4[tid] = LinearSample3D(qjFetcher, Tex3d5, uv - dispos); // qr
-    }
-    {
-        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermSnow(Tex3d2[tid].x)) * dt0;
-        RWTex3d5[tid] = LinearSample3D(qjFetcher, Tex3d6, uv - dispos); // qs
-    }
-    {
-        float3 dispos = (velocity * float3(1, 1, 0.05) + SpeedTermIce(Tex3d2[tid].x)) * dt0;
-        RWTex3d6[tid] = LinearSample3D(qjFetcher, Tex3d7, uv - dispos); // qi
+        RWTex3d2[tid] = LinearSample3D(qjFetcher, Tex3d3, uvAdv); // qc
+        RWTex3d4[tid] = LinearSample3D(thetaFetcher, Tex3d5, uvAdv); // qp
+        RWTex3d3[tid] = LinearSample3D(qjFetcher, Tex3d4, uvAdv - float3(0,0,-2) * dt0); // theta
     }
 }
 
 // water microphysics
 // 2d in 1: height map
 // 3d in 1: qv
-// 3d in 2: qw
-// 3d in 3: qc
-// 3d in 4: qr
-// 3d in 5: qs
-// 3d in 6: qi
-// 3d in 7: theta
-// 3d out 1-7: new props above
+// 3d in 2: qc
+// 3d in 3: qp
+// 3d in 4: theta
+// 3d out 1-4: new props above
 [numthreads(8, 8, 1)] void waterMicrophysics(int3 tid : SV_DispatchThreadID){
     float z = (tid.z + 0.5) * CELL_SIZE.z;
     float qV = Tex3d1[tid].x,
-          qW = Tex3d2[tid].x,
-          qC = Tex3d3[tid].x,
-          qR = Tex3d4[tid].x,
-          qS = Tex3d5[tid].x,
-          qI = Tex3d6[tid].x,
-          theta = Tex3d7[tid].x;
+          qC = Tex3d2[tid].x,
+          qP = Tex3d3[tid].x,
+          theta = Tex3d4[tid].x;
 
     float tmp = Pot2AbsTmp(theta, PressureProfile(z, 0, tmpOcean));
     float tmpCelsius = tmp - kelvin0C;
+    float alpha = 1 - lerp((tmpCelsius + 20) / 20, 0, 1);
     float p = PressureProfile(z, 0, tmpOcean);
     float qWaterSat = SatMixingRatioWater(tmp, p);
     float qIceSat = SatMixingRatioIce(tmp, p);
+    float qSat = lerp(qIceSat, qWaterSat, alpha);
+    float cpThermal = CapThermal(qV);
 
-    float xVapor = qV / (qV + 1); // [SS] eq. 9
-    float molThermal = lerp(molAir, molVapor, xVapor); // [SS] eq. 7
-    float gammaThermal = lerp(gammaAir, gammaVapor, xVapor); // [SS] eq. 11
-    float cpThermal = gammaThermal * rUniGas / (molThermal * (gammaThermal - 1));
+    float cc = 0.0004 * max(alpha * qSat - qV, 0) + 0.0004 * max((1 - alpha) * qSat - qV, 0);
+    cc = min(cc * dt, qV);
+    qV -= cc;
+    qC += cc;
+    tmp += cc * latentVapor / cpThermal;
+    tmpCelsius = tmp - kelvin0C;
+    cpThermal = CapThermal(qV);
 
-    float ewMcw = tmpCelsius >= -40 ? min(qWaterSat - qV, qW) : 0; // evaporation - condensation of water, [WS] eq. 17
-    // ewMcw *= dt; // instantaneous
-    qV += ewMcw;
-    qW -= ewMcw;
+    float ac = 0.001 * max(alpha * qC - 1e-3, 0) +
+          0.001 * exp(0.025 * tmpCelsius) * max((1 - alpha) * qC - 1e-3, 0);
+    ac = min(ac * dt, qC);
+    qC -= ac;
+    qP += ac;
 
-    // mixed-phase cloud, [WS] sec. 4.2.2
-    const static float kA = 2.4e-2;
-    const static float rV = 461;
-    const static float lS = 2.834e6;
-    const static float cap = 0.5; // capacitance for hexagonal crystals
+    float gc = qC * (2.2 * pow(qP * alpha, 0.875) * alpha +
+                3.30724 / 0.08 * pow(qP * (1 - alpha), 1.0705) * (1 - alpha));
+    gc = min(gc * dt, qC);
+    qC -= gc;
+    qP += gc;
 
-    float eqVpW = EqVpWater(tmp);
-    float eqVpI = EqVpIce(tmp);
-    float nI = 1e3 * exp(12.96 * (eqVpW - eqVpI) / (eqVpI - 0.639)); // ice crystal number concentration, [WS] eq. 21
-    float satHeatCond = lS / (kA * tmp) * (lS / (rV * tmp) - 1); // heat conduction saturation ratio, [WS] eq. 19
-    float satVapDiff = rV * tmp * p / 2.21 * eqVpI; // vapor diffusion saturation ratio, [WS] eq. 20
-    float cVd = 65.2 * sqrt(nI) * (eqVpW - eqVpI) / (sqrt(rouAir) * (satHeatCond + satVapDiff) * eqVpI); // rate constant for vapor deposition on hexagonal crystals, [WS] eq. 18
-    float qTilde = max(qI, 1e-12 * nI / rouAir); // [WS] eq. 23
-    float bW = (tmpCelsius >= -40 && tmpCelsius <= 0) ? min(qW, pow((1 - cap) * cVd * dt + pow(qTilde, 1 - cap), rcp(1 - cap))) : 0; // warm cloud to ice cloud, [WS] eq. 22
-    // bW *= dt; // dt taking into account above
-    qC += bW;
-    qW -= bW;
-    
-    // cold cloud, [WS] sec. 4.2.3
-    float fW = tmpCelsius < -40 ? qW : 0; // mixed phase cloud to ice cloud, [WS] eq. 25
-    // fW *= dt; // instantaneous
-    qC += fW;
-    qW -= fW;
-
-    float mC = tmpCelsius > 0 ? qC : 0; // ice cloud to warm cloud, [WS] eq. 26
-    // mC *= dt; // instantaneous
-    // melting constraint, [WS] eq. 37
-    // TODO find out how to apply constraint
-    float meltConstraint = cpAir / latentFusion * (tmpCelsius - 0);
-    // mC = min(mC, meltConstraint);
-    // meltConstraint -= mC;
-    qW += mC;
-    qC -= mC;
-
-    float dcMsc = tmpCelsius <= 0 ? min(qIceSat - qV, qC) : 0; // deposition - sublimation of ice, [WS] eq. 17
-    // dcMsc *= dt; // instantaneous
-    qC += dcMsc;
-    qV -= dcMsc;
-
-    // precip, [WS] sec. 4.2.4
-    // TODO find constants for rW, rS, fR, mI
-    float aW = 0.001 * max(qW - 0.001, 0); // autoconversion of rain, [WS] eq. 29, values from https://erf.readthedocs.io/en/latest/theory/Microphysics.html
-    aW *= dt;
-    aW = min(aW, qW);
-    qR += aW;
-    qW -= aW;
-
-    float kW = 2.2 * qW * pow(qR, 0.875); // accretion of rain, [WS] eq. 30, modified equation and values from https://erf.readthedocs.io/en/latest/theory/Microphysics.html
-    kW *= dt;
-    kW = min(kW, qW);
-    qR += kW;
-    qW -= kW;
-
-    float aC = 1e-3 * exp(0.025 * tmpCelsius) * max(qC - 0.001, 0); // autoconversion of snow, [WS] eq. 31
-    aC *= dt;
-    aC = min(aC, aC);
-    qS += aC;
-    qC -= aC;
-
-    float kC = 3.30724 / 0.08 * qC * pow(qS, 1.0705); // accretion of snow, [WS] eq. 33, modified equation and values from https://egusphere.copernicus.org/preprints/2025/egusphere-2024-2464/egusphere-2024-2464.pdf
-    kC *= dt;
-    kC = min(kC, qC);
-    qS += kC;
-    qC -= kC;
-
-    float rW = 1.0 * qI * qW; // riming of water, [WS] eq. 34, values from my ass
-    rW *= dt;
-    rW = min(rW, qW);
-    qI += rW;
-    qW -= rW;
-
-    float rS = 1.2 * qI * qS; // riming of snow, [WS] eq. 35 (wrong? qW for qI), values from my ass
-    rS *= dt;
-    rS = min(rS, qS);
-    qI += rS;
-    qS -= rS;
-    
-    float fR = tmpCelsius <= -8 ? 0 * pow(tmpCelsius + 8, 2) : 0; // freezing of raindrops, [WS] eq. 36, values from my ass (zeroed out because I have no good reference)
-    fR *= dt;
-    fR = min(fR, qR);
-    qI += fR;
-    qR -= fR;
-
-    // melting, [WS] sec. 4.2.5
-    float mS = tmpCelsius > 0 ? qS : 0; // melting of snow, [WS] eq. 38
-    mS *= dt;
-    mS = min(mS, qS);
-    // mS = min(mS, meltConstraint);
-    // meltConstraint -= mS;
-    qR += mS;
-    qS -= mS;
-
-    float mI = 0 * max(tmpCelsius, 0); // melting of ice, [WS] eq. 39, values from my ass (zeroed out because I have no good reference)
-    mI *= dt;
-    mI = min(mI, qI);
-    // mI = min(mI, meltConstraint);
-    // meltConstraint -= mI;
-    qR += mI;
-    qI -= mI;
-
-    // evaporation, [WS] sec. 4.2.6
-    // eR can be found at https://erf.readthedocs.io/en/latest/theory/Microphysics.html
-    // TODO, because I don't have enough values from my ass
-
-    // temperature update, [WS] eq. 50
-    tmp += (dcMsc * latentSub - ewMcw * latentVapor + (bW + fW - mC) * latentFusion) / cpThermal;
     theta = Abs2PotTmp(tmp, p);
 
     RWTex3d1[tid] = pad4(qV);
-    RWTex3d2[tid] = pad4(qW);
-    RWTex3d3[tid] = pad4(qC);
-    RWTex3d4[tid] = pad4(qR);
-    RWTex3d5[tid] = pad4(qS);
-    RWTex3d6[tid] = pad4(qI);
-    RWTex3d7[tid] = pad4(theta);
+    RWTex3d2[tid] = pad4(qC);
+    RWTex3d3[tid] = pad4(qP);
+    RWTex3d4[tid] = pad4(theta);
 }
 
 [numthreads(8, 8, 1)] void debugViz(int3 tid : SV_DispatchThreadID){
@@ -774,11 +661,14 @@ float3 BacktraceRungeKutta2(Texture3D texU, IFetcher3D fetcher, float3 uvw, floa
     int3 vxP = int3(tid.xy, dSlice);
     float z = (0.5 + vxP.z) * CELL_SIZE.z;
 
-    float qVapor = Tex3d2[tid].x;
-    float theta = Tex3d5[tid].x;
-    float3 fBuoyancy = float3(0, 0, g * (theta / Abs2PotTmp(tmpOcean, pOcean) - 1 + 0.61 * qVapor));
+    float qV = Tex3d2[vxP].x;
+    float qC = Tex3d3[vxP].x;
+    float qP = Tex3d4[vxP].x;
+    float theta = Tex3d5[vxP].x;
+    float thetaRef = Abs2PotTmp(TmpProfile(z, 0, tmpOcean), PressureProfile(z, 0, tmpOcean));
+    float3 fBuoyancy = float3(0, 0, g * (theta / thetaRef - 1 + 0.61 * qV - qC));
 
-    // RWTex2d1[tid.xy] = Remap(RWTex3d1[vxP].z, 0, 0.01, 0, 1);
-    // RWTex2d1[tid.xy] = Remap(RWTex3d2[vxP].x, 0, 0.04, 0, 1);
-    RWTex2d1[tid.xy] = Remap(qVapor, 0, 0.1, 0, 1);
+    // RWTex2d1[tid.xy] = float4(Remap(RWTex3d1[vxP].z, 0, -10, 0, 1).xxx, 1);
+    RWTex2d1[tid.xy] = float4(Remap(qV, 0, 0.05, 0, 1), Remap(qC, 0, 0.03, 0, 1), Remap(qP, 0, 0.01, 0, 1), 1);
+    // RWTex2d1[tid.xy] = float4(Remap(fBuoyancy.z, -0.1, 0.1, 0, 1), 0, 0, 1);
 }
