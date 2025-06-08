@@ -11,6 +11,7 @@
 #define PS_PREPASS_RSRCS
 #include "PhysicalWeather/Common.hlsli"
 
+#include "Common/Color.hlsli"
 #include "Common/Random.hlsli"
 
 RWTexture2D<float4> RWTexTr : register(u0);
@@ -19,8 +20,8 @@ RWTexture2D<float4> RWTexLum : register(u1);
 RWTexture3D<float> RWCloudShadow : register(u0);
 
 const static float EPS = 1e-8;
-const static uint MAX_STEP = 150;
-const static float SUN_SAMPLE_STRIDE = 0.05 / 1.428e-5f;  // 50 m
+const static uint MAX_STEP = 100;
+const static float SUN_SAMPLE_STRIDE = 0.01 / 1.428e-5f;  // 10 m
 
 struct RayInfo
 {
@@ -56,14 +57,16 @@ void sampleCloudDensity(
 	float3 uvw = PosWs2CloudUvw(posWorld);
 	if(any(uvw < 0) || any(uvw > 1))
 		return;
-	profile = TexCloudProfile.SampleLevel(SampTr, uvw, 0);
+	profile.x = TexCloudDim.SampleLevel(SampTr, uvw, 0);
 	if (profile.x < 1e-8)
 		return;
+	profile.y = TexCloudDet.SampleLevel(SampTr, uvw, 0);
+	profile.z = TexCloudDen.SampleLevel(SampTr, uvw, 0);
 
 	// sample noise
 	// float3 offset = data.cloudNoiseOffset;
 	float3 offset = 0;
-	float4 noise = TexNoise.SampleLevel(SampNoise, (posWorld + offset) * data.cloudNoiseFreq * 1, mip_level);
+	float4 noise = TexNoise.SampleLevel(SampNoise, (posWorld + offset) * data.cloudNoiseFreq * 10, mip_level);
 	// Define wispy noise
 	float wispy_noise = lerp(noise.r, noise.g, profile.x);
 	// Define billowy noise
@@ -127,6 +130,8 @@ void InitRay(uint2 pxCoords, float3 rnd, out RayInfo ray)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TODO: amortize and support > 256 px textures
 
 #define SHADOW_NTHREADS 256
 groupshared float gDensity[SHADOW_NTHREADS];
@@ -204,10 +209,10 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	}
 };
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 [numthreads(8, 8, 1)] void main(uint2 tid
 									: SV_DispatchThreadID)
@@ -229,6 +234,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 	while (ray.marchSteps < MAX_STEP && ray.dist < ray.distEnd) {
 		// march distance
 		float sdf = TexCloudSdf.SampleLevel(SampTr, PosWs2CloudUvw(ray.pos), 0);
+		sdf = lerp(-256, 2048, sdf) * 0.001 / 1.428e-5f;
 		float sdfDist = max(0, sdf);
 		float adaptiveStepSize = max(1.0, sqrt(0.001 / 1.428e-5f * ray.dist) * 0.8);
 		float distLeft = ray.distEnd - ray.dist;
@@ -292,6 +298,10 @@ groupshared float gDensity[SHADOW_NTHREADS];
 						Remap(u, 0.0, 0.9, 0.25, Remap(sdf, -0.128 / 1.428e-5f, 0.0, 0.05, 0.25)));
 		msVolume *= trAtmos;
 		inscatter += muSCloud * msVolume * data.lightColor;
+
+		// - ambient
+		float3 ambient = Color::GammaToLinear(SharedData::DirectionalAmbient._14_24_34);
+		inscatter += (muSCloud * sqrt(1.0 - cloudSample.x)) * ambient * RCP_PI;
 
 		float3 scatterIntegeral = inscatter * scatterFactor;
 

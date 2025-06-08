@@ -191,6 +191,11 @@ namespace SharedData
 		float2 frameDim;
 		float2 rcpFrameDim;
 
+		uint3 cloudDim;
+		float cloudCellSize;  //
+		float3 rcpCloudDim;
+		float rcpCloudCellSize;  //
+
 		float zCameraPlanet;
 		float3 lightDir;  //
 		float3 lightColor;

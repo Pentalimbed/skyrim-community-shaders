@@ -14,16 +14,18 @@ Texture2D<float4> TexSvLut : register(t2);
 Texture3D<float4> TexApLut : register(t3);
 Texture2D<float> TexDepth : register(t4);
 Texture3D<float> TexNoise : register(t5);
-Texture3D<float3> TexCloudProfile : register(t6);
-Texture3D<float> TexCloudSdf : register(t7);
-Texture3D<float> TexCloudShadow : register(t8);
+Texture3D<unorm float> TexCloudDim : register(t6);
+Texture3D<unorm float> TexCloudDet : register(t7);
+Texture3D<unorm float> TexCloudDen : register(t8);
+Texture3D<float> TexCloudSdf : register(t9);
+Texture3D<float> TexCloudShadow : register(t10);
 #endif
 
 static const float RCP_PI = 1 / Math::PI;         // PI
 static const float AP_MAX_DIST = 60 / 1.428e-5f;  // 60 km
-static const uint3 CLOUD_DIM = uint3(256, 256, 256);
-static const float3 CLOUD_RANGE = float3(10.f, 10.f, 10.f) / 1.428e-5f;
-static const float3 CLOUD_RANGE_M = float3(10.f, 10.f, 10.f) * 1e3;
+static const uint3 CLOUD_DIM = uint3(512, 512, 64);
+static const float3 CLOUD_RANGE = float3(4.f, 4.f, .5f) / 1.428e-5f;
+static const float3 CLOUD_RANGE_M = float3(4.f, 4.f, .5f) * 1e3;
 
 #ifndef ISNAN
 #	define ISNAN(x) (!(x < 0.f || x > 0.f || x == 0.f))

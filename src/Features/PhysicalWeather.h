@@ -2,7 +2,6 @@
 
 #include "Buffer.h"
 #include "Feature.h"
-#include "PhysicalWeather/WeatherSim.h"
 
 #include <map>
 
@@ -41,7 +40,6 @@ struct PhysicalWeather : Feature
 
 	virtual void Prepass() override;  // gpu render
 	void GenerateLuts();
-	void TestBallTexGen();
 	void RenderCloudShadow();
 	void RenderMainView();
 
@@ -66,10 +64,10 @@ struct PhysicalWeather : Feature
 	constexpr static uint16_t kApLutH = 32;
 	constexpr static uint16_t kApLutD = 32;
 
-	constexpr static uint16_t kCloudW = 256;
-	constexpr static uint16_t kCloudH = 256;
-	constexpr static uint16_t kCloudD = 256;
-	constexpr static float3 kCloudRange = { 10.f, 10.f, 10.f };  // in km
+	constexpr static uint16_t kCloudW = 512;
+	constexpr static uint16_t kCloudH = 512;
+	constexpr static uint16_t kCloudD = 64;
+	constexpr static float3 kCloudRange = { 4.f, 4.f, 0.5f };  // in km
 
 	struct WorldspaceInfo
 	{
@@ -99,8 +97,8 @@ struct PhysicalWeather : Feature
 		float3 ozoneAbsorption = { 2.2911f, 1.5404f, 0 };
 
 		float cloudDensityScale = 1.f;
-		float cloudNoiseScale = 0.5f;                // in km
-		float3 cloudScatter = { 60.f, 60.f, 60.f };  // in km^-1
+		float cloudNoiseScale = 0.5f;                   // in km
+		float3 cloudScatter = { 600.f, 600.f, 600.f };  // in km^-1
 		float3 cloudAbsorption = { 0.f, 0.f, 0.f };
 	} settings;
 
@@ -108,9 +106,14 @@ struct PhysicalWeather : Feature
 	{
 		// DYNAMIC
 		float2 texDim;
-		float2 rcpTexDim;
+		float2 rcpTexDim;  //
 		float2 frameDim;
-		float2 rcpFrameDim;
+		float2 rcpFrameDim;  //
+
+		DirectX::XMUINT3 cloudDim;
+		float cloudCellSize;  //
+		float3 rcpCloudDim;
+		float rcpCloudCellSize;  //
 
 		float zCameraPlanet;
 		float3 lightDir;  //
@@ -147,9 +150,6 @@ struct PhysicalWeather : Feature
 	} cbData;
 	static_assert(sizeof(CbData) % 16 == 0);
 
-	eastl::unique_ptr<Texture3D> texCloudProfile = nullptr;
-	eastl::unique_ptr<Texture3D> texCloudSdf = nullptr;
-
 	eastl::unique_ptr<Texture2D> texTrLut = nullptr;  // transmittance
 	eastl::unique_ptr<Texture2D> texMsLut = nullptr;  // multiscattering
 	eastl::unique_ptr<Texture2D> texSvLut = nullptr;  // sky view
@@ -158,6 +158,11 @@ struct PhysicalWeather : Feature
 	eastl::unique_ptr<Texture2D> texMainViewTr = nullptr;
 	eastl::unique_ptr<Texture2D> texMainViewLum = nullptr;
 	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudNoise = nullptr;
+
+	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudDim = nullptr;
+	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudDet = nullptr;
+	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudDen = nullptr;
+	winrt::com_ptr<ID3D11ShaderResourceView> srvCloudSdf = nullptr;
 
 	winrt::com_ptr<ID3D11SamplerState> sampTr = nullptr;
 	winrt::com_ptr<ID3D11SamplerState> sampSv = nullptr;
@@ -169,8 +174,4 @@ struct PhysicalWeather : Feature
 	winrt::com_ptr<ID3D11ComputeShader> csApLutGen = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csCloudShadow = nullptr;
 	winrt::com_ptr<ID3D11ComputeShader> csMainView = nullptr;
-
-	winrt::com_ptr<ID3D11ComputeShader> csTestBall = nullptr;
-
-	WeatherSim weatherSim = {};
 };

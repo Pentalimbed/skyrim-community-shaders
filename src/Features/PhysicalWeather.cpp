@@ -106,7 +106,7 @@ void PhysicalWeather::SetupResources()
 			.Height = kCloudH,
 			.Depth = kCloudD,
 			.MipLevels = 1,
-			.Format = DXGI_FORMAT_R11G11B10_FLOAT,
+			.Format = DXGI_FORMAT_R16_FLOAT,
 			.Usage = D3D11_USAGE_DEFAULT,
 			.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET,
 			.CPUAccessFlags = 0,
@@ -122,16 +122,6 @@ void PhysicalWeather::SetupResources()
 			.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D,
 			.Texture3D = { .MipSlice = 0, .FirstWSlice = 0, .WSize = kCloudD }
 		};
-
-		texCloudProfile = eastl::make_unique<Texture3D>(texDesc);
-		texCloudProfile->CreateSRV(srvDesc);
-		texCloudProfile->CreateUAV(uavDesc);
-
-		texDesc.Format = srvDesc.Format = uavDesc.Format = DXGI_FORMAT_R16_FLOAT;
-
-		texCloudSdf = eastl::make_unique<Texture3D>(texDesc);
-		texCloudSdf->CreateSRV(srvDesc);
-		texCloudSdf->CreateUAV(uavDesc);
 
 		texCloudShadow = eastl::make_unique<Texture3D>(texDesc);
 		texCloudShadow->CreateSRV(srvDesc);
@@ -171,10 +161,14 @@ void PhysicalWeather::SetupResources()
 	logger::debug("Loading textures from files...");
 	{
 		DirectX::CreateDDSTextureFromFile(device, context, L"Data\\Shaders\\PhysicalWeather\\noise.dds", nullptr, srvCloudNoise.put());
+
+		DirectX::CreateDDSTextureFromFile(device, context, L"Data\\textures\\cloudvolumes\\parkour_dim.dds", nullptr, srvCloudDim.put());
+		DirectX::CreateDDSTextureFromFile(device, context, L"Data\\textures\\cloudvolumes\\parkour_det.dds", nullptr, srvCloudDet.put());
+		DirectX::CreateDDSTextureFromFile(device, context, L"Data\\textures\\cloudvolumes\\parkour_den.dds", nullptr, srvCloudDen.put());
+		DirectX::CreateDDSTextureFromFile(device, context, L"Data\\textures\\cloudvolumes\\parkour_sdf.dds", nullptr, srvCloudSdf.put());
 	}
 
 	CompileShaders();
-	weatherSim.SetupResources();
 }
 
 void PhysicalWeather::ClearShaderCache()
@@ -199,7 +193,6 @@ void PhysicalWeather::CompileShaders()
 		{ &csApLutGen, "LutGen.cs.hlsl", { { "LUTGEN", "3" } } },
 		{ &csMainView, "VolumeRendering.cs.hlsl" },
 		{ &csCloudShadow, "VolumeRendering.cs.hlsl", {}, "renderShadow" },
-		{ &csTestBall, "TestBallTexGen.cs.hlsl" },
 	};
 
 	for (auto& info : shaderInfos) {
@@ -207,8 +200,6 @@ void PhysicalWeather::CompileShaders()
 		if (auto rawPtr = reinterpret_cast<ID3D11ComputeShader*>(Util::CompileShader(path.c_str(), info.defines, "cs_5_0", info.entry.data())))
 			info.csPtr->attach(rawPtr);
 	}
-
-	weatherSim.CompileShaders();
 }
 
 bool PhysicalWeather::ShadersOK()
@@ -286,11 +277,8 @@ void PhysicalWeather::Reset()
 
 void PhysicalWeather::Prepass()
 {
-	weatherSim.PerFrame();
-
 	if (cbData.enabled) {
 		GenerateLuts();
-		TestBallTexGen();
 		RenderCloudShadow();
 		RenderMainView();
 	} else {
@@ -364,23 +352,6 @@ void PhysicalWeather::GenerateLuts()
 	state->EndPerfEvent();
 }
 
-void PhysicalWeather::TestBallTexGen()
-{
-	auto context = globals::d3d::context;
-
-	auto uavs = std::array{ texCloudProfile->uav.get(), texCloudSdf->uav.get() };
-
-	/* ---- DISPATCH ---- */
-	context->CSSetUnorderedAccessViews(0, (int)uavs.size(), uavs.data(), nullptr);
-	context->CSSetShader(csTestBall.get(), nullptr, 0);
-	context->Dispatch((kCloudW + 7) >> 3, (kCloudH + 7) >> 3, kCloudD);
-
-	/* ---- RESTORE ---- */
-	uavs.fill(nullptr);
-	context->CSSetUnorderedAccessViews(0, (int)uavs.size(), uavs.data(), nullptr);
-	context->CSSetShader(nullptr, nullptr, 0);
-}
-
 void PhysicalWeather::RenderCloudShadow()
 {
 	auto state = globals::state;
@@ -416,10 +387,9 @@ void PhysicalWeather::RenderCloudShadow()
 			texApLut->srv.get(),
 			globals::game::renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
 			srvCloudNoise.get(),
-			weatherSim.GetCloudMap(),
-			weatherSim.GetCloudSdf(),
-			// texCloudProfile->srv.get(),
-			// texCloudSdf->srv.get(),
+			srvCloudDim.get(),
+			srvCloudDet.get(),
+			srvCloudDen.get(),
 		};
 		auto uav = texCloudShadow->uav.get();
 
@@ -464,10 +434,10 @@ void PhysicalWeather::RenderMainView()
 			texApLut->srv.get(),
 			globals::game::renderer->GetDepthStencilData().depthStencils[RE::RENDER_TARGETS_DEPTHSTENCIL::kPOST_ZPREPASS_COPY].depthSRV,
 			srvCloudNoise.get(),
-			weatherSim.GetCloudMap(),
-			weatherSim.GetCloudSdf(),
-			// texCloudProfile->srv.get(),
-			// texCloudSdf->srv.get(),
+			srvCloudDim.get(),
+			srvCloudDet.get(),
+			srvCloudDen.get(),
+			srvCloudSdf.get(),
 			texCloudShadow->srv.get(),
 		};
 		auto uavs = std::array{ texMainViewTr->uav.get(), texMainViewLum->uav.get() };

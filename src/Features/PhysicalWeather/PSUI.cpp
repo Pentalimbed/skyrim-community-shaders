@@ -17,10 +17,6 @@ void PhysicalWeather::DrawSettings()
 			SettingsClouds();
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Weather Sim")) {
-			weatherSim.DrawSettings();
-			ImGui::EndTabItem();
-		}
 		if (ImGui::BeginTabItem("Debug")) {
 			SettingsDebug();
 			ImGui::EndTabItem();
