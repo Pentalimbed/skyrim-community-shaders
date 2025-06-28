@@ -301,7 +301,7 @@ groupshared float gDensity[SHADOW_NTHREADS];
 
 		// - ambient
 		float3 ambient = Color::GammaToLinear(SharedData::DirectionalAmbient._14_24_34);
-		inscatter += (muSCloud * sqrt(1.0 - cloudSample.x)) * ambient * RCP_PI;
+		inscatter += muSCloud * sqrt(1.0 - cloudSample.x) * ambient;
 
 		float3 scatterIntegeral = inscatter * scatterFactor;
 
