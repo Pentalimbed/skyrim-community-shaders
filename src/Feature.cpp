@@ -14,6 +14,7 @@
 #include "Features/InverseSquareLighting.h"
 #include "Features/LODBlending.h"
 #include "Features/LightLimitFix.h"
+#include "Features/ParametricSky.h"
 #include "Features/ScreenSpaceGI.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/SkySync.h"
@@ -220,7 +221,8 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		globals::features::interiorSunShadows,
 		globals::features::terrainVariation,
 		globals::features::ibl,
-		globals::features::extendedTranslucency
+		globals::features::extendedTranslucency,
+		globals::features::parametricSky,
 	};
 
 	if (REL::Module::IsVR()) {

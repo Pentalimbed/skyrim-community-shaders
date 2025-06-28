@@ -180,11 +180,16 @@ cbuffer AlphaTestRefCB : register(b11)
 }
 #	endif
 
+#	include "Common/Color.hlsli"
 #	include "Common/MotionBlur.hlsli"
 #	include "Common/SharedData.hlsli"
 
 #	if defined(CLOUD_SHADOWS)
 #		include "CloudShadows/CloudShadows.hlsli"
+#	endif
+
+#	if defined(PARAMETRIC_SKY)
+#		include "ParametricSky/ParametricSky.hlsli"
 #	endif
 
 Texture2D<float> TexDepthSampler : register(t17);
@@ -241,6 +246,12 @@ PS_OUTPUT main(PS_INPUT input)
 #	else
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
+
+#	if defined(DITHER) && !defined(TEX)
+	float3 skyLinear = ParametricSky::SkyOzlem(normalize(input.WorldPosition.xyz));
+	// psout.Color.xyz = Color::LinearToGamma(skyLinear);
+	psout.Color.xyz = skyLinear / (1 + skyLinear);
+#	endif
 
 	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
 

@@ -23,6 +23,7 @@
 #include "Features/InverseSquareLighting.h"
 #include "Features/LODBlending.h"
 #include "Features/LightLimitFix.h"
+#include "Features/ParametricSky.h"
 #include "Features/ScreenSpaceGI.h"
 #include "Features/ScreenSpaceShadows.h"
 #include "Features/SkySync.h"
@@ -64,6 +65,7 @@ namespace globals
 		HairSpecular* hairSpecular = nullptr;
 		InteriorSunShadows* interiorSunShadows = nullptr;
 		InverseSquareLighting* inverseSquareLighting = nullptr;
+		ParametricSky* parametricSky = nullptr;
 		ScreenSpaceGI* screenSpaceGI = nullptr;
 		ScreenSpaceShadows* screenSpaceShadows = nullptr;
 		Skylighting* skylighting = nullptr;
@@ -149,6 +151,7 @@ namespace globals
 		features::lodBlending = LODBlending::GetSingleton();
 		features::interiorSunShadows = InteriorSunShadows::GetSingleton();
 		features::inverseSquareLighting = InverseSquareLighting::GetSingleton();
+		features::parametricSky = ParametricSky::GetSingleton();
 		features::screenSpaceGI = ScreenSpaceGI::GetSingleton();
 		features::screenSpaceShadows = ScreenSpaceShadows::GetSingleton();
 		features::skylighting = Skylighting::GetSingleton();

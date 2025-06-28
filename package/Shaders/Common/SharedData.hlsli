@@ -192,6 +192,18 @@ namespace SharedData
 		float Strength;      // [0, 1.0] The inverse blend weight of the effect
 	};
 
+	struct ParametricSkyData
+	{
+		float altitude;
+		float3 sunColor;
+		float2 sunAngles; // point towards sun, x: azimuth, y: cos zenith
+		float ozoneDu;
+		float turbidity;
+		float vividness;
+		float fRayleighZenith;
+		float2 _pad0;
+	};
+
 	cbuffer FeatureData : register(b6)
 	{
 		GrassLightingSettings grassLightingSettings;
@@ -207,6 +219,7 @@ namespace SharedData
 		TerrainVariationSettings terrainVariationSettings;
 		IBLSettings iblSettings;
 		ExtendedTranslucencySettings extendedTranslucencySettings;
+		ParametricSkyData parametricSkyData;
 	};
 
 	Texture2D<float4> DepthTexture : register(t17);
