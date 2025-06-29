@@ -44,8 +44,8 @@ float3 SkyOzlem(float3 viewDir)
     float azimuthSun = data.sunAngles.x;
 
     // tangent height
-    float hTanView = altitude + (cosView > 0 ? 0 : altitude - altitude / sinView);
-    float hTanSun = altitude + (cosSun > 0 ? 0 : altitude - altitude / sinSun);
+    float hTanView = altitude + (cosView > 0 ? 0 : rEarth - rEarth / sinView);
+    float hTanSun = altitude + (cosSun > 0 ? 0 : rEarth - rEarth / sinSun);
 
     // altitudal decay of participants
     float altDecayOzone = exp(-altitude / hScaleOzone);
@@ -102,8 +102,9 @@ float3 SkyOzlem(float3 viewDir)
     float venusBeltHorScaleCoeff = 1;
     if (venusBeltShadowThres < 0)
     {
-        float venusBeltAltCorrection = venusBeltShadowThres * sin(radians(91) + horDownshift - zenithSun) / (1 - cos(venusBeltShadowThres));
-        venusBeltHorScaleCoeff = 1 + 1 / max(venusBeltAltCorrection + refrU, 0);
+        float venusBeltAltCorrection = (radians(2) + horDownshift) / radians(120);
+        float venusBeltVertScaleCoeff = venusBeltAltCorrection * sin(radians(91) + horDownshift - acos(cosView)) / (1 - cos(venusBeltShadowThres));
+        venusBeltHorScaleCoeff = 1 + 1 / max(venusBeltVertScaleCoeff + refrU, 0);
     }
     
     // indicatrix
