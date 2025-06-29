@@ -197,11 +197,32 @@ namespace SharedData
 		float altitude;
 		float3 sunColor;
 		float2 sunAngles; // point towards sun, x: azimuth, y: cos zenith
-		float ozoneDu;
 		float turbidity;
 		float vividness;
 		float fRayleighZenith;
-		float2 _pad0;
+		float cosHorDownshift;
+
+		float altDecayRayleigh;
+		float altDecayMie;
+		float3 rouMie;
+		float rouMieAltCorrected;
+
+		float3 tauSunOzone;
+		float msDegrader;
+		float3 tauSunRayleigh;
+		float cRayleigh;
+		float3 tauSunMie;
+		float anisoMie;
+
+		float horDownshift;
+		float g2;
+		float cMie;
+		float deepTwilightCutoff;
+
+		float twilightVertScale;
+		float twilightDarkness;
+		float venusBeltShadowThres;
+		float venusBeltAltCorrection;
 	};
 
 	cbuffer FeatureData : register(b6)
