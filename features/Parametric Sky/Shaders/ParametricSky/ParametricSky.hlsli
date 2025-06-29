@@ -1,5 +1,4 @@
-#define COMPUTESHADER
-#include "Common/SharedData.hlsli"
+#include "Common/Color.hlsli"
 
 namespace ParametricSky
 {
@@ -22,13 +21,9 @@ float RelativeAirMass(float theta, float rRel){
     return sqrt(rTemp * rTemp + 2 * rRel + 1) - rTemp;
 }
 
-float3 SkyOzlem(float3 viewDir)
+float3 DirlightOzlem(float3 viewDir, SharedData::ParametricSkyPerDirLight lightData)
 {
     SharedData::ParametricSkyData data = SharedData::parametricSkyData;
-    float altitude = data.altitude;
-
-    // Many of the commented lines below are ones that can be calculated on CPU
-    // They were left here to make it easier to understand the algorithm
 
     // Zenith angles
     float cosView = viewDir.z;
@@ -38,12 +33,12 @@ float3 SkyOzlem(float3 viewDir)
         return 0;
     float azimuthView = atan2(viewDir.y, viewDir.x);
 
-    float cosSun = data.sunAngles.y;
+    float cosSun = lightData.lightAngles.y;
     float sinSun = sqrt(1 - cosSun * cosSun);
-    float azimuthSun = data.sunAngles.x;
+    float azimuthSun = lightData.lightAngles.x;
 
     // tangent height
-    float hTanView = altitude + (cosView > 0 ? 0 : rEarth - rEarth / sinView);
+    float hTanView = data.altitude + (cosView > 0 ? 0 : rEarth - rEarth / sinView);
     // float hTanSun = altitude + (cosSun > 0 ? 0 : rEarth - rEarth / sinSun);
 
     // altitudal decay of participants
@@ -80,51 +75,69 @@ float3 SkyOzlem(float3 viewDir)
     // float3 tauSunMie = rouMie * amSunMie;
 
     // multi scatter corrected transmittance
-    float3 trRayleigh = 2 / (2 + sqrt(tauViewRayleigh * data.tauSunRayleigh));
-    float3 trMie = exp(-sqrt(tauViewMie * data.tauSunMie) / 6);
+    float3 trRayleigh = 2 / (2 + sqrt(tauViewRayleigh * lightData.tauSunRayleigh));
+    float3 trMie = exp(-sqrt(tauViewMie * lightData.tauSunMie) / 6);
     // single scatter transmittance around sun disc
-    float3 trAureole = exp(-data.tauSunOzone - tauViewRayleigh - tauViewMie);
-    float3 trSun =  exp(-data.tauSunOzone - data.tauSunRayleigh - data.tauSunMie);
+    float3 trAureole = exp(-lightData.tauSunOzone - tauViewRayleigh - tauViewMie);
+    float3 trSun =  exp(-lightData.tauSunOzone - lightData.tauSunRayleigh - lightData.tauSunMie);
 
     // twilight coeffs
     // float twilightVertScale = 0.03 * max(-hTanSun, 0);
     // float twilightDarkness = 0.03 * twilightVertScale * twilightVertScale;
     // // float twilightLum = exp(0.3 - 0.05 * amSunRayleigh - 1.7 * twilightVertScale) + 1e-5; // for absolute luminance
     float3 twilightScatterRatio = (1 - exp(-tauViewRayleigh - tauViewMie)) / (7 * tauViewRayleigh + tauViewMie) * 
-        exp(-data.tauSunOzone - data.twilightVertScale / amViewRayleigh - data.twilightDarkness);
-    // float deepTwilightCutoff = 0.002 * altDecayRayleigh;
+        exp(-lightData.tauSunOzone - lightData.twilightVertScale / amViewRayleigh - lightData.twilightDarkness);
+    float deepTwilightCutoff = 0.002 * data.altDecayRayleigh;
 
     // venus belt
-    // float zenithSun = acos(cosSun);
+    float zenithSun = acos(cosSun);
     // float horDownshift = acos(cosHorDownshift);
-    // float venusBeltShadowThres = radians(89) - horDownshift - zenithSun;
+    float venusBeltShadowThres = radians(89) - data.horDownshift - zenithSun;
     float venusBeltHorScaleCoeff = 1;
-    if (data.venusBeltShadowThres < 0)
+    if (venusBeltShadowThres < 0)
     {
-        // float venusBeltAltCorrection = (radians(2) + horDownshift) / radians(120);
-        float venusBeltVertScaleCoeff = data.venusBeltAltCorrection * sin(radians(91) + data.horDownshift - acos(cosView)) / (1 - cos(data.venusBeltShadowThres));
+        float venusBeltAltCorrection = (radians(2) + data.horDownshift) / radians(120);
+        float venusBeltVertScaleCoeff = venusBeltAltCorrection * sin(radians(91) + data.horDownshift - acos(cosView)) / (1 - cos(venusBeltShadowThres));
         venusBeltHorScaleCoeff = 1 + 1 / max(venusBeltVertScaleCoeff + refrU, 0);
     }
     
     // indicatrix
     // float anisoMie = msDegrader * exp(-0.02 * amSunMie);
-    float phaseCommon = 1 + (refrU >= 0 ? data.msDegrader : data.anisoMie) * refrU * refrU;
+    float phaseCommon = 1 + (refrU >= 0 ? data.msDegrader : lightData.anisoMie) * refrU * refrU;
 
     // float cRayleigh = 3 / (3 + msDegrader);
     float3 fRayleigh = 7 * data.cRayleigh * tauViewRayleigh * trRayleigh * twilightScatterRatio;
 
     // float g2 = anisoMie * anisoMie;
     // float cMie = 3 * (1 - g2) / (3 + msDegrader + 2 * msDegrader * g2);
-    float pMie = pow(1 + data.g2 - 2 * data.anisoMie * refrU, -1.5); // multi scatter corrected cornette-shanks
-    float3 fMie = 0.9 * data.cMie * pMie * tauViewMie * trMie * twilightScatterRatio;
+    float pMie = pow(1 + lightData.g2 - 2 * lightData.anisoMie * refrU, -1.5); // multi scatter corrected cornette-shanks
+    float3 fMie = 0.9 * lightData.cMie * pMie * tauViewMie * trMie * twilightScatterRatio;
     
-    float3 fAureole = trAureole * (refrU <= 0.99999 ? data.rouMieAltCorrected * data.anisoMie / 10 / (1 - refrU) : 7.2e9 * refrU - 7.19988e9);
+    float3 fAureole = trAureole * (refrU <= 0.99999 ? data.rouMieAltCorrected * lightData.anisoMie / 10 / (1 - refrU) : 7.2e9 * refrU - 7.19988e9);
+    fAureole = 0; // TODO: analytic sun toggle + limb darkening
 
-    float3 f = phaseCommon * (max(max(fRayleigh/ venusBeltHorScaleCoeff, data.fRayleighZenith), data.deepTwilightCutoff) + fMie + fAureole);
+    const static float3 fRayleighZenith = 0; //  TODO
+    float3 f = phaseCommon * (max(max(fRayleigh/ venusBeltHorScaleCoeff, fRayleighZenith), deepTwilightCutoff) + fMie + fAureole) ;
     f *= float3((f.r / f.g - 1) * data.vividness + 1, 1, (f.b / f.g - 1) * data.vividness + 1);
-    f *= data.sunColor;
- 
-    f = f / (1 + f);   
+    f *= lightData.lightColor;
+
+    return f;
+}
+
+float3 SkyOzlem(float3 viewDir)
+{
+    SharedData::ParametricSkyData data = SharedData::parametricSkyData;
+    float altitude = data.altitude;
+
+    // Many of the commented lines below are ones that can be calculated on CPU
+    // They were left here to make it easier to understand the algorithm
+    float3 fSun = DirlightOzlem(viewDir, data.sunData);
+    
+    float3 f = fSun;
+    if (data.tonemapper == 1)
+        f = Color::LinearToGamma(f);
+    else
+        f = f / (1 + f);
     
     return f;
 }

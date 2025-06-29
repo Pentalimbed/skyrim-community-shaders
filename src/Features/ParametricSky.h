@@ -42,47 +42,57 @@ struct ParametricSky : public Feature
 	////////////////////////////////////////////////// Feature Specific Data
 	struct Settings
 	{
+		bool enabled = true;
+		bool clearSky = false;
 		float3 sunColor = float3{ 1.f, 1.f, 1.f };
 		float ozoneDu = 300.f;
 		float turbidity = 2.f;
 		float vividness = 0.f;
+		int tonemapper = 2;
+		float vanillaMix = 0;
 	} settings;
 	bool enablePositioner = false;
 	float positSunZenith = 0;
 	float positSunAzimuth = 0;
 
-	struct CbData
+	struct PerDirLight
 	{
-		float altitude;
-		float3 sunColor;
-		float2 sunAngles;  // point towards sun, x: azimuth, y: cos zenith
-		float turbidity;
-		float vividness;  //
-		float fRayleighZenith;
-
-		float cosHorDownshift;
-		float altDecayRayleigh;
-		float altDecayMie;
-
-		float3 rouMie;
-		float rouMieAltCorrected;
-
-		float3 tauSunOzone;
-		float msDegrader;
-		float3 tauSunRayleigh;
-		float cRayleigh;
-		float3 tauSunMie;
-		float anisoMie;
-
-		float horDownshift;
-		float g2;
-		float cMie;
-		float deepTwilightCutoff;
-
+		float3 lightColor;
+		float twilightLum;
+		float2 lightAngles;  // point towards sun, x: azimuth, y: cos zenith
 		float twilightVertScale;
 		float twilightDarkness;
-		float venusBeltShadowThres;
-		float venusBeltAltCorrection;
+		float3 tauSunOzone;
+		float anisoMie;
+		float3 tauSunRayleigh;
+		float g2;
+		float3 tauSunMie;
+		float cMie;
+	};
+	static_assert(sizeof(PerDirLight) % 16 == 0);
+
+	struct CbData
+	{
+		PerDirLight sunData;
+
+		uint enabled;
+		uint clearSky;
+		float altitude;
+		float turbidity;
+		float vividness;
+		int tonemapper;
+		float vanillaMix;
+		float _pad0;
+
+		float cosHorDownshift;
+		float horDownshift;
+		float altDecayRayleigh;
+		float altDecayMie;
+		float3 rouMie;
+		float rouMieAltCorrected;
+		float msDegrader;
+		float cRayleigh;
+		float2 _pad1;
 	} cbData;
 	static_assert(sizeof(CbData) % 16 == 0);
 };

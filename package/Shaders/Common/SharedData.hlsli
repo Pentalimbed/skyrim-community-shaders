@@ -192,37 +192,43 @@ namespace SharedData
 		float Strength;      // [0, 1.0] The inverse blend weight of the effect
 	};
 
+	struct ParametricSkyPerDirLight
+	{
+		float3 lightColor;
+		float _pad0;
+		float2 lightAngles;  // point towards sun, x: azimuth, y: cos zenith
+		float twilightVertScale;
+		float twilightDarkness;
+		float3 tauSunOzone;
+		float anisoMie;
+		float3 tauSunRayleigh;
+		float g2;
+		float3 tauSunMie;
+		float cMie;
+	};
+
 	struct ParametricSkyData
 	{
+		ParametricSkyPerDirLight sunData;
+
+		uint enabled;
+		uint clearSky;
 		float altitude;
-		float3 sunColor;
-		float2 sunAngles; // point towards sun, x: azimuth, y: cos zenith
 		float turbidity;
 		float vividness;
-		float fRayleighZenith;
-		float cosHorDownshift;
+		int tonemapper;
+		float vanillaMix;
+		float _pad0;
 
+		float cosHorDownshift;
+		float horDownshift;
 		float altDecayRayleigh;
 		float altDecayMie;
 		float3 rouMie;
 		float rouMieAltCorrected;
-
-		float3 tauSunOzone;
 		float msDegrader;
-		float3 tauSunRayleigh;
 		float cRayleigh;
-		float3 tauSunMie;
-		float anisoMie;
-
-		float horDownshift;
-		float g2;
-		float cMie;
-		float deepTwilightCutoff;
-
-		float twilightVertScale;
-		float twilightDarkness;
-		float venusBeltShadowThres;
-		float venusBeltAltCorrection;
+		float2 _pad1;
 	};
 
 	cbuffer FeatureData : register(b6)

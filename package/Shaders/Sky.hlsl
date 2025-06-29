@@ -248,11 +248,16 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif  // OCCLUSION
 
 #	if defined(PARAMETRIC_SKY)
+	if (SharedData::parametricSkyData.enabled) {
 #		if defined(DITHER) && !defined(TEX) // sky
-	psout.Color.xyz = ParametricSky::SkyOzlem(normalize(input.WorldPosition.xyz));
+		psout.Color.xyz = lerp(ParametricSky::SkyOzlem(normalize(input.WorldPosition.xyz)), psout.Color.xyz, SharedData::parametricSkyData.vanillaMix) ;
 // #		elif !(defined(TEX) && defined(CLOUDS))
-// 	discard;
+// 		discard;
+#		else
+		if (SharedData::parametricSkyData.clearSky) 
+			discard;
 #		endif
+	}
 #	endif
 
 	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
