@@ -29,10 +29,20 @@ void ParametricSky::SaveSettings(json& o_json)
 
 void ParametricSky::DrawSettings()
 {
-	ImGui::ColorEdit3("Multiplier", &settings.sunColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
+	ImGui::ColorEdit3("Multiplier", &settings.sunColor.x, ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_DisplayHSV | ImGuiColorEditFlags_Float);
 	ImGui::SliderFloat("Ozone Thickness", &settings.ozoneDu, 250.f, 450.f, "%.1f Dobson Unit");
-	ImGui::SliderFloat("Turbidity", &settings.turbidity, 1.f, 50.f, "%.2f");
+	ImGui::SliderFloat("Turbidity", &settings.turbidity, 1.f, 64.f, "%.2f");
 	ImGui::SliderFloat("Vividness", &settings.vividness, 0.f, 1.f, "%.2f");
+
+	ImGui::SeparatorText("Debug");
+
+	ImGui::Checkbox("Celestial Positioner", &enablePositioner);
+	if (!enablePositioner)
+		ImGui::BeginDisabled();
+	ImGui::SliderAngle("Sun Zenith", &positSunZenith, 0, 180);
+	ImGui::SliderAngle("Sun Azimuth", &positSunAzimuth, 0, 360);
+	if (!enablePositioner)
+		ImGui::EndDisabled();
 }
 
 void ParametricSky::Reset()
@@ -47,12 +57,16 @@ void ParametricSky::Reset()
 		posCam = cam->cameraRoot->world.translate;
 
 	RE::NiPoint3 lightDir = { 0, 0, 0 };
-	auto dirLight = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
-	if (dirLight)
-		lightDir = -dirLight->GetWorldDirection();
+	if (enablePositioner) {
+		lightDir = { cos(positSunAzimuth) * sin(positSunZenith), sin(positSunAzimuth) * sin(positSunZenith), cos(positSunZenith) };
+	} else {
+		auto dirLight = skyrim_cast<RE::NiDirectionalLight*>(accumulator->GetRuntimeData().activeShadowSceneNode->GetRuntimeData().sunLight->light.get());
+		if (dirLight)
+			lightDir = -dirLight->GetWorldDirection();
+	}
 
 	cbData = {
-		.altitude = (posCam.z + 14000) * kGameUnit2Km,
+		.altitude = (posCam.z + 14500) * kGameUnit2Km,
 		.sunColor = settings.sunColor,
 		.sunAngles = float2(atan2(lightDir.y, lightDir.x), lightDir.z),
 		.ozoneDu = settings.ozoneDu,

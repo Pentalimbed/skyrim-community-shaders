@@ -47,6 +47,9 @@ struct ParametricSky : public Feature
 		float turbidity = 2.f;
 		float vividness = 0.f;
 	} settings;
+	bool enablePositioner = false;
+	float positSunZenith = 0;
+	float positSunAzimuth = 0;
 
 	struct CbData
 	{

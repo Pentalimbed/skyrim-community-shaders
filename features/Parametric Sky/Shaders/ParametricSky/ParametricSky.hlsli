@@ -26,8 +26,10 @@ float RelativeAirMass(float theta, float rRel){
 float3 SkyOzlem(float3 viewDir)
 {
     SharedData::ParametricSkyData data = SharedData::parametricSkyData;
-    data.sunColor = 1;
     float altitude = data.altitude;
+
+    // Many of the commented lines below are ones that can be calculated on CPU
+    // They were left here to make it easier to understand the algorithm
 
     // Zenith angles
     float cosView = viewDir.z;
@@ -58,7 +60,7 @@ float3 SkyOzlem(float3 viewDir)
     float amSunMie = min(RelativeAirMass(cosSun, rMieRel), maMieCap) * altDecayMie;
 
     // refraction corrected incidence
-    float refrZenithView = acos(cosView) + amViewRayleigh / 57;
+    float refrZenithView = acos(cosView) + radians(amViewRayleigh / 57);
     float2 refrSinCos;
     sincos(refrZenithView, refrSinCos.x, refrSinCos.y);
     float refrU = sinSun * refrSinCos.x * cos(azimuthView - azimuthSun) + cosSun * refrSinCos.y;
@@ -78,7 +80,7 @@ float3 SkyOzlem(float3 viewDir)
     float3 tauSunRayleigh = rouRayleigh * amSunRayleigh;
     float3 tauSunMie = rouMie * amSunMie;
 
-    // multis catter corrected transmittance
+    // multi scatter corrected transmittance
     float3 trRayleigh = 2 / (2 + sqrt(tauViewRayleigh * tauSunRayleigh));
     float3 trMie = exp(-sqrt(tauViewMie * tauSunMie) / 6);
     // single scatter transmittance around sun disc
@@ -121,7 +123,9 @@ float3 SkyOzlem(float3 viewDir)
     float3 f = phaseCommon * (max(max(fRayleigh/ venusBeltHorScaleCoeff, data.fRayleighZenith), deepTwilightCutoff) + fMie + fAureole);
     f *= float3((f.r / f.g - 1) * data.vividness + 1, 1, (f.b / f.g - 1) * data.vividness + 1);
     f *= data.sunColor;
-
+ 
+    f = f / (1 + f);   
+    
     return f;
 }
 }

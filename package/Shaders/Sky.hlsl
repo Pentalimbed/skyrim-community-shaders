@@ -247,10 +247,12 @@ PS_OUTPUT main(PS_INPUT input)
 	psout.Color = float4(0, 0, 0, 1.0);
 #	endif  // OCCLUSION
 
-#	if defined(DITHER) && !defined(TEX)
-	float3 skyLinear = ParametricSky::SkyOzlem(normalize(input.WorldPosition.xyz));
-	// psout.Color.xyz = Color::LinearToGamma(skyLinear);
-	psout.Color.xyz = skyLinear / (1 + skyLinear);
+#	if defined(PARAMETRIC_SKY)
+#		if defined(DITHER) && !defined(TEX) // sky
+	psout.Color.xyz = ParametricSky::SkyOzlem(normalize(input.WorldPosition.xyz));
+// #		elif !(defined(TEX) && defined(CLOUDS))
+// 	discard;
+#		endif
 #	endif
 
 	float2 screenMotionVector = MotionBlur::GetSSMotionVector(input.WorldPosition, input.PreviousWorldPosition, eyeIndex);
