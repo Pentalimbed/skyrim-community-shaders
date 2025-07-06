@@ -114,7 +114,6 @@ float3 DirlightOzlem(float3 viewDir, SharedData::ParametricSkyPerDirLight lightD
     float3 fMie = 0.9 * lightData.cMie * pMie * tauViewMie * trMie * twilightScatterRatio;
     
     float3 fAureole = trAureole * (refrU <= 0.99999 ? data.rouMieAltCorrected * lightData.anisoMie / 10 / (1 - refrU) : 7.2e9 * refrU - 7.19988e9);
-    fAureole = 0; // TODO: analytic sun toggle + limb darkening
 
     const static float3 fRayleighZenith = 0; //  TODO
     float3 f = phaseCommon * (max(max(fRayleigh/ venusBeltHorScaleCoeff, fRayleighZenith), deepTwilightCutoff) + fMie + fAureole) ;
