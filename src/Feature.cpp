@@ -2,6 +2,7 @@
 
 #include "FeatureIssues.h"
 #include "FeatureVersions.h"
+#include "Features/AdvancedWeather.h"
 #include "Features/CloudShadows.h"
 #include "Features/DynamicCubemaps.h"
 #include "Features/ExponentialHeightFog.h"
@@ -243,7 +244,8 @@ const std::vector<Feature*>& Feature::GetFeatureList()
 		&globals::features::linearLighting,
 		&globals::features::unifiedWater,
 		&globals::features::exponentialHeightFog,
-		&globals::features::hdrDisplay
+		&globals::features::hdrDisplay,
+		&globals::features::advancedWeather
 	};
 
 	if (REL::Module::IsVR()) {

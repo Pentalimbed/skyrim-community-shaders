@@ -4,6 +4,7 @@
 
 struct CloudShadows;
 struct DynamicCubemaps;
+struct AdvancedWeather;
 struct VolumetricShadows;
 struct ExtendedMaterials;
 struct GrassCollision;
@@ -94,6 +95,7 @@ namespace globals
 		extern WeatherEditor weatherEditor;
 		extern ExponentialHeightFog exponentialHeightFog;
 		extern TruePBR truePBR;
+		extern AdvancedWeather advancedWeather;
 
 		namespace llf
 		{
